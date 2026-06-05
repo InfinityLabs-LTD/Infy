@@ -1,0 +1,41 @@
+{
+  "name": "infy-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "migrate": "prisma migrate deploy",
+    "migrate:dev": "prisma migrate dev",
+    "generate": "prisma generate",
+    "studio": "prisma studio"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.1",
+    "@socket.io/redis-adapter": "^8.3.0",
+    "socket.io": "^4.8.1",
+    "@fastify/helmet": "^11.1.1",
+    "@fastify/multipart": "^8.3.0",
+    "@fastify/rate-limit": "^9.1.0",
+    "@fastify/swagger": "^8.15.0",
+    "@fastify/swagger-ui": "^4.0.1",
+    "@prisma/client": "^5.22.0",
+    "argon2": "^0.41.1",
+    "fastify": "^4.29.0",
+    "fastify-plugin": "^4.5.1",
+    "ioredis": "^5.4.1",
+    "pino-pretty": "^13.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "minio": "^8.0.2",
+    "uuidv7": "^1.0.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.0",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

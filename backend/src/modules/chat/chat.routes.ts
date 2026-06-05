@@ -1,0 +1,173 @@
+import { FastifyPluginAsync } from 'fastify'
+import { z } from 'zod'
+import { authenticate } from '../../middleware/authenticate.js'
+import * as ChatService from './chat.service.js'
+import { publishMessage } from '../../lib/pubsub.js'
+
+const chatRoutes: FastifyPluginAsync = async (app) => {
+  app.addHook('preHandler', authenticate)
+
+  // GET /chats — list user's chats
+  app.get('/', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'List chats',
+      security: [{ bearerAuth: [] }],
+    },
+  }, async (request) => {
+    const userId = BigInt(request.user.sub)
+    const chats = await ChatService.listChats(app.prisma, userId)
+    return { data: chats }
+  })
+
+  // POST /chats — create or get direct chat with a user
+  app.post('/', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'Create or get direct chat',
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['partnerId'],
+        properties: {
+          partnerId: { type: 'string', description: 'User id of the chat partner' },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const { partnerId } = z.object({ partnerId: z.string() }).parse(request.body)
+    const userId = BigInt(request.user.sub)
+    const chat = await ChatService.getOrCreateDirectChat(app.prisma, userId, BigInt(partnerId))
+    return reply.code(201).send({ data: ChatService.serializeChat(chat as Parameters<typeof ChatService.serializeChat>[0], userId) })
+  })
+
+  // GET /chats/:id/messages — paginated history
+  app.get('/:id/messages', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'Get message history (cursor-based)',
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: 'object',
+        properties: { id: { type: 'string' } },
+      },
+      querystring: {
+        type: 'object',
+        properties: {
+          cursor: { type: 'string' },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+        },
+      },
+    },
+  }, async (request) => {
+    const { id } = request.params as { id: string }
+    const { cursor, limit } = (request.query as { cursor?: string; limit?: number })
+    const userId = BigInt(request.user.sub)
+    const result = await ChatService.getMessages(app.prisma, id, userId, cursor, limit ?? 50)
+    return { data: result }
+  })
+
+  // POST /chats/:id/messages — send message via REST (also publishes to Redis)
+  app.post('/:id/messages', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'Send a message (text or media)',
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: 'object',
+        properties: { id: { type: 'string' } },
+      },
+      body: {
+        type: 'object',
+        properties: {
+          content: { type: 'string', minLength: 1, maxLength: 4000 },
+          type: { type: 'string', enum: ['TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'CIRCLE_VIDEO'] },
+          attachment: {
+            type: 'object',
+            properties: {
+              storageKey:   { type: 'string' },
+              thumbnailKey: { type: 'string' },
+              mimeType:     { type: 'string' },
+              sizeBytes:    { type: 'number' },
+              width:        { type: 'number' },
+              height:       { type: 'number' },
+              durationMs:   { type: 'number' },
+              waveform:     { type: 'array', items: { type: 'number' } },
+            },
+          },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const attachmentSchema = z.object({
+      storageKey:   z.string(),
+      thumbnailKey: z.string().optional(),
+      mimeType:     z.string(),
+      sizeBytes:    z.number(),
+      width:        z.number().optional(),
+      height:       z.number().optional(),
+      durationMs:   z.number().optional(),
+      waveform:     z.array(z.number()).optional(),
+    })
+    const input = z.object({
+      content: z.string().min(1).max(4000).optional(),
+      type: z.enum(['TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'CIRCLE_VIDEO']).optional(),
+      attachment: attachmentSchema.optional(),
+    }).parse(request.body)
+
+    const userId = BigInt(request.user.sub)
+    const message = await ChatService.sendMessage(app.prisma, id, userId, input)
+
+    // Publish to Redis so realtime service can push to WS clients
+    await publishMessage(app.redis, 'chat:message', { event: 'message_new', data: message })
+
+    return reply.code(201).send({ data: message })
+  })
+
+  // PATCH /messages/:id — edit message
+  app.patch('/messages/:id', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'Edit a message',
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: 'object',
+        properties: { id: { type: 'string' } },
+      },
+      body: {
+        type: 'object',
+        required: ['content'],
+        properties: { content: { type: 'string', minLength: 1, maxLength: 4000 } },
+      },
+    },
+  }, async (request) => {
+    const { id } = request.params as { id: string }
+    const { content } = z.object({ content: z.string().min(1).max(4000) }).parse(request.body)
+    const userId = BigInt(request.user.sub)
+    const message = await ChatService.editMessage(app.prisma, id, userId, content)
+    await publishMessage(app.redis, 'chat:message', { event: 'message_edited', data: message })
+    return { data: message }
+  })
+
+  // DELETE /messages/:id — soft delete
+  app.delete('/messages/:id', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'Delete a message',
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: 'object',
+        properties: { id: { type: 'string' } },
+      },
+    },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const userId = BigInt(request.user.sub)
+    const result = await ChatService.deleteMessage(app.prisma, id, userId)
+    await publishMessage(app.redis, 'chat:message', { event: 'message_deleted', data: result })
+    return reply.code(204).send()
+  })
+}
+
+export default chatRoutes

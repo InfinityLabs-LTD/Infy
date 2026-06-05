@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ChatType {
+  DIRECT
+  GROUP
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  CIRCLE_VIDEO
+}
+
+model User {
+  id              BigInt    @id @default(autoincrement())
+  username        String    @unique @db.VarChar(32)
+  nickname        String    @db.VarChar(64)
+  birthdate       DateTime? @db.Date
+  avatarUrl       String?
+  passwordHash    String
+  email           String?   @unique @db.VarChar(255)
+  emailVerifiedAt DateTime?
+  role            Role      @default(USER)
+  createdAt       DateTime  @default(now())
+  lastSeenAt      DateTime  @default(now())
+
+  sessions                DeviceSession[]
+  emailVerificationTokens EmailVerificationToken[]
+  chatMemberships         ChatMember[]
+  messages                Message[]
+
+  @@map("users")
+}
+
+model DeviceSession {
+  id               String    @id @default(uuid())
+  userId           BigInt
+  refreshTokenHash String    @unique
+  deviceName       String?   @db.VarChar(255)
+  userAgent        String?
+  ip               String?
+  createdAt        DateTime  @default(now())
+  lastActiveAt     DateTime  @default(now())
+  revokedAt        DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshTokenHash])
+  @@map("device_sessions")
+}
+
+// Schema only — email verification flow not yet implemented
+model EmailVerificationToken {
+  id         String    @id @default(uuid())
+  userId     BigInt
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+model Chat {
+  id        String   @id @default(uuid())
+  type      ChatType @default(DIRECT)
+  createdAt DateTime @default(now())
+
+  members  ChatMember[]
+  messages Message[]
+
+  @@map("chats")
+}
+
+model ChatMember {
+  chatId   String
+  userId   BigInt
+  joinedAt DateTime @default(now())
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([chatId, userId])
+  @@index([userId])
+  @@map("chat_members")
+}
+
+model Message {
+  id        String      @id            // UUID v7 — time-ordered
+  chatId    String
+  senderId  BigInt
+  content   String?
+  type      MessageType @default(TEXT)
+  createdAt DateTime    @default(now())
+  editedAt  DateTime?
+  deletedAt DateTime?
+
+  chat        Chat        @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender      User        @relation(fields: [senderId], references: [id])
+  attachments Attachment[]
+
+  @@index([chatId, id])   // range scan for cursor pagination
+  @@index([senderId])
+  @@map("messages")
+}
+
+model Attachment {
+  id           String  @id @default(uuid())
+  messageId    String
+  storageKey   String          // MinIO object key
+  mimeType     String
+  sizeBytes    BigInt?
+  width        Int?
+  height       Int?
+  durationMs   Int?            // audio / video
+  thumbnailKey String?         // MinIO key for generated thumbnail
+  waveform     Json?           // Float[] for audio waveform visualization
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("attachments")
+}

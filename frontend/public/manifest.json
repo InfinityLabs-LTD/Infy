@@ -1,0 +1,12 @@
+{
+  "name": "Infy Messenger",
+  "short_name": "Infy",
+  "description": "Fast, secure messaging",
+  "theme_color": "#2563eb",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "start_url": "/",
+  "icons": [
+    { "src": "/logo.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
