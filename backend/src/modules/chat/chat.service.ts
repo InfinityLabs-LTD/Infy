@@ -32,6 +32,15 @@ export async function getOrCreateDirectChat(
   const partner = await prisma.user.findUnique({ where: { id: partnerId } })
   if (!partner) throw new AppError('USER_NOT_FOUND', 'User not found', 404)
 
+  const chatInclude = {
+    members: { include: { user: true } },
+    messages: {
+      where: { deletedAt: null },
+      orderBy: { id: 'desc' as const },
+      take: 1,
+    },
+  }
+
   // Find existing direct chat between the two
   const existing = await prisma.chat.findFirst({
     where: {
@@ -42,7 +51,7 @@ export async function getOrCreateDirectChat(
         { members: { some: { userId: partnerId } } },
       ],
     },
-    include: { members: { include: { user: true } } },
+    include: chatInclude,
   })
 
   if (existing) return existing
@@ -55,7 +64,7 @@ export async function getOrCreateDirectChat(
         create: [{ userId }, { userId: partnerId }],
       },
     },
-    include: { members: { include: { user: true } } },
+    include: chatInclude,
   })
 }
 

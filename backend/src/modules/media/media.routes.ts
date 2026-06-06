@@ -9,7 +9,6 @@ const mediaRoutes: FastifyPluginAsync = async (app) => {
   // POST /media/upload
   app.post('/upload', {
     preHandler: [authenticate],
-    config: { rawBody: false },
     schema: {
       tags: ['Media'],
       summary: 'Upload a media file',
