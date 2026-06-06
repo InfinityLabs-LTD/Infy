@@ -25,34 +25,34 @@ export function MessageBubble({ message, showSenderName }: Props) {
 
   if (isCircle && att) {
     return (
-      <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-1 msg-appear`}>
+      <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-0.5 msg-appear`}>
         <div className="flex flex-col items-end gap-0.5">
           <CircleVideoMessage
             url={mediaUrl(att.publicUrl, att.storageKey)}
             thumbnailUrl={att.thumbnailKey ? mediaUrl(null, att.thumbnailKey) : null}
             durationMs={att.durationMs}
           />
-          <span className="text-[11px] text-gray-400 px-1">{time}</span>
+          <span className="text-[11px] px-1" style={{ color: '#6c8998' }}>{time}</span>
         </div>
       </div>
     )
   }
 
   return (
-    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-1 msg-appear`}>
+    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-0.5 msg-appear`}>
       <div className={`
-        max-w-[78%] rounded-2xl text-sm overflow-hidden
-        ${isMediaOnly ? '' : 'px-3.5 py-2.5'}
-        ${isOwn ? 'bubble-own rounded-br-sm' : 'bubble-other rounded-bl-sm'}
+        max-w-[78%] text-sm overflow-hidden
+        ${isMediaOnly ? '' : 'px-3 py-2'}
+        ${isOwn ? 'bubble-own' : 'bubble-other'}
       `}>
         {showSenderName && !isOwn && (
-          <p className="text-xs font-semibold text-primary-500 mb-0.5 px-3.5 pt-2">
+          <p className="text-xs font-semibold mb-0.5 px-3 pt-2" style={{ color: '#2aabee' }}>
             {message.sender.nickname}
           </p>
         )}
 
         {att && (
-          <div className={isMediaOnly ? '' : 'mb-2'}>
+          <div className={isMediaOnly ? '' : 'mb-1.5'}>
             {message.type === 'IMAGE' && (
               <ImageMessage
                 url={mediaUrl(att.publicUrl, att.storageKey)}
@@ -68,7 +68,7 @@ export function MessageBubble({ message, showSenderName }: Props) {
               />
             )}
             {message.type === 'AUDIO' && (
-              <div className="px-3.5 py-2">
+              <div className="px-3 py-2">
                 <AudioMessage
                   url={mediaUrl(att.publicUrl, att.storageKey)}
                   durationMs={att.durationMs}
@@ -81,16 +81,24 @@ export function MessageBubble({ message, showSenderName }: Props) {
         )}
 
         {message.content && (
-          <p className={`whitespace-pre-wrap break-words leading-relaxed ${isMediaOnly ? 'px-3.5 pb-2' : ''}`}>
+          <p className={`whitespace-pre-wrap break-words leading-relaxed ${isMediaOnly ? 'px-3 pb-2' : ''}`}>
             {message.content}
           </p>
         )}
 
-        <div className={`flex items-center justify-end gap-1 mt-0.5 ${isMediaOnly ? 'px-3.5 pb-2' : ''} ${
-          isOwn ? 'text-white/55' : 'text-gray-400'
-        }`}>
-          {message.editedAt && <span className="text-[10px] italic">изм.</span>}
-          <span className="text-[11px]">{time}</span>
+        {/* Time row — Telegram style: right-aligned, inside bubble */}
+        <div className={`flex items-center justify-end gap-1 mt-0.5 ${isMediaOnly ? 'px-3 pb-2' : ''}`}>
+          {message.editedAt && (
+            <span className="text-[10px] italic" style={{ color: isOwn ? 'rgba(255,255,255,0.5)' : '#6c8998' }}>изм.</span>
+          )}
+          <span className="text-[11px]" style={{ color: isOwn ? 'rgba(255,255,255,0.55)' : '#6c8998' }}>
+            {time}
+          </span>
+          {isOwn && (
+            <svg width="15" height="10" viewBox="0 0 15 10" fill="none" style={{ opacity: 0.65 }}>
+              <path d="M1 5l3.5 3.5L13 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
         </div>
       </div>
     </div>
@@ -98,10 +106,9 @@ export function MessageBubble({ message, showSenderName }: Props) {
 }
 
 function mediaUrl(publicUrl: string | null | undefined, storageKey: string): string {
-  // Skip internal Docker URLs (minio:9000, localhost:9000)
   if (publicUrl && !publicUrl.includes('minio:') && !publicUrl.includes('localhost:9000')) {
     if (publicUrl.startsWith('/')) return withToken(publicUrl)
-    return publicUrl  // presigned or external URL
+    return publicUrl
   }
   const apiUrl = import.meta.env.VITE_API_URL ?? '/api'
   const encoded = btoa(storageKey).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')

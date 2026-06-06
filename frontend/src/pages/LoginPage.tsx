@@ -30,25 +30,28 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-primary-900 via-primary-800 to-sidebar">
+    <div className="min-h-screen flex" style={{ background: '#0e1621' }}>
       {/* Left decorative panel */}
-      <div className="hidden lg:flex flex-1 flex-col items-center justify-center p-12 text-white">
-        <div className="mb-8">
-          <div className="w-20 h-20 rounded-3xl bg-white/10 backdrop-blur flex items-center justify-center mb-6">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5">
+      <div className="hidden lg:flex flex-1 flex-col items-center justify-center p-12 text-white"
+        style={{ background: '#17212b', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="mb-10">
+          <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-6"
+            style={{ background: 'rgba(42,171,238,0.15)', border: '1px solid rgba(42,171,238,0.2)' }}>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="1.5">
               <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
             </svg>
           </div>
           <h1 className="text-4xl font-bold mb-3">Infy Messenger</h1>
-          <p className="text-white/60 text-lg leading-relaxed max-w-sm">
+          <p className="text-lg leading-relaxed max-w-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
             Современный мессенджер для общения с близкими и коллегами
           </p>
         </div>
         <div className="space-y-3 w-full max-w-sm">
-          {['Мгновенные сообщения', 'Голосовые и видео сообщения', 'Безопасное хранение данных'].map(f => (
-            <div key={f} className="flex items-center gap-3 text-white/70">
-              <div className="w-5 h-5 rounded-full bg-primary-400/30 flex items-center justify-center shrink-0">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+          {['Мгновенные сообщения', 'Голосовые и видеосообщения', 'Безопасное хранение данных'].map(f => (
+            <div key={f} className="flex items-center gap-3" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                style={{ background: 'rgba(42,171,238,0.2)' }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="3">
                   <polyline points="20 6 9 17 4 12"/>
                 </svg>
               </div>
@@ -59,16 +62,17 @@ export function LoginPage() {
       </div>
 
       {/* Right form panel */}
-      <div className="w-full lg:w-[420px] flex items-center justify-center p-6 bg-white lg:rounded-l-3xl">
+      <div className="w-full lg:w-[420px] flex items-center justify-center p-6" style={{ background: '#0e1621' }}>
         <div className="w-full max-w-sm">
           <div className="mb-8">
-            <div className="w-12 h-12 rounded-2xl bg-primary-600 flex items-center justify-center mb-4 lg:hidden">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4 lg:hidden"
+              style={{ background: 'rgba(42,171,238,0.15)', border: '1px solid rgba(42,171,238,0.2)' }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="2">
                 <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
               </svg>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900">С возвращением!</h2>
-            <p className="text-gray-500 mt-1">Войдите в свой аккаунт</p>
+            <h2 className="text-2xl font-bold text-white">С возвращением!</h2>
+            <p className="mt-1" style={{ color: '#6c8998' }}>Войдите в свой аккаунт</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -90,9 +94,9 @@ export function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-gray-500 mt-6">
+          <p className="text-center text-sm mt-6" style={{ color: '#6c8998' }}>
             Нет аккаунта?{' '}
-            <Link to="/register" className="text-primary-600 font-semibold hover:text-primary-700">
+            <Link to="/register" className="font-semibold" style={{ color: '#2aabee' }}>
               Создать аккаунт
             </Link>
           </p>

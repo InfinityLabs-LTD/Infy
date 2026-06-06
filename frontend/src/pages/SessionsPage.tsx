@@ -15,16 +15,12 @@ export function SessionsPage() {
   const [revoking, setRevoking] = useState<string | null>(null)
 
   async function load() {
-    setLoading(true)
-    setError(null)
+    setLoading(true); setError(null)
     try {
       const res = await sessionsApi.list()
       setSessions(res.data.data)
-    } catch (err) {
-      setError(err)
-    } finally {
-      setLoading(false)
-    }
+    } catch (err) { setError(err) }
+    finally { setLoading(false) }
   }
 
   useEffect(() => { load() }, [])
@@ -34,17 +30,10 @@ export function SessionsPage() {
     setRevoking(id)
     try {
       await sessionsApi.revoke(id)
-      if (isCurrent) {
-        logout()
-        navigate('/login')
-        return
-      }
+      if (isCurrent) { logout(); navigate('/login'); return }
       setSessions((prev) => prev.filter((s) => s.id !== id))
-    } catch (err) {
-      setError(err)
-    } finally {
-      setRevoking(null)
-    }
+    } catch (err) { setError(err) }
+    finally { setRevoking(null) }
   }
 
   async function revokeAll() {
@@ -52,25 +41,28 @@ export function SessionsPage() {
     try {
       await sessionsApi.logoutAll(true)
       await load()
-    } catch (err) {
-      setError(err)
-    }
+    } catch (err) { setError(err) }
   }
 
   const otherCount = sessions.filter((s) => !s.isCurrent).length
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b px-4 py-3 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="btn-ghost p-1">
+    <div className="min-h-screen" style={{ background: '#0e1621' }}>
+      <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-3"
+        style={{ background: '#17212b', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <button onClick={() => navigate(-1)}
+          className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors -ml-1"
+          style={{ color: 'rgba(255,255,255,0.5)' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M19 12H5M12 5l-7 7 7 7"/>
           </svg>
         </button>
-        <h1 className="text-lg font-semibold">Мои устройства</h1>
+        <h1 className="text-base font-semibold text-white">Мои устройства</h1>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 py-8 space-y-4">
+      <div className="max-w-lg mx-auto px-4 py-5 space-y-3">
         {error !== null && <ErrorMessage error={error} />}
 
         {loading ? (
@@ -78,58 +70,59 @@ export function SessionsPage() {
         ) : (
           <>
             {sessions.map((session) => (
-              <div key={session.id} className="card flex items-start justify-between gap-4">
+              <div key={session.id} className="flex items-start justify-between gap-4 rounded-2xl p-4"
+                style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <DeviceIcon />
-                    <span className="font-medium text-sm truncate">
+                  <div className="flex items-center gap-2 mb-1">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c8998" strokeWidth="2" className="shrink-0">
+                      <rect x="2" y="3" width="20" height="14" rx="2"/>
+                      <path d="M8 21h8M12 17v4"/>
+                    </svg>
+                    <span className="font-medium text-sm text-white truncate">
                       {session.deviceName ?? 'Неизвестное устройство'}
                     </span>
                     {session.isCurrent && (
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0"
+                        style={{ background: 'rgba(74,222,128,0.15)', color: '#4ade80' }}>
                         Текущий
                       </span>
                     )}
                   </div>
                   {session.userAgent && (
-                    <p className="text-xs text-gray-400 mt-1 truncate">{session.userAgent}</p>
+                    <p className="text-xs truncate mb-0.5" style={{ color: '#6c8998' }}>{session.userAgent}</p>
                   )}
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs" style={{ color: '#6c8998' }}>
                     {session.ip && `${session.ip} · `}
-                    Последняя активность {new Date(session.lastActiveAt).toLocaleDateString('ru-RU')}
+                    Активность {new Date(session.lastActiveAt).toLocaleDateString('ru-RU')}
                   </p>
                 </div>
                 <button
                   onClick={() => revoke(session.id, session.isCurrent)}
                   disabled={revoking === session.id}
-                  className="shrink-0 text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-50"
-                >
+                  className="shrink-0 text-xs font-medium disabled:opacity-50 transition-colors"
+                  style={{ color: '#fc8181' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
+                  onMouseLeave={e => (e.currentTarget.style.color = '#fc8181')}>
                   {revoking === session.id ? <Spinner size={14} /> : 'Завершить'}
                 </button>
               </div>
             ))}
 
             {otherCount > 0 && (
-              <button onClick={revokeAll} className="btn-ghost w-full text-red-500 mt-2">
+              <button onClick={revokeAll} className="w-full py-3 rounded-2xl text-sm font-medium transition-colors"
+                style={{ color: '#fc8181', border: '1px solid rgba(239,68,68,0.2)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.08)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                 Выйти со всех других устройств ({otherCount})
               </button>
             )}
 
             {sessions.length === 0 && (
-              <p className="text-center text-gray-400 py-8">Нет активных сессий</p>
+              <p className="text-center py-8" style={{ color: '#6c8998' }}>Нет активных сессий</p>
             )}
           </>
         )}
       </div>
     </div>
-  )
-}
-
-function DeviceIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400 shrink-0">
-      <rect x="2" y="3" width="20" height="14" rx="2"/>
-      <path d="M8 21h8M12 17v4"/>
-    </svg>
   )
 }

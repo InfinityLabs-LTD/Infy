@@ -4,27 +4,21 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: {
-          50:  '#f5f3ff',
-          100: '#ede9fe',
-          200: '#ddd6fe',
-          300: '#c4b5fd',
-          400: '#a78bfa',
-          500: '#8b5cf6',
-          600: '#7c3aed',
-          700: '#6d28d9',
-          800: '#5b21b6',
-          900: '#4c1d95',
+        tg: {
+          bg:      '#0e1621',
+          sidebar: '#17212b',
+          hover:   '#202e3e',
+          active:  '#2b5278',
+          own:     '#2b5278',
+          other:   '#182533',
+          header:  '#17212b',
+          input:   '#242f3d',
+          accent:  '#2aabee',
+          muted:   '#6c8998',
+          border:  '#0e1621',
+          search:  '#1c2b3a',
+          date:    '#182533',
         },
-        sidebar: {
-          DEFAULT: '#13002b',
-          hover:   '#1e0040',
-          active:  '#2d0060',
-          border:  '#2a0050',
-        },
-      },
-      boxShadow: {
-        msg: '0 1px 2px rgba(0,0,0,0.08)',
       },
     },
   },

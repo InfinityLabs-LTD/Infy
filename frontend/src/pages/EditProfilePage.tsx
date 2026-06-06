@@ -27,8 +27,7 @@ export function EditProfilePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setLoading(true)
-    setError(null)
+    setLoading(true); setError(null)
     try {
       const res = await profileApi.updateMe({
         nickname: form.nickname || undefined,
@@ -37,76 +36,58 @@ export function EditProfilePage() {
       })
       setUser(res.data.data)
       navigate('/profile')
-    } catch (err) {
-      setError(err)
-    } finally {
-      setLoading(false)
-    }
+    } catch (err) { setError(err) }
+    finally { setLoading(false) }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b px-4 py-3 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="btn-ghost p-1">
+    <div className="min-h-screen" style={{ background: '#0e1621' }}>
+      <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-3"
+        style={{ background: '#17212b', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <button onClick={() => navigate(-1)}
+          className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors -ml-1"
+          style={{ color: 'rgba(255,255,255,0.5)' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M19 12H5M12 5l-7 7 7 7"/>
           </svg>
         </button>
-        <h1 className="text-lg font-semibold">Редактировать профиль</h1>
+        <h1 className="text-base font-semibold text-white">Редактировать профиль</h1>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 py-8">
-        <div className="card">
+      <div className="max-w-lg mx-auto px-4 py-5">
+        <div className="rounded-2xl p-5" style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error !== null && <ErrorMessage error={error} />}
 
             <div>
               <label className="label">Отображаемое имя</label>
-              <input
-                className="input"
-                type="text"
-                value={form.nickname}
-                onChange={set('nickname')}
-                maxLength={64}
-                required
-              />
+              <input className="input" type="text" value={form.nickname}
+                onChange={set('nickname')} maxLength={64} required />
             </div>
 
             <div>
               <label className="label">Имя пользователя</label>
-              <input
-                className="input"
-                type="text"
-                value={form.username}
-                onChange={set('username')}
-                pattern="[a-z0-9_]+"
-                minLength={3}
-                maxLength={32}
-                required
-              />
-              <p className="text-xs text-gray-400 mt-1">3–32 символа, строчные буквы, цифры, _</p>
+              <input className="input" type="text" value={form.username}
+                onChange={set('username')} pattern="[a-z0-9_]+" minLength={3} maxLength={32} required />
+              <p className="text-xs mt-1" style={{ color: '#6c8998' }}>3–32 символа, строчные буквы, цифры, _</p>
             </div>
 
             <div>
-              <label className="label">Дата рождения <span className="text-gray-400">(необязательно)</span></label>
-              <input
-                className="input"
-                type="date"
-                value={form.birthdate}
-                onChange={set('birthdate')}
-              />
+              <label className="label">Дата рождения <span className="font-normal" style={{ color: '#6c8998' }}>(необязательно)</span></label>
+              <input className="input" type="date" value={form.birthdate} onChange={set('birthdate')} />
             </div>
 
             <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => navigate(-1)}
-                className="btn-ghost flex-1"
-                disabled={loading}
-              >
+              <button type="button" onClick={() => navigate(-1)} disabled={loading}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                style={{ color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                 Отмена
               </button>
-              <button type="submit" className="btn-primary flex-1" disabled={loading}>
+              <button type="submit" className="btn-primary flex-1 py-2.5" disabled={loading}>
                 {loading ? <Spinner size={18} /> : 'Сохранить'}
               </button>
             </div>

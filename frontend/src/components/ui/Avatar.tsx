@@ -1,6 +1,5 @@
 const COLORS = [
-  'bg-primary-600', 'bg-violet-600', 'bg-indigo-600',
-  'bg-purple-700', 'bg-fuchsia-600', 'bg-pink-600',
+  '#2b5278', '#1e6fa6', '#1a6b4e', '#5a3e8f', '#8c4a2f', '#2d6b6b',
 ]
 
 function colorFor(name: string) {
@@ -37,8 +36,8 @@ export function Avatar({ url, nickname, size = 40, rounded = 'full' }: AvatarPro
 
   return (
     <div
-      style={{ width: size, height: size, minWidth: size, fontSize: size * 0.38 }}
-      className={`${rClass} ${colorFor(nickname)} text-white flex items-center justify-center font-semibold select-none`}
+      style={{ width: size, height: size, minWidth: size, fontSize: size * 0.38, background: colorFor(nickname) }}
+      className={`${rClass} text-white flex items-center justify-center font-semibold select-none`}
     >
       {initials}
     </div>

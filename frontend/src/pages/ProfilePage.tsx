@@ -31,41 +31,49 @@ export function ProfilePage() {
   const roleLabel: Record<string, string> = { USER: 'Пользователь', ADMIN: 'Администратор' }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ background: '#0e1621' }}>
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-10">
+      <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-3"
+        style={{ background: '#17212b', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
         <button onClick={() => navigate(-1)}
-          className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors -ml-1">
+          className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors -ml-1"
+          style={{ color: 'rgba(255,255,255,0.5)' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M19 12H5M12 5l-7 7 7 7"/>
           </svg>
         </button>
-        <h1 className="text-lg font-semibold text-gray-900 flex-1">Профиль</h1>
-        <button onClick={logout} className="text-sm text-red-500 hover:text-red-700 font-medium px-3 py-1.5 rounded-xl hover:bg-red-50 transition-colors">
+        <h1 className="text-base font-semibold text-white flex-1">Профиль</h1>
+        <button onClick={logout} className="text-sm font-medium px-3 py-1.5 rounded-xl transition-colors"
+          style={{ color: '#fc8181' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.1)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
           Выйти
         </button>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
+      <div className="max-w-lg mx-auto px-4 py-5 space-y-3">
         {/* Avatar card */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          {/* Purple banner */}
-          <div className="h-24 bg-gradient-to-r from-primary-600 to-primary-800" />
-          <div className="px-6 pb-6 -mt-12">
-            <div className="relative w-20 h-20 mb-4">
+        <div className="rounded-2xl overflow-hidden" style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="h-20" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2b5278 100%)' }} />
+          <div className="px-6 pb-6 -mt-10">
+            <div className="relative w-20 h-20 mb-3">
               {uploading ? (
-                <div className="w-20 h-20 rounded-2xl bg-gray-100 border-4 border-white shadow flex items-center justify-center">
+                <div className="w-20 h-20 rounded-2xl flex items-center justify-center"
+                  style={{ background: '#242f3d', border: '3px solid #17212b' }}>
                   <Spinner size={24} />
                 </div>
               ) : (
-                <div className="rounded-2xl border-4 border-white shadow overflow-hidden">
+                <div className="rounded-2xl overflow-hidden" style={{ border: '3px solid #17212b' }}>
                   <Avatar url={user.avatarUrl} nickname={user.nickname} size={80} />
                 </div>
               )}
               <button onClick={() => fileRef.current?.click()} disabled={uploading}
-                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-xl bg-primary-600 text-white flex items-center justify-center shadow hover:bg-primary-700 transition-colors border-2 border-white"
+                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-xl flex items-center justify-center shadow transition-colors"
+                style={{ background: '#2aabee', border: '2px solid #17212b' }}
                 title="Изменить аватар">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
                   <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
                   <circle cx="12" cy="13" r="4"/>
                 </svg>
@@ -73,11 +81,14 @@ export function ProfilePage() {
             </div>
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={handleAvatarChange} />
             {error !== null && <ErrorMessage error={error} />}
-            <p className="text-xl font-bold text-gray-900">{user.nickname}</p>
-            <p className="text-gray-400 text-sm">@{user.username}</p>
+            <p className="text-xl font-bold text-white">{user.nickname}</p>
+            <p className="text-sm" style={{ color: '#6c8998' }}>@{user.username}</p>
             {user.role === 'ADMIN' && (
-              <span className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold bg-primary-100 text-primary-700 px-2.5 py-1 rounded-full">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              <span className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
+                style={{ background: 'rgba(42,171,238,0.15)', color: '#2aabee' }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
                 Администратор
               </span>
             )}
@@ -85,15 +96,15 @@ export function ProfilePage() {
         </div>
 
         {/* Info */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
-          <h2 className="font-semibold text-gray-700 text-sm uppercase tracking-wide">Аккаунт</h2>
+        <div className="rounded-2xl p-5 space-y-3" style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#6c8998' }}>Аккаунт</h2>
           <InfoRow icon="👤" label="Роль" value={roleLabel[user.role] ?? user.role} />
           {user.email && <InfoRow icon="✉️" label="Email" value={user.email} />}
           <InfoRow icon="📅" label="Регистрация" value={joined} />
         </div>
 
         {/* Actions */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-2">
+        <div className="rounded-2xl p-1.5" style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
           <ActionLink to="/profile/edit" icon={
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
@@ -111,7 +122,7 @@ export function ProfilePage() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
               </svg>
-            } label="Панель администратора" purple />
+            } label="Панель администратора" accent />
           )}
         </div>
       </div>
@@ -121,22 +132,24 @@ export function ProfilePage() {
 
 function InfoRow({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
-    <div className="flex items-center gap-3 text-sm">
+    <div className="flex items-center gap-3 text-sm" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '12px' }}>
       <span className="text-base w-5 text-center">{icon}</span>
-      <span className="text-gray-500 flex-1">{label}</span>
-      <span className="font-medium text-gray-800">{value}</span>
+      <span className="flex-1" style={{ color: '#6c8998' }}>{label}</span>
+      <span className="font-medium text-white">{value}</span>
     </div>
   )
 }
 
-function ActionLink({ to, icon, label, purple }: { to: string; icon: React.ReactNode; label: string; purple?: boolean }) {
+function ActionLink({ to, icon, label, accent }: { to: string; icon: React.ReactNode; label: string; accent?: boolean }) {
   return (
-    <Link to={to} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
-      purple ? 'text-primary-700 hover:bg-primary-50' : 'text-gray-700 hover:bg-gray-50'
-    }`}>
-      <span className={purple ? 'text-primary-600' : 'text-gray-400'}>{icon}</span>
-      <span className="font-medium text-sm">{label}</span>
-      <svg className="ml-auto text-gray-300" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <Link to={to} className="flex items-center gap-3 px-3 py-3 rounded-xl transition-colors"
+      style={{ color: accent ? '#2aabee' : 'rgba(255,255,255,0.75)' }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+      <span style={{ color: accent ? '#2aabee' : '#6c8998' }}>{icon}</span>
+      <span className="font-medium text-sm flex-1">{label}</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+        style={{ color: 'rgba(255,255,255,0.2)' }}>
         <path d="M9 18l6-6-6-6"/>
       </svg>
     </Link>

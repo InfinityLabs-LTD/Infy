@@ -15,7 +15,7 @@ function extractMessage(error: unknown): string {
 
 export function ErrorMessage({ error }: ErrorMessageProps) {
   return (
-    <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+    <div className="rounded-xl px-4 py-3 text-sm" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', color: '#fca5a5' }}>
       {extractMessage(error)}
     </div>
   )

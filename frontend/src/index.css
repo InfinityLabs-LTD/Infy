@@ -7,95 +7,87 @@
 @layer base {
   html { -webkit-tap-highlight-color: transparent; }
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    @apply antialiased;
     font-family: 'Inter', system-ui, sans-serif;
+    background: #0e1621;
+    color: #fff;
   }
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(124,58,237,0.25) transparent;
+    scrollbar-color: rgba(42,171,238,0.18) transparent;
   }
   *::-webkit-scrollbar { width: 3px; height: 3px; }
   *::-webkit-scrollbar-track { background: transparent; }
-  *::-webkit-scrollbar-thumb { background: rgba(124,58,237,0.25); border-radius: 2px; }
+  *::-webkit-scrollbar-thumb { background: rgba(42,171,238,0.18); border-radius: 2px; }
 }
 
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium
-           transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2
+           transition-all duration-150 focus:outline-none
            disabled:opacity-50 disabled:cursor-not-allowed active:scale-95;
   }
   .btn-primary {
-    @apply btn bg-primary-600 text-white hover:bg-primary-500 focus:ring-primary-500 shadow-sm
-           hover:shadow-md;
+    @apply btn text-white shadow-sm;
+    background: #2aabee;
   }
+  .btn-primary:hover { background: #34b5f6; }
   .btn-ghost {
-    @apply btn bg-transparent text-gray-700 hover:bg-gray-100 focus:ring-primary-500;
-  }
-  .btn-sidebar {
-    @apply inline-flex items-center gap-3 w-full px-3 py-2 rounded-xl text-sm font-medium
-           transition-all duration-150 text-white/60 hover:bg-sidebar-hover hover:text-white active:scale-[0.98];
+    @apply btn text-white/60 hover:bg-white/10 hover:text-white;
   }
   .input {
-    @apply block w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm placeholder-gray-400
-           focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/15 transition-all duration-150;
+    @apply block w-full rounded-xl px-3.5 py-2.5 text-sm text-white
+           placeholder-white/30 focus:outline-none transition-all duration-150;
+    background: #242f3d;
+    border: 1px solid rgba(255,255,255,0.08);
   }
-  .input-dark {
-    @apply block w-full rounded-xl border border-white/10 bg-white/8 px-3.5 py-2.5 text-sm text-white
-           placeholder-white/30 focus:border-primary-400/60 focus:outline-none focus:ring-2
-           focus:ring-primary-400/15 transition-all duration-150;
+  .input:focus {
+    border-color: rgba(42,171,238,0.5);
+    box-shadow: 0 0 0 2px rgba(42,171,238,0.1);
   }
+  .input-dark { @apply input; }
   .card {
-    @apply rounded-2xl bg-white shadow-sm border border-gray-100 p-6;
+    @apply rounded-2xl p-6;
+    background: #17212b;
+    border: 1px solid rgba(255,255,255,0.06);
   }
   .label {
-    @apply block text-sm font-medium text-gray-700 mb-1.5;
+    @apply block text-sm font-medium mb-1.5;
+    color: rgba(255,255,255,0.55);
   }
 
-  /* Own message — purple gradient */
+  /* Telegram-style bubbles */
   .bubble-own {
-    background: linear-gradient(140deg, #8b5cf6 0%, #6d28d9 100%);
-    color: white;
-    box-shadow: 0 2px 10px rgba(109,40,217,0.30), 0 1px 3px rgba(109,40,217,0.18);
+    background: #2b5278;
+    color: #fff;
+    border-radius: 18px 18px 4px 18px;
   }
-
-  /* Incoming message — clean white */
   .bubble-other {
-    background: #ffffff;
-    color: #111827;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.05);
+    background: #182533;
+    color: #fff;
+    border-radius: 18px 18px 18px 4px;
   }
 
-  /* Chat area background */
-  .chat-bg {
-    background-color: #ede9fe;
-    background-image:
-      radial-gradient(ellipse at 20% 15%, rgba(167,139,250,0.20) 0%, transparent 50%),
-      radial-gradient(ellipse at 80% 85%, rgba(109,40,217,0.12) 0%, transparent 50%),
-      url("data:image/svg+xml,%3Csvg width='44' height='44' viewBox='0 0 44 44' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='22' cy='22' r='1.4' fill='%236d28d9' fill-opacity='0.08'/%3E%3C/svg%3E");
-    background-size: auto, auto, 44px 44px;
-  }
+  /* Chat background */
+  .chat-bg { background: #0e1621; }
 }
 
-/* Message entrance animation */
 @keyframes msgAppear {
-  from { opacity: 0; transform: translateY(10px) scale(0.95); }
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 .msg-appear {
-  animation: msgAppear 0.20s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: msgAppear 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Typing indicator */
 @keyframes typingBounce {
   0%, 60%, 100% { transform: translateY(0); }
-  30% { transform: translateY(-5px); }
+  30% { transform: translateY(-4px); }
 }
 .typing-dot:nth-child(1) { animation: typingBounce 1.1s ease-in-out 0s infinite; }
 .typing-dot:nth-child(2) { animation: typingBounce 1.1s ease-in-out 0.18s infinite; }
 .typing-dot:nth-child(3) { animation: typingBounce 1.1s ease-in-out 0.36s infinite; }
 
-/* Online ping */
 @keyframes onlinePing {
   0%   { transform: scale(1); opacity: 0.6; }
   70%  { transform: scale(2.2); opacity: 0; }
@@ -103,18 +95,8 @@
 }
 .online-ping { animation: onlinePing 2.2s ease-out infinite; }
 
-/* Button press feedback */
-@keyframes btnPress {
-  0%  { transform: scale(1); }
-  50% { transform: scale(0.93); }
-  100%{ transform: scale(1); }
-}
-.btn-press { animation: btnPress 0.15s ease-in-out; }
-
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-  .shadow-panel { box-shadow: 2px 0 20px rgba(0,0,0,0.20); }
   .bg-white\/8 { background-color: rgba(255,255,255,0.08); }
-  .bg-white\/9 { background-color: rgba(255,255,255,0.09); }
 }
