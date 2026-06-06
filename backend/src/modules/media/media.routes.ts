@@ -1,9 +1,11 @@
 import { FastifyPluginAsync } from 'fastify'
 import { authenticate } from '../../middleware/authenticate.js'
 import { AppError } from '../../lib/errors.js'
-import { uploadMedia, getPresignedUrl, detectFileType } from './media.service.js'
+import { verifyAccessToken } from '../../lib/jwt.js'
+import { env } from '../../lib/env.js'
+import { uploadMedia, detectFileType } from './media.service.js'
 
-const MAX_UPLOAD_BYTES = 200 * 1024 * 1024 // 200 MB outer limit; service enforces per-type
+const MAX_UPLOAD_BYTES = 200 * 1024 * 1024
 
 const mediaRoutes: FastifyPluginAsync = async (app) => {
   // POST /media/upload
@@ -42,13 +44,7 @@ const mediaRoutes: FastifyPluginAsync = async (app) => {
 
     let result
     try {
-      result = await uploadMedia(
-        app.minio,
-        buffer,
-        data.mimetype,
-        fileType,
-        request.user.sub,
-      )
+      result = await uploadMedia(app.minio, buffer, data.mimetype, fileType, request.user.sub)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Upload failed'
       throw new AppError('MEDIA_UPLOAD_FAILED', msg, 500)
@@ -57,24 +53,75 @@ const mediaRoutes: FastifyPluginAsync = async (app) => {
     return reply.code(201).send({ data: result })
   })
 
-  // GET /media/:key — redirect to presigned MinIO URL
-  // :key is base64url encoded to allow slashes
+  // GET /media/:encodedKey — stream file with range support
+  // Auth: Authorization header OR ?token query param (needed for <audio>/<video> elements)
   app.get('/:encodedKey', {
-    preHandler: [authenticate],
     schema: {
       tags: ['Media'],
-      summary: 'Get presigned download URL for a media file',
-      security: [{ bearerAuth: [] }],
-      params: {
-        type: 'object',
-        properties: { encodedKey: { type: 'string' } },
-      },
+      summary: 'Stream media file (supports Range requests)',
+      params: { type: 'object', properties: { encodedKey: { type: 'string' } } },
     },
   }, async (request, reply) => {
+    const token =
+      (request.headers.authorization as string | undefined)?.replace('Bearer ', '') ||
+      (request.query as Record<string, string>).token
+
+    if (!token) {
+      return reply.code(401).send({ error: { code: 'UNAUTHORIZED', message: 'Token required' } })
+    }
+    try {
+      verifyAccessToken(token)
+    } catch {
+      return reply.code(401).send({ error: { code: 'AUTH_TOKEN_INVALID', message: 'Invalid token' } })
+    }
+
     const { encodedKey } = request.params as { encodedKey: string }
     const key = Buffer.from(encodedKey, 'base64url').toString('utf8')
-    const url = await getPresignedUrl(app.minio, key)
-    return reply.redirect(302, url)
+    const bucket = key.startsWith('avatars/') ? env.MINIO_BUCKET_AVATARS : env.MINIO_BUCKET_MEDIA
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let stat: any
+    try {
+      stat = await app.minio.statObject(bucket, key)
+    } catch {
+      return reply.code(404).send({ error: { code: 'MEDIA_NOT_FOUND', message: 'File not found' } })
+    }
+
+    const contentType = (stat.metaData?.['content-type'] as string | undefined) || 'application/octet-stream'
+    const fileSize: number = stat.size
+
+    reply.header('Accept-Ranges', 'bytes')
+    reply.header('Cache-Control', 'private, max-age=3600')
+    reply.header('Content-Type', contentType)
+
+    const rangeHeader = request.headers['range'] as string | undefined
+    if (rangeHeader) {
+      const match = /bytes=(\d+)-(\d*)/.exec(rangeHeader)
+      if (match) {
+        const start = parseInt(match[1], 10)
+        const end = match[2] ? parseInt(match[2], 10) : fileSize - 1
+        const chunkSize = end - start + 1
+
+        reply.code(206)
+        reply.header('Content-Range', `bytes ${start}-${end}/${fileSize}`)
+        reply.header('Content-Length', chunkSize)
+
+        try {
+          const stream = await app.minio.getPartialObject(bucket, key, start, chunkSize)
+          return reply.send(stream)
+        } catch {
+          return reply.code(500).send({ error: { code: 'MEDIA_ERROR', message: 'Stream error' } })
+        }
+      }
+    }
+
+    reply.header('Content-Length', fileSize)
+    try {
+      const stream = await app.minio.getObject(bucket, key)
+      return reply.send(stream)
+    } catch {
+      return reply.code(500).send({ error: { code: 'MEDIA_ERROR', message: 'Stream error' } })
+    }
   })
 }
 

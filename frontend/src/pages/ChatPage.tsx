@@ -171,8 +171,7 @@ export function ChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1"
-           style={{ background: 'linear-gradient(180deg, #faf9ff 0%, #f3f0ff 100%)' }}>
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1 chat-bg">
         {cursor && (
           <div className="flex justify-center mb-2">
             <button onClick={loadMore} disabled={loadingMore}
