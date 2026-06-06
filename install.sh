@@ -84,22 +84,13 @@ fi
 SERVER_IP=$(curl -4 -fsSL https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
 info "IP этого сервера: $SERVER_IP"
 
-DNS_OK=true
-for sub in app api ws media; do
-    SUBDOMAIN="${sub}.${DOMAIN}"
-    RESOLVED=$(dig +short "$SUBDOMAIN" A 2>/dev/null | tail -1)
-    if [[ "$RESOLVED" == "$SERVER_IP" ]]; then
-        info "  ✓ ${SUBDOMAIN} → ${RESOLVED}"
-    else
-        warn "  ✗ ${SUBDOMAIN} указывает на '${RESOLVED:-<ничего>}', ожидается ${SERVER_IP}"
-        DNS_OK=false
-    fi
-done
-
-if [[ "$DNS_OK" != true ]]; then
+RESOLVED=$(dig +short "$DOMAIN" A 2>/dev/null | tail -1)
+if [[ "$RESOLVED" == "$SERVER_IP" ]]; then
+    info "  ✓ ${DOMAIN} → ${RESOLVED}"
+else
+    warn "  ✗ ${DOMAIN} указывает на '${RESOLVED:-<ничего>}', ожидается ${SERVER_IP}"
     echo
-    warn "Некоторые DNS-записи не указывают на этот сервер."
-    warn "Создайте A-записи: app/api/ws/media.${DOMAIN} → ${SERVER_IP}"
+    warn "Создайте A-запись: ${DOMAIN} → ${SERVER_IP}"
     warn "Распространение DNS может занять до 48 часов."
     read -rp "Продолжить всё равно? (certbot не сработает при неверном DNS) [y/N] " CONT
     [[ "$CONT" =~ ^[Yy]$ ]] || error "Прервано. Сначала исправьте DNS."
@@ -161,7 +152,7 @@ MINIO_PORT=9000
 MINIO_USE_SSL=false
 MINIO_BUCKET_AVATARS=avatars
 MINIO_BUCKET_MEDIA=media
-MINIO_PUBLIC_URL=https://media.${DOMAIN}
+MINIO_PUBLIC_URL=https://${DOMAIN}/media
 
 DOMAIN=${DOMAIN}
 
@@ -174,7 +165,7 @@ RATE_LIMIT_GLOBAL_WINDOW_MS=60000
 
 NODE_ENV=production
 LOG_LEVEL=info
-CORS_ORIGINS=https://app.${DOMAIN}
+CORS_ORIGINS=https://${DOMAIN}
 TRUSTED_PROXY=172.0.0.0/8
 EOF
 
@@ -200,24 +191,21 @@ docker compose up -d --build
 info "Контейнеры запущены"
 
 # ── 12. TLS через certbot ────────────────────────────────────
-section "Получение TLS-сертификатов"
+section "Получение TLS-сертификата"
 
 if ! command -v certbot &>/dev/null; then
     apt-get install -y -qq certbot python3-certbot-nginx
 fi
 
-for sub in app api ws media; do
-    SUBDOMAIN="${sub}.${DOMAIN}"
-    info "Запрашиваю сертификат для $SUBDOMAIN..."
-    certbot certonly --webroot \
-        --webroot-path=/var/www/certbot \
-        --email "$LE_EMAIL" \
-        --agree-tos \
-        --no-eff-email \
-        --non-interactive \
-        -d "$SUBDOMAIN" \
-        || warn "Не удалось получить сертификат для $SUBDOMAIN (проверьте DNS)"
-done
+info "Запрашиваю сертификат для $DOMAIN..."
+certbot certonly --webroot \
+    --webroot-path=/var/www/certbot \
+    --email "$LE_EMAIL" \
+    --agree-tos \
+    --no-eff-email \
+    --non-interactive \
+    -d "$DOMAIN" \
+    || warn "Не удалось получить сертификат для $DOMAIN (проверьте DNS)"
 
 # Автообновление
 if systemctl is-active --quiet systemd; then
@@ -264,8 +252,8 @@ section "Готово!"
 echo
 echo -e "${GREEN}Infy Messenger запущен!${NC}"
 echo
-echo "  Приложение:  https://app.${DOMAIN}"
-echo "  API / Docs:  https://api.${DOMAIN}/docs"
+echo "  Приложение:  https://${DOMAIN}"
+echo "  API / Docs:  https://${DOMAIN}/api/docs"
 echo "  Вход:        логин 'admin', пароль — тот, что вы задали"
 echo
 echo "Полезные команды:"

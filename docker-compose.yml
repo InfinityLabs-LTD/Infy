@@ -146,7 +146,6 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: /api
-        VITE_WS_URL: http://ws.localhost
     env_file: .env
     networks:
       - infy-net
