@@ -21,7 +21,6 @@ export function ChatPage() {
   const { id: chatId } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const socket = useSocket()
-  const myId = useAuthStore((s) => s.user?.id)
   const myUsername = useAuthStore((s) => s.user?.username)
 
   const { chats, messages, nextCursor, setMessages, prependMessages, setTyping } = useChatStore()

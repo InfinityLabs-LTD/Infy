@@ -58,7 +58,7 @@ export function EditProfilePage() {
       <div className="max-w-lg mx-auto px-4 py-8">
         <div className="card">
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && <ErrorMessage error={error} />}
+            {error !== null && <ErrorMessage error={error} />}
 
             <div>
               <label className="label">Display name</label>

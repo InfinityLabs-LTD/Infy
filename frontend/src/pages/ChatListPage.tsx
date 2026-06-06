@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { chatApi } from '@/api/chat'
 import { useChatStore } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
@@ -10,9 +10,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 
 export function ChatListPage() {
-  const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
-  const logout = useAuthStore((s) => s.logout)
   const { chats, setChats } = useChatStore()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
@@ -60,7 +58,7 @@ export function ChatListPage() {
 
       {/* List */}
       <div className="flex-1 overflow-y-auto">
-        {error && <div className="px-4 py-3"><ErrorMessage error={error} /></div>}
+        {error !== null && <div className="px-4 py-3"><ErrorMessage error={error} /></div>}
 
         {loading ? (
           <div className="flex justify-center py-16"><Spinner size={32} /></div>

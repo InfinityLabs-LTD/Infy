@@ -65,7 +65,7 @@ export function RegisterPage() {
 
         <div className="card">
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && <ErrorMessage error={error} />}
+            {error !== null && <ErrorMessage error={error} />}
 
             <div>
               <label className="label">Username</label>

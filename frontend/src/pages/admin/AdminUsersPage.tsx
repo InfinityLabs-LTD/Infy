@@ -66,7 +66,7 @@ export function AdminUsersPage() {
         <button type="submit" className="btn-primary px-4">Search</button>
       </form>
 
-      {error && <div className="mb-4"><ErrorMessage error={error} /></div>}
+      {error !== null && <div className="mb-4"><ErrorMessage error={error} /></div>}
 
       {loading ? (
         <div className="flex justify-center py-16"><Spinner size={32} /></div>

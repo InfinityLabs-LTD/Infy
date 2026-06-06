@@ -62,7 +62,7 @@ export function AdminUserMessagesPage() {
         </h1>
       </div>
 
-      {error && <div className="mb-4"><ErrorMessage error={error} /></div>}
+      {error !== null && <div className="mb-4"><ErrorMessage error={error} /></div>}
 
       {loading && messages.length === 0 ? (
         <div className="flex justify-center py-16"><Spinner size={32} /></div>

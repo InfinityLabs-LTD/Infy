@@ -62,7 +62,7 @@ export function AdminContainersPage() {
         </button>
       </div>
 
-      {error && <div className="mb-4"><ErrorMessage error={error} /></div>}
+      {error !== null && <div className="mb-4"><ErrorMessage error={error} /></div>}
 
       <div className="bg-white rounded-2xl border overflow-hidden">
         <table className="w-full text-sm">

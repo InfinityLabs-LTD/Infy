@@ -71,7 +71,7 @@ export function SessionsPage() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-8 space-y-4">
-        {error && <ErrorMessage error={error} />}
+        {error !== null && <ErrorMessage error={error} />}
 
         {loading ? (
           <div className="flex justify-center py-12"><Spinner size={32} /></div>

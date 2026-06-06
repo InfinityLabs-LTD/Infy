@@ -80,7 +80,7 @@ interface ChatState {
   setTyping: (chatId: string, username: string, isTyping: boolean) => void
 }
 
-export const useChatStore = create<ChatState>((set, get) => ({
+export const useChatStore = create<ChatState>((set) => ({
   chats: [],
   messages: {},
   nextCursor: {},

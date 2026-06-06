@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { profileApi } from '@/api/auth'
 import { useAuthStore } from '@/store/auth'
@@ -73,7 +73,7 @@ export function ProfilePage() {
             className="hidden"
             onChange={handleAvatarChange}
           />
-          {error && <ErrorMessage error={error} />}
+          {error !== null && <ErrorMessage error={error} />}
 
           <div className="text-center">
             <p className="text-xl font-semibold">{user.nickname}</p>
