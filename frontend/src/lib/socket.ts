@@ -1,13 +1,18 @@
 import { io, Socket } from 'socket.io-client'
 
+// VITE_SOCKET_URL is baked in at build time.
+// On the CDN build it points to the main domain so WebSocket bypasses the CDN.
+// For local dev it is empty (connects to current origin).
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? ''
+
 let socket: Socket | null = null
 
 export function getSocket(token: string): Socket {
   if (socket?.connected) return socket
 
-  socket = io({
+  socket = io(SOCKET_URL, {
     auth: { token },
-    transports: ['websocket'],
+    transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
