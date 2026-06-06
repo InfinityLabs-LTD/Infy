@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npx tsc *)",
       "PowerShell(Get-Command node -ErrorAction SilentlyContinue)",
-      "PowerShell(Get-Command tsc -ErrorAction SilentlyContinue)"
+      "PowerShell(Get-Command tsc -ErrorAction SilentlyContinue)",
+      "Bash(npm install *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\danya\\.claude\\projects\\c--Repositories-Infy\\memory"

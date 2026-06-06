@@ -6,12 +6,12 @@ RUN apk add --no-cache openssl ffmpeg
 # ── Dependencies ──────────────────────────────────────────────
 FROM base AS deps
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # ── Build ─────────────────────────────────────────────────────
 FROM base AS builder
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 COPY . .
 RUN npm run generate
 RUN npm run build
