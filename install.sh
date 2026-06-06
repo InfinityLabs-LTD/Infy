@@ -1,36 +1,51 @@
 #!/usr/bin/env bash
-# install.sh — Interactive Infy Messenger deployment on Ubuntu VPS
-# Usage: curl -fsSL https://raw.../install.sh | sudo bash
+# install.sh — Автономное развёртывание Infy Messenger на Ubuntu VPS
+# Использование: curl -fsSL https://raw.githubusercontent.com/InfinityLabs-LTD/Infy/main/install.sh | sudo bash
 set -euo pipefail
+
+# ─── Настройки ───────────────────────────────────────────────
+REPO_URL="https://github.com/InfinityLabs-LTD/Infy.git"
+INSTALL_DIR="/opt/infy"
+# ─────────────────────────────────────────────────────────────
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
 
 info()    { echo -e "${GREEN}[INFO]${NC} $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${NC} $*"; }
-error()   { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
+error()   { echo -e "${RED}[ОШИБКА]${NC} $*"; exit 1; }
 section() { echo -e "\n${CYAN}══ $* ══${NC}"; }
 
-# ── 1. Root check ────────────────────────────────────────────
-section "Checking permissions"
+# ── 1. Проверка прав ─────────────────────────────────────────
+section "Проверка прав"
 if [[ $EUID -ne 0 ]]; then
-    error "Run as root or with sudo: sudo bash install.sh"
+    error "Запустите от root или через sudo: sudo bash install.sh"
 fi
 
-# ── 2. OS check ──────────────────────────────────────────────
+# ── 2. Проверка ОС ───────────────────────────────────────────
 if ! grep -qi ubuntu /etc/os-release 2>/dev/null; then
-    warn "This script is designed for Ubuntu. Proceed with caution on other distros."
+    warn "Скрипт предназначен для Ubuntu. На других дистрибутивах возможны проблемы."
 fi
 
-# ── 3. Install Docker ────────────────────────────────────────
-section "Installing Docker Engine"
+# ── 3. Установка git ─────────────────────────────────────────
+section "Установка зависимостей"
+if ! command -v git &>/dev/null; then
+    info "Устанавливаю git..."
+    apt-get update -qq
+    apt-get install -y -qq git
+fi
+info "git: $(git --version)"
+
+# ── 4. Установка Docker ──────────────────────────────────────
+section "Установка Docker Engine"
 if command -v docker &>/dev/null; then
-    info "Docker already installed: $(docker --version)"
+    info "Docker уже установлен: $(docker --version)"
 else
-    info "Installing Docker..."
+    info "Устанавливаю Docker..."
     apt-get update -qq
     apt-get install -y -qq ca-certificates curl gnupg lsb-release
     install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
     chmod a+r /etc/apt/keyrings/docker.gpg
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
         https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
@@ -38,26 +53,36 @@ else
     apt-get update -qq
     apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     systemctl enable --now docker
-    info "Docker installed: $(docker --version)"
+    info "Docker установлен: $(docker --version)"
 fi
 
-# ── 4. Interactive prompts ────────────────────────────────────
-section "Configuration"
+# ── 5. Интерактивная настройка ───────────────────────────────
+section "Конфигурация"
 
-read -rp "Base domain (e.g. example.com): " DOMAIN
-[[ -z "$DOMAIN" ]] && error "Domain cannot be empty"
+read -rp "Базовый домен (например: example.com): " DOMAIN
+[[ -z "$DOMAIN" ]] && error "Домен не может быть пустым"
 
-read -rp "Email for Let's Encrypt (for cert expiry notifications): " LE_EMAIL
-[[ -z "$LE_EMAIL" ]] && error "Email cannot be empty"
+read -rp "Email для Let's Encrypt (уведомления об истечении сертификата): " LE_EMAIL
+[[ -z "$LE_EMAIL" ]] && error "Email не может быть пустым"
 
-read -rsp "Password for first ADMIN account: " ADMIN_PASSWORD
-echo
-[[ ${#ADMIN_PASSWORD} -lt 8 ]] && error "Admin password must be at least 8 characters"
+while true; do
+    read -rsp "Пароль для первого ADMIN-аккаунта (минимум 8 символов): " ADMIN_PASSWORD
+    echo
+    if [[ ${#ADMIN_PASSWORD} -ge 8 ]]; then
+        break
+    fi
+    warn "Пароль слишком короткий — нужно минимум 8 символов. Попробуйте ещё раз."
+done
 
-# ── 5. DNS check ─────────────────────────────────────────────
-section "Checking DNS resolution"
+# ── 6. Проверка DNS ──────────────────────────────────────────
+section "Проверка DNS"
+
+if ! command -v dig &>/dev/null; then
+    apt-get install -y -qq dnsutils 2>/dev/null || true
+fi
+
 SERVER_IP=$(curl -4 -fsSL https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
-info "Detected server IP: $SERVER_IP"
+info "IP этого сервера: $SERVER_IP"
 
 DNS_OK=true
 for sub in app api ws media; do
@@ -66,22 +91,22 @@ for sub in app api ws media; do
     if [[ "$RESOLVED" == "$SERVER_IP" ]]; then
         info "  ✓ ${SUBDOMAIN} → ${RESOLVED}"
     else
-        warn "  ✗ ${SUBDOMAIN} resolves to '${RESOLVED:-<nothing>}', expected ${SERVER_IP}"
+        warn "  ✗ ${SUBDOMAIN} указывает на '${RESOLVED:-<ничего>}', ожидается ${SERVER_IP}"
         DNS_OK=false
     fi
 done
 
 if [[ "$DNS_OK" != true ]]; then
     echo
-    warn "Some DNS records do not point to this server."
-    warn "Please create A records for app/api/ws/media.${DOMAIN} → ${SERVER_IP}"
-    warn "DNS propagation can take up to 48h."
-    read -rp "Continue anyway (certbot will fail if DNS is wrong)? [y/N] " CONT
-    [[ "$CONT" =~ ^[Yy]$ ]] || error "Aborted. Fix DNS first."
+    warn "Некоторые DNS-записи не указывают на этот сервер."
+    warn "Создайте A-записи: app/api/ws/media.${DOMAIN} → ${SERVER_IP}"
+    warn "Распространение DNS может занять до 48 часов."
+    read -rp "Продолжить всё равно? (certbot не сработает при неверном DNS) [y/N] " CONT
+    [[ "$CONT" =~ ^[Yy]$ ]] || error "Прервано. Сначала исправьте DNS."
 fi
 
-# ── 6. Firewall (ufw) ────────────────────────────────────────
-section "Configuring firewall"
+# ── 7. Брандмауэр (ufw) ──────────────────────────────────────
+section "Настройка брандмауэра"
 if command -v ufw &>/dev/null; then
     ufw --force reset
     ufw default deny incoming
@@ -90,16 +115,24 @@ if command -v ufw &>/dev/null; then
     ufw allow 80/tcp   comment 'HTTP'
     ufw allow 443/tcp  comment 'HTTPS'
     ufw --force enable
-    info "ufw enabled: SSH, HTTP, HTTPS allowed"
+    info "ufw включён: разрешены SSH, HTTP, HTTPS"
 else
-    warn "ufw not found — skipping firewall configuration"
+    warn "ufw не найден — настройка брандмауэра пропущена"
 fi
 
-# ── 7. Generate secrets ──────────────────────────────────────
-section "Generating secrets"
+# ── 8. Клонирование репозитория ──────────────────────────────
+section "Загрузка проекта"
+if [[ -d "$INSTALL_DIR/.git" ]]; then
+    info "Репозиторий уже существует, обновляю..."
+    git -C "$INSTALL_DIR" pull --ff-only
+else
+    info "Клонирую репозиторий в $INSTALL_DIR..."
+    git clone "$REPO_URL" "$INSTALL_DIR"
+fi
+info "Проект загружен в $INSTALL_DIR"
 
-INSTALL_DIR="/opt/infy"
-mkdir -p "$INSTALL_DIR"
+# ── 9. Генерация секретов и .env ─────────────────────────────
+section "Генерация секретов"
 
 JWT_ACCESS_SECRET=$(openssl rand -hex 64)
 JWT_REFRESH_SECRET=$(openssl rand -hex 64)
@@ -107,7 +140,7 @@ DB_PASSWORD=$(openssl rand -hex 24)
 MINIO_PASSWORD=$(openssl rand -hex 24)
 
 cat > "$INSTALL_DIR/.env" <<EOF
-# Generated by install.sh on $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+# Сгенерировано install.sh — $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 POSTGRES_DB=infy
 POSTGRES_USER=infy
@@ -146,34 +179,28 @@ TRUSTED_PROXY=172.0.0.0/8
 EOF
 
 chmod 600 "$INSTALL_DIR/.env"
-info "Secrets written to $INSTALL_DIR/.env"
+info "Секреты записаны в $INSTALL_DIR/.env"
 
-# ── 8. Copy project files ────────────────────────────────────
-section "Setting up project"
+# ── 10. Подготовка nginx-конфига ─────────────────────────────
+section "Подготовка конфигурации nginx"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ "$SCRIPT_DIR" != "$INSTALL_DIR" ]]; then
-    cp -r "$SCRIPT_DIR/." "$INSTALL_DIR/"
-    info "Project files copied to $INSTALL_DIR"
-fi
+sed "s/DOMAIN/${DOMAIN}/g" "$INSTALL_DIR/nginx/prod.conf" \
+    > "$INSTALL_DIR/nginx/active.conf"
 
-# Swap nginx config for prod
-cp "$INSTALL_DIR/nginx/prod.conf" /tmp/nginx-prod.conf
-sed -i "s/DOMAIN/${DOMAIN}/g" /tmp/nginx-prod.conf
-cp /tmp/nginx-prod.conf "$INSTALL_DIR/nginx/active.conf"
-
-# Point docker-compose to prod nginx config
+# Переключаем docker-compose на prod nginx конфиг
 sed -i 's|nginx/dev.conf|nginx/active.conf|g' "$INSTALL_DIR/docker-compose.yml"
+
+info "nginx/active.conf создан для домена $DOMAIN"
 
 cd "$INSTALL_DIR"
 
-# ── 9. Start containers ──────────────────────────────────────
-section "Starting containers"
+# ── 11. Запуск контейнеров ───────────────────────────────────
+section "Сборка и запуск контейнеров"
 docker compose up -d --build
-info "Containers started"
+info "Контейнеры запущены"
 
-# ── 10. TLS via certbot ──────────────────────────────────────
-section "Obtaining TLS certificates"
+# ── 12. TLS через certbot ────────────────────────────────────
+section "Получение TLS-сертификатов"
 
 if ! command -v certbot &>/dev/null; then
     apt-get install -y -qq certbot python3-certbot-nginx
@@ -181,7 +208,7 @@ fi
 
 for sub in app api ws media; do
     SUBDOMAIN="${sub}.${DOMAIN}"
-    info "Requesting cert for $SUBDOMAIN..."
+    info "Запрашиваю сертификат для $SUBDOMAIN..."
     certbot certonly --webroot \
         --webroot-path=/var/www/certbot \
         --email "$LE_EMAIL" \
@@ -189,26 +216,26 @@ for sub in app api ws media; do
         --no-eff-email \
         --non-interactive \
         -d "$SUBDOMAIN" \
-        || warn "Failed to obtain cert for $SUBDOMAIN (check DNS)"
+        || warn "Не удалось получить сертификат для $SUBDOMAIN (проверьте DNS)"
 done
 
-# Auto-renewal
+# Автообновление
 if systemctl is-active --quiet systemd; then
     systemctl enable --now certbot.timer 2>/dev/null || \
-    (crontab -l 2>/dev/null; echo "0 0,12 * * * certbot renew --quiet --post-hook 'docker compose -f $INSTALL_DIR/docker-compose.yml exec nginx nginx -s reload'") | crontab -
-    info "Auto-renewal configured"
+    (crontab -l 2>/dev/null; echo "0 0,12 * * * certbot renew --quiet --post-hook 'docker compose -f $INSTALL_DIR/docker-compose.yml exec nginx nginx -s reload'") \
+        | crontab -
+    info "Автообновление сертификатов настроено"
 fi
 
-# Reload nginx with TLS config
 docker compose exec nginx nginx -s reload 2>/dev/null || true
 
-# ── 11. Run Prisma migrations ────────────────────────────────
-section "Running database migrations"
+# ── 13. Миграции Prisma ──────────────────────────────────────
+section "Применение миграций базы данных"
 docker compose exec core npx prisma migrate deploy
-info "Migrations applied"
+info "Миграции применены"
 
-# ── 12. Create first ADMIN account ──────────────────────────
-section "Creating admin account"
+# ── 14. Создание ADMIN-аккаунта ──────────────────────────────
+section "Создание аккаунта администратора"
 docker compose exec core node -e "
 const { PrismaClient } = require('@prisma/client');
 const argon2 = require('argon2');
@@ -225,25 +252,25 @@ async function main() {
     },
     update: {},
   });
-  console.log('Admin user id:', user.id);
+  console.log('ID администратора:', user.id);
   await prisma.\$disconnect();
 }
 main().catch(e => { console.error(e); process.exit(1); });
 "
-info "Admin account created (username: admin)"
+info "Аккаунт администратора создан (логин: admin)"
 
-# ── 13. Done ─────────────────────────────────────────────────
-section "Done!"
+# ── 15. Готово ───────────────────────────────────────────────
+section "Готово!"
 echo
-echo -e "${GREEN}Infy Messenger is running!${NC}"
+echo -e "${GREEN}Infy Messenger запущен!${NC}"
 echo
-echo "  App:   https://app.${DOMAIN}"
-echo "  API:   https://api.${DOMAIN}/docs"
-echo "  Admin: login with username 'admin'"
+echo "  Приложение:  https://app.${DOMAIN}"
+echo "  API / Docs:  https://api.${DOMAIN}/docs"
+echo "  Вход:        логин 'admin', пароль — тот, что вы задали"
 echo
-echo "Useful commands:"
+echo "Полезные команды:"
 echo "  cd $INSTALL_DIR && docker compose logs -f"
 echo "  docker compose ps"
 echo "  docker compose restart core"
 echo
-warn "Keep $INSTALL_DIR/.env secure — it contains all secrets."
+warn "Храните $INSTALL_DIR/.env в безопасности — там все секреты."
