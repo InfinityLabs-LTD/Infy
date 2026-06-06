@@ -298,6 +298,11 @@ case "$cmd" in
     info "Обновляю код из репозитория..."
     git fetch origin
     git reset --hard origin/main
+    # git reset вернул docker-compose.yml к nginx/dev.conf — восстанавливаем prod-конфиг
+    CURRENT_DOMAIN=$(grep "^DOMAIN=" "$INSTALL_DIR/.env" | cut -d= -f2)
+    sed -i 's|nginx/dev.conf|nginx/active.conf|g' "$INSTALL_DIR/docker-compose.yml"
+    sed "s/DOMAIN/${CURRENT_DOMAIN}/g" "$INSTALL_DIR/nginx/prod.conf" \
+        > "$INSTALL_DIR/nginx/active.conf"
     info "Пересобираю и перезапускаю контейнеры..."
     docker compose up -d --build
     info "Применяю миграции базы данных..."

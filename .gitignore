@@ -27,5 +27,3 @@ Thumbs.db
 # nginx generated config (создаётся install.sh)
 nginx/active.conf
 
-# Docker
-.dockerignore
