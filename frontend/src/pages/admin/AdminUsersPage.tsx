@@ -52,18 +52,18 @@ export function AdminUsersPage() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold">Users <span className="text-gray-400 font-normal text-base ml-2">{total} total</span></h1>
+        <h1 className="text-xl font-bold">Пользователи <span className="text-gray-400 font-normal text-base ml-2">{total} всего</span></h1>
       </div>
 
       {/* Search */}
       <form onSubmit={handleSearch} className="flex gap-2 mb-4">
         <input
           className="input flex-1 max-w-sm"
-          placeholder="Search by username, nickname or email…"
+          placeholder="Поиск по имени, нику или email…"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
-        <button type="submit" className="btn-primary px-4">Search</button>
+        <button type="submit" className="btn-primary px-4">Найти</button>
       </form>
 
       {error !== null && <div className="mb-4"><ErrorMessage error={error} /></div>}
@@ -75,12 +75,12 @@ export function AdminUsersPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
-                <th className="px-4 py-3 text-left">User</th>
+                <th className="px-4 py-3 text-left">Пользователь</th>
                 <th className="px-4 py-3 text-left">Email</th>
-                <th className="px-4 py-3 text-left">Role</th>
-                <th className="px-4 py-3 text-left">Joined</th>
-                <th className="px-4 py-3 text-left">Last seen</th>
-                <th className="px-4 py-3 text-left">Actions</th>
+                <th className="px-4 py-3 text-left">Роль</th>
+                <th className="px-4 py-3 text-left">Регистрация</th>
+                <th className="px-4 py-3 text-left">Последний вход</th>
+                <th className="px-4 py-3 text-left">Действия</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -112,7 +112,7 @@ export function AdminUsersPage() {
                           disabled={saving}
                           className="btn-primary py-1 px-2 text-xs"
                         >
-                          {saving ? <Spinner size={12} /> : 'Save'}
+                          {saving ? <Spinner size={12} /> : 'Сохранить'}
                         </button>
                         <button onClick={() => setEditingId(null)} className="btn-ghost py-1 px-2 text-xs">✕</button>
                       </div>
@@ -124,8 +124,8 @@ export function AdminUsersPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{new Date(u.createdAt).toLocaleDateString()}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{new Date(u.lastSeenAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">{new Date(u.createdAt).toLocaleDateString('ru-RU')}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">{new Date(u.lastSeenAt).toLocaleDateString('ru-RU')}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
                       <button
@@ -134,16 +134,16 @@ export function AdminUsersPage() {
                           setEditRole(u.role as 'USER' | 'ADMIN')
                         }}
                         className="btn-ghost py-1 px-2 text-xs text-gray-500"
-                        title="Edit role"
+                        title="Изменить роль"
                       >
-                        Role
+                        Роль
                       </button>
                       <button
                         onClick={() => navigate(`/admin/users/${u.id}/messages`)}
                         className="btn-ghost py-1 px-2 text-xs text-gray-500"
-                        title="View messages"
+                        title="Просмотр сообщений"
                       >
-                        Messages
+                        Сообщения
                       </button>
                     </div>
                   </td>
@@ -155,18 +155,18 @@ export function AdminUsersPage() {
           {/* Pagination */}
           {pages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
-              <p className="text-xs text-gray-500">Page {page} of {pages}</p>
+              <p className="text-xs text-gray-500">Страница {page} из {pages}</p>
               <div className="flex gap-1">
                 <button
                   onClick={() => load(page - 1, search)}
                   disabled={page <= 1}
                   className="btn-ghost py-1 px-2 text-xs disabled:opacity-40"
-                >← Prev</button>
+                >← Назад</button>
                 <button
                   onClick={() => load(page + 1, search)}
                   disabled={page >= pages}
                   className="btn-ghost py-1 px-2 text-xs disabled:opacity-40"
-                >Next →</button>
+                >Далее →</button>
               </div>
             </div>
           )}

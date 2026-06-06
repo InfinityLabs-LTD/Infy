@@ -50,7 +50,7 @@ export function ChatListPage() {
       <div className="px-4 pt-3 pb-1">
         <input
           className="input bg-gray-100 border-transparent focus:bg-white"
-          placeholder="Search chats…"
+          placeholder="Поиск чатов…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -64,7 +64,7 @@ export function ChatListPage() {
           <div className="flex justify-center py-16"><Spinner size={32} /></div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
-            {search ? 'No chats found' : 'No chats yet'}
+            {search ? 'Чаты не найдены' : 'Пока нет чатов'}
           </div>
         ) : (
           filtered.map((chat) => (
@@ -96,7 +96,7 @@ export function ChatListPage() {
                   )}
                 </div>
                 <p className="text-sm text-gray-500 truncate">
-                  {chat.lastMessage?.content ?? 'No messages yet'}
+                  {chat.lastMessage?.content ?? 'Нет сообщений'}
                 </p>
               </div>
             </Link>

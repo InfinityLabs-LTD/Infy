@@ -3,8 +3,8 @@ export function TypingIndicator({ names }: { names: string[] }) {
 
   const label =
     names.length === 1
-      ? `${names[0]} is typing`
-      : `${names.slice(0, 2).join(', ')} are typing`
+      ? `${names[0]} печатает`
+      : `${names.slice(0, 2).join(', ')} печатают`
 
   return (
     <div className="flex items-center gap-2 px-4 py-1 text-xs text-gray-400">

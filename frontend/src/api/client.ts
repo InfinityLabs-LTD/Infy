@@ -43,7 +43,10 @@ api.interceptors.response.use(
 
     try {
       const refreshToken = useAuthStore.getState().refreshToken
-      if (!refreshToken) throw new Error('No refresh token')
+      if (!refreshToken) {
+        useAuthStore.getState().logout()
+        return new Promise(() => {})
+      }
 
       const res = await axios.post(`${API_URL}/auth/refresh`, { refreshToken })
       const { accessToken: newAccess, refreshToken: newRefresh } = res.data.data
@@ -59,7 +62,7 @@ api.interceptors.response.use(
       queue.forEach(({ reject }) => reject(err))
       queue = []
       useAuthStore.getState().logout()
-      return Promise.reject(err)
+      return new Promise(() => {})
     } finally {
       isRefreshing = false
     }

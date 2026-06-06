@@ -54,11 +54,11 @@ export function AdminUserMessagesPage() {
           </svg>
         </button>
         <h1 className="text-xl font-bold">
-          Messages by{' '}
+          Сообщения{' '}
           <span className="text-primary-600">
             {user ? `@${user.username}` : `#${id}`}
           </span>
-          <span className="text-gray-400 font-normal text-base ml-2">{total} total</span>
+          <span className="text-gray-400 font-normal text-base ml-2">{total} всего</span>
         </h1>
       </div>
 
@@ -71,10 +71,10 @@ export function AdminUserMessagesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
-                <th className="px-4 py-3 text-left w-8">Type</th>
-                <th className="px-4 py-3 text-left">Content</th>
-                <th className="px-4 py-3 text-left">Chat</th>
-                <th className="px-4 py-3 text-left">Sent</th>
+                <th className="px-4 py-3 text-left w-8">Тип</th>
+                <th className="px-4 py-3 text-left">Текст</th>
+                <th className="px-4 py-3 text-left">Чат</th>
+                <th className="px-4 py-3 text-left">Отправлено</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -89,20 +89,20 @@ export function AdminUserMessagesPage() {
                       <p className="text-xs text-gray-400 mt-0.5">
                         {m.attachments[0].mimeType}
                         {m.attachments[0].sizeBytes
-                          ? ` · ${(m.attachments[0].sizeBytes / 1024).toFixed(0)} KB`
+                          ? ` · ${(m.attachments[0].sizeBytes / 1024).toFixed(0)} КБ`
                           : ''}
                       </p>
                     )}
                   </td>
                   <td className="px-4 py-3 text-xs text-gray-400 font-mono">{m.chat.id.slice(0, 8)}…</td>
                   <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
-                    {new Date(m.createdAt).toLocaleString()}
+                    {new Date(m.createdAt).toLocaleString('ru-RU')}
                   </td>
                 </tr>
               ))}
               {messages.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-10 text-center text-gray-400">No messages</td>
+                  <td colSpan={4} className="px-4 py-10 text-center text-gray-400">Нет сообщений</td>
                 </tr>
               )}
             </tbody>
@@ -110,12 +110,12 @@ export function AdminUserMessagesPage() {
 
           {pages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
-              <p className="text-xs text-gray-500">Page {page} of {pages}</p>
+              <p className="text-xs text-gray-500">Страница {page} из {pages}</p>
               <div className="flex gap-1">
                 <button onClick={() => load(page - 1)} disabled={page <= 1}
-                  className="btn-ghost py-1 px-2 text-xs disabled:opacity-40">← Prev</button>
+                  className="btn-ghost py-1 px-2 text-xs disabled:opacity-40">← Назад</button>
                 <button onClick={() => load(page + 1)} disabled={page >= pages}
-                  className="btn-ghost py-1 px-2 text-xs disabled:opacity-40">Next →</button>
+                  className="btn-ghost py-1 px-2 text-xs disabled:opacity-40">Далее →</button>
               </div>
             </div>
           )}

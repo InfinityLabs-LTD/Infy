@@ -28,7 +28,7 @@ export function AdminLayout() {
               <circle cx="9" cy="7" r="4"/>
               <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
             </svg>
-            Users
+            Пользователи
           </NavLink>
           <NavLink to="/admin/containers" className={navClass}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -37,7 +37,7 @@ export function AdminLayout() {
               <line x1="12" y1="12" x2="12" y2="16"/>
               <line x1="10" y1="14" x2="14" y2="14"/>
             </svg>
-            Containers
+            Контейнеры
           </NavLink>
         </nav>
 
@@ -50,7 +50,7 @@ export function AdminLayout() {
               <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
               <polyline points="9,22 9,12 15,12 15,22"/>
             </svg>
-            Back to app
+            Назад в приложение
           </button>
         </div>
       </aside>

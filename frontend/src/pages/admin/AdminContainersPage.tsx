@@ -11,6 +11,13 @@ const STATE_COLOR: Record<string, string> = {
   created: 'bg-blue-100 text-blue-700',
 }
 
+const STATE_LABEL: Record<string, string> = {
+  running: 'запущен',
+  exited:  'остановлен',
+  paused:  'на паузе',
+  created: 'создан',
+}
+
 export function AdminContainersPage() {
   const accessToken = useAuthStore((s) => s.accessToken)
   const [containers, setContainers] = useState<Container[]>([])
@@ -33,7 +40,7 @@ export function AdminContainersPage() {
   useEffect(() => { load() }, [])
 
   async function restart(id: string) {
-    if (!confirm('Restart this container?')) return
+    if (!confirm('Перезапустить контейнер?')) return
     setRestarting(id)
     try {
       await adminApi.restartContainer(id)
@@ -50,7 +57,7 @@ export function AdminContainersPage() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold">Containers</h1>
+        <h1 className="text-xl font-bold">Контейнеры</h1>
         <button onClick={load} disabled={loading} className="btn-ghost text-sm gap-1.5">
           {loading ? <Spinner size={14} /> : (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -58,7 +65,7 @@ export function AdminContainersPage() {
               <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
             </svg>
           )}
-          Refresh
+          Обновить
         </button>
       </div>
 
@@ -68,18 +75,18 @@ export function AdminContainersPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
-              <th className="px-4 py-3 text-left">Name</th>
-              <th className="px-4 py-3 text-left">Image</th>
-              <th className="px-4 py-3 text-left">State</th>
-              <th className="px-4 py-3 text-left">Status</th>
-              <th className="px-4 py-3 text-left">Actions</th>
+              <th className="px-4 py-3 text-left">Имя</th>
+              <th className="px-4 py-3 text-left">Образ</th>
+              <th className="px-4 py-3 text-left">Статус</th>
+              <th className="px-4 py-3 text-left">Состояние</th>
+              <th className="px-4 py-3 text-left">Действия</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {loading && containers.length === 0 ? (
               <tr><td colSpan={5} className="px-4 py-10 text-center"><Spinner size={24} /></td></tr>
             ) : containers.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">No containers found</td></tr>
+              <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">Контейнеры не найдены</td></tr>
             ) : containers.map(c => (
               <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                 <td className="px-4 py-3 font-medium">{c.names[0] ?? c.id.slice(0, 12)}</td>
@@ -90,7 +97,7 @@ export function AdminContainersPage() {
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                     STATE_COLOR[c.state] ?? 'bg-gray-100 text-gray-600'
                   }`}>
-                    {c.state}
+                    {STATE_LABEL[c.state] ?? c.state}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-gray-500 text-xs">{c.status}</td>
@@ -99,17 +106,17 @@ export function AdminContainersPage() {
                     <button
                       onClick={() => openLogs(c)}
                       className="btn-ghost py-1 px-2 text-xs text-gray-600"
-                      title="View logs"
+                      title="Просмотр логов"
                     >
-                      Logs
+                      Логи
                     </button>
                     <button
                       onClick={() => restart(c.id)}
                       disabled={restarting === c.id}
                       className="btn-ghost py-1 px-2 text-xs text-orange-600 hover:bg-orange-50 disabled:opacity-40"
-                      title="Restart container"
+                      title="Перезапустить контейнер"
                     >
-                      {restarting === c.id ? <Spinner size={12} /> : 'Restart'}
+                      {restarting === c.id ? <Spinner size={12} /> : 'Перезапустить'}
                     </button>
                   </div>
                 </td>
@@ -151,7 +158,6 @@ function LogsDrawer({
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // SSE requires token in header — fetch API with ReadableStream
     const apiBase = import.meta.env.VITE_API_URL ?? '/api'
     const ctrl = new AbortController()
 
@@ -196,19 +202,15 @@ function LogsDrawer({
     return () => ctrl.abort()
   }, [containerId, accessToken])
 
-  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView()
   }, [lines.length])
 
   return (
     <div className="fixed inset-0 z-50 flex">
-      {/* Backdrop */}
       <div className="flex-1 bg-black/50" onClick={onClose} />
 
-      {/* Drawer */}
       <div className="w-full max-w-3xl bg-gray-950 flex flex-col shadow-2xl">
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
           <div className="flex items-center gap-2.5">
             <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
@@ -219,7 +221,7 @@ function LogsDrawer({
               onClick={() => setLines([])}
               className="text-xs text-gray-400 hover:text-white transition-colors"
             >
-              Clear
+              Очистить
             </button>
             <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors ml-2">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -229,11 +231,10 @@ function LogsDrawer({
           </div>
         </div>
 
-        {/* Logs */}
         <div className="flex-1 overflow-y-auto p-4 font-mono text-xs leading-relaxed">
-          {err && <p className="text-red-400 mb-2">Error: {err}</p>}
+          {err && <p className="text-red-400 mb-2">Ошибка: {err}</p>}
           {lines.length === 0 && !err && (
-            <p className="text-gray-500 italic">Waiting for logs…</p>
+            <p className="text-gray-500 italic">Ожидание логов…</p>
           )}
           {lines.map((line, i) => (
             <LogLine key={i} line={line} />
@@ -246,7 +247,6 @@ function LogsDrawer({
 }
 
 function LogLine({ line }: { line: string }) {
-  // Colorize by log level keywords
   const lower = line.toLowerCase()
   const color =
     lower.includes('error') || lower.includes('err ') || lower.includes('fatal')

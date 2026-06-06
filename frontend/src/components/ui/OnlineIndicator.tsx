@@ -14,7 +14,7 @@ export function OnlineIndicator({ userId, lastSeenAt, showLabel = false }: Props
     return (
       <span className="flex items-center gap-1">
         <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-        {showLabel && <span className="text-xs text-green-600">online</span>}
+        {showLabel && <span className="text-xs text-green-600">в сети</span>}
       </span>
     )
   }
@@ -34,8 +34,8 @@ function formatLastSeen(iso: string): string {
   const d = new Date(iso)
   const now = Date.now()
   const diff = now - d.getTime()
-  if (diff < 60_000) return 'just now'
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`
-  return d.toLocaleDateString()
+  if (diff < 60_000) return 'только что'
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} мин. назад`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} ч. назад`
+  return d.toLocaleDateString('ru-RU')
 }

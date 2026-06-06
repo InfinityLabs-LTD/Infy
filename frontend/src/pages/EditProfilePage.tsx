@@ -52,7 +52,7 @@ export function EditProfilePage() {
             <path d="M19 12H5M12 5l-7 7 7 7"/>
           </svg>
         </button>
-        <h1 className="text-lg font-semibold">Edit profile</h1>
+        <h1 className="text-lg font-semibold">Редактировать профиль</h1>
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-8">
@@ -61,7 +61,7 @@ export function EditProfilePage() {
             {error !== null && <ErrorMessage error={error} />}
 
             <div>
-              <label className="label">Display name</label>
+              <label className="label">Отображаемое имя</label>
               <input
                 className="input"
                 type="text"
@@ -73,7 +73,7 @@ export function EditProfilePage() {
             </div>
 
             <div>
-              <label className="label">Username</label>
+              <label className="label">Имя пользователя</label>
               <input
                 className="input"
                 type="text"
@@ -84,11 +84,11 @@ export function EditProfilePage() {
                 maxLength={32}
                 required
               />
-              <p className="text-xs text-gray-400 mt-1">3–32 chars, lowercase letters, numbers, _</p>
+              <p className="text-xs text-gray-400 mt-1">3–32 символа, строчные буквы, цифры, _</p>
             </div>
 
             <div>
-              <label className="label">Date of birth <span className="text-gray-400">(optional)</span></label>
+              <label className="label">Дата рождения <span className="text-gray-400">(необязательно)</span></label>
               <input
                 className="input"
                 type="date"
@@ -104,10 +104,10 @@ export function EditProfilePage() {
                 className="btn-ghost flex-1"
                 disabled={loading}
               >
-                Cancel
+                Отмена
               </button>
               <button type="submit" className="btn-primary flex-1" disabled={loading}>
-                {loading ? <Spinner size={18} /> : 'Save'}
+                {loading ? <Spinner size={18} /> : 'Сохранить'}
               </button>
             </div>
           </form>

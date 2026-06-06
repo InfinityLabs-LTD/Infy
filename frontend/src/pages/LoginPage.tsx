@@ -35,8 +35,8 @@ export function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <img src="/logo.svg" alt="Infy" className="mx-auto mb-3" width={56} height={56} />
-          <h1 className="text-2xl font-bold">Welcome back</h1>
-          <p className="text-gray-500 mt-1 text-sm">Sign in to your account</p>
+          <h1 className="text-2xl font-bold">С возвращением</h1>
+          <p className="text-gray-500 mt-1 text-sm">Войдите в аккаунт</p>
         </div>
 
         <div className="card">
@@ -44,7 +44,7 @@ export function LoginPage() {
             {error !== null && <ErrorMessage error={error} />}
 
             <div>
-              <label className="label">Username</label>
+              <label className="label">Имя пользователя</label>
               <input
                 className="input"
                 type="text"
@@ -57,7 +57,7 @@ export function LoginPage() {
             </div>
 
             <div>
-              <label className="label">Password</label>
+              <label className="label">Пароль</label>
               <input
                 className="input"
                 type="password"
@@ -70,15 +70,15 @@ export function LoginPage() {
             </div>
 
             <button type="submit" className="btn-primary w-full mt-2" disabled={loading}>
-              {loading ? <Spinner size={18} /> : 'Sign in'}
+              {loading ? <Spinner size={18} /> : 'Войти'}
             </button>
           </form>
         </div>
 
         <p className="text-center text-sm text-gray-500 mt-6">
-          No account?{' '}
+          Нет аккаунта?{' '}
           <Link to="/register" className="text-primary-600 font-medium hover:underline">
-            Create one
+            Создать
           </Link>
         </p>
       </div>

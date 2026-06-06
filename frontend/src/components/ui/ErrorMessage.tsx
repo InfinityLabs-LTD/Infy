@@ -10,7 +10,7 @@ function extractMessage(error: unknown): string {
     if (typeof msg === 'string') return msg
   }
   if (error instanceof Error) return error.message
-  return 'Something went wrong'
+  return 'Что-то пошло не так'
 }
 
 export function ErrorMessage({ error }: ErrorMessageProps) {

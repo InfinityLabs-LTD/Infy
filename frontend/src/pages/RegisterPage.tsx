@@ -31,7 +31,7 @@ export function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (form.password !== form.passwordConfirm) {
-      setError(new Error('Passwords do not match'))
+      setError(new Error('Пароли не совпадают'))
       return
     }
     setLoading(true)
@@ -59,8 +59,8 @@ export function RegisterPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <img src="/logo.svg" alt="Infy" className="mx-auto mb-3" width={56} height={56} />
-          <h1 className="text-2xl font-bold">Create account</h1>
-          <p className="text-gray-500 mt-1 text-sm">Join Infy Messenger</p>
+          <h1 className="text-2xl font-bold">Создать аккаунт</h1>
+          <p className="text-gray-500 mt-1 text-sm">Присоединяйтесь к Infy</p>
         </div>
 
         <div className="card">
@@ -68,7 +68,7 @@ export function RegisterPage() {
             {error !== null && <ErrorMessage error={error} />}
 
             <div>
-              <label className="label">Username</label>
+              <label className="label">Имя пользователя</label>
               <input
                 className="input"
                 type="text"
@@ -81,15 +81,15 @@ export function RegisterPage() {
                 maxLength={32}
                 required
               />
-              <p className="text-xs text-gray-400 mt-1">3–32 chars, lowercase letters, numbers, _</p>
+              <p className="text-xs text-gray-400 mt-1">3–32 символа, строчные буквы, цифры, _</p>
             </div>
 
             <div>
-              <label className="label">Display name</label>
+              <label className="label">Отображаемое имя</label>
               <input
                 className="input"
                 type="text"
-                placeholder="Your Name"
+                placeholder="Ваше имя"
                 value={form.nickname}
                 onChange={set('nickname')}
                 maxLength={64}
@@ -98,7 +98,7 @@ export function RegisterPage() {
             </div>
 
             <div>
-              <label className="label">Email <span className="text-gray-400">(optional)</span></label>
+              <label className="label">Email <span className="text-gray-400">(необязательно)</span></label>
               <input
                 className="input"
                 type="email"
@@ -110,7 +110,7 @@ export function RegisterPage() {
             </div>
 
             <div>
-              <label className="label">Date of birth <span className="text-gray-400">(optional)</span></label>
+              <label className="label">Дата рождения <span className="text-gray-400">(необязательно)</span></label>
               <input
                 className="input"
                 type="date"
@@ -120,11 +120,11 @@ export function RegisterPage() {
             </div>
 
             <div>
-              <label className="label">Password</label>
+              <label className="label">Пароль</label>
               <input
                 className="input"
                 type="password"
-                placeholder="Min 8 characters"
+                placeholder="Мин. 8 символов"
                 autoComplete="new-password"
                 value={form.password}
                 onChange={set('password')}
@@ -134,11 +134,11 @@ export function RegisterPage() {
             </div>
 
             <div>
-              <label className="label">Confirm password</label>
+              <label className="label">Подтвердите пароль</label>
               <input
                 className="input"
                 type="password"
-                placeholder="Repeat password"
+                placeholder="Повторите пароль"
                 autoComplete="new-password"
                 value={form.passwordConfirm}
                 onChange={set('passwordConfirm')}
@@ -147,15 +147,15 @@ export function RegisterPage() {
             </div>
 
             <button type="submit" className="btn-primary w-full mt-2" disabled={loading}>
-              {loading ? <Spinner size={18} /> : 'Create account'}
+              {loading ? <Spinner size={18} /> : 'Создать аккаунт'}
             </button>
           </form>
         </div>
 
         <p className="text-center text-sm text-gray-500 mt-6">
-          Already have an account?{' '}
+          Уже есть аккаунт?{' '}
           <Link to="/login" className="text-primary-600 font-medium hover:underline">
-            Sign in
+            Войти
           </Link>
         </p>
       </div>

@@ -188,14 +188,14 @@ export function ChatPage() {
         {cursor && (
           <div className="flex justify-center mb-4">
             <button onClick={loadMore} disabled={loadingMore} className="btn-ghost text-xs text-gray-400">
-              {loadingMore ? <Spinner size={14} /> : 'Load older messages'}
+              {loadingMore ? <Spinner size={14} /> : 'Загрузить ранее'}
             </button>
           </div>
         )}
         {loading ? (
           <div className="flex justify-center py-16"><Spinner size={32} /></div>
         ) : chatMessages.length === 0 ? (
-          <p className="text-center text-gray-400 py-16">No messages yet. Say hello!</p>
+          <p className="text-center text-gray-400 py-16">Нет сообщений. Начните общение!</p>
         ) : (
           chatMessages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
         )}
@@ -210,10 +210,10 @@ export function ChatPage() {
           <div className="flex items-center gap-3 px-2 py-2 mb-2 rounded-xl bg-red-50 border border-red-200">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
             <span className="text-sm text-red-600 flex-1 font-medium">
-              Recording {Math.floor(voiceRecorder.duration / 60)}:{(voiceRecorder.duration % 60).toString().padStart(2, '0')}
+              Запись {Math.floor(voiceRecorder.duration / 60)}:{(voiceRecorder.duration % 60).toString().padStart(2, '0')}
             </span>
             <button onClick={() => voiceRecorder.cancel()} className="text-xs text-red-400 hover:text-red-600">
-              Cancel
+              Отмена
             </button>
           </div>
         )}
@@ -225,7 +225,7 @@ export function ChatPage() {
               onClick={() => imageInputRef.current?.click()}
               disabled={sending}
               className="shrink-0 p-2 text-gray-400 hover:text-primary-600 transition-colors disabled:opacity-40"
-              title="Send image"
+              title="Отправить фото"
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -241,7 +241,7 @@ export function ChatPage() {
               onClick={() => videoInputRef.current?.click()}
               disabled={sending}
               className="shrink-0 p-2 text-gray-400 hover:text-primary-600 transition-colors disabled:opacity-40"
-              title="Send video"
+              title="Отправить видео"
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <polygon points="23,7 16,12 23,17 23,7"/>
@@ -256,7 +256,7 @@ export function ChatPage() {
               onClick={() => setShowCircle(true)}
               disabled={sending}
               className="shrink-0 p-2 text-gray-400 hover:text-primary-600 transition-colors disabled:opacity-40"
-              title="Record circle video"
+              title="Записать кружок"
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="10"/>
@@ -271,7 +271,7 @@ export function ChatPage() {
               ref={inputRef}
               rows={1}
               className="input flex-1 resize-none max-h-32 py-2.5 leading-relaxed"
-              placeholder="Message…"
+              placeholder="Сообщение…"
               value={text}
               onChange={(e) => {
                 setText(e.target.value)
@@ -307,7 +307,7 @@ export function ChatPage() {
                   ? 'bg-red-500 text-white hover:bg-red-600'
                   : 'bg-primary-600 text-white hover:bg-primary-700'
               }`}
-              title={isRecording ? 'Send voice' : 'Record voice'}
+              title={isRecording ? 'Отправить голосовое' : 'Записать голосовое'}
             >
               {sending ? <Spinner size={16} /> : isRecording ? (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
