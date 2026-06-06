@@ -67,7 +67,7 @@ function ChatRow({ chat, active }: { chat: Chat; active: boolean }) {
   const [hov, setHov] = useState(false)
   return (
     <Link
-      to={`/chat/${chat.id}`}
+      to={`/chat/${chat.partner?.id ?? chat.id}`}
       className="flex items-center gap-3 px-3 py-2 transition-none"
       style={{ background: active ? '#2b5278' : hov ? '#202e3e' : 'transparent' }}
       onMouseEnter={() => setHov(true)}
@@ -144,7 +144,7 @@ export function MessengerLayout() {
   })
 
   return (
-    <div className="h-screen flex overflow-hidden" style={{ background: '#0e1621' }}>
+    <div className="flex overflow-hidden" style={{ height: '100dvh', background: '#0e1621' }}>
       {/* ── Sidebar ── */}
       <aside
         className={`flex flex-col w-full md:w-[320px] md:shrink-0 ${activeChatId ? 'hidden md:flex' : 'flex'}`}
@@ -247,7 +247,7 @@ export function MessengerLayout() {
             </div>
           ) : (
             filtered.map(chat => (
-              <ChatRow key={chat.id} chat={chat} active={chat.id === activeChatId} />
+              <ChatRow key={chat.id} chat={chat} active={chat.partner?.id === activeChatId} />
             ))
           )}
         </nav>
@@ -255,7 +255,7 @@ export function MessengerLayout() {
 
       {/* ── Main ── */}
       <div
-        className={`flex-1 min-w-0 flex-col overflow-hidden ${activeChatId ? 'flex' : 'hidden md:flex'}`}
+        className={`flex-1 min-w-0 min-h-0 flex-col overflow-hidden ${activeChatId ? 'flex' : 'hidden md:flex'}`}
         style={{ background: '#0e1621' }}
       >
         <Outlet />

@@ -1,9 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { profileApi, User } from '@/api/auth'
-import { chatApi } from '@/api/chat'
-import { useChatStore } from '@/store/chat'
-import { joinChatRoom } from '@/lib/socket'
 import { Avatar } from '@/components/ui/Avatar'
 import { Spinner } from '@/components/ui/Spinner'
 
@@ -13,12 +10,10 @@ interface Props {
 
 export function NewChatModal({ onClose }: Props) {
   const navigate = useNavigate()
-  const upsertChat = useChatStore(s => s.upsertChat)
   const [query, setQuery] = useState('')
   const [user, setUser] = useState<User | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [searching, setSearching] = useState(false)
-  const [creating, setCreating] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -48,29 +43,29 @@ export function NewChatModal({ onClose }: Props) {
     }
   }
 
-  async function openChat() {
+  function openChat() {
     if (!user) return
-    setCreating(true)
-    try {
-      const res = await chatApi.createChat(user.id)
-      upsertChat(res.data.data)
-      joinChatRoom(res.data.data.id)
-      onClose()
-      navigate(`/chat/${res.data.data.id}`)
-    } finally {
-      setCreating(false)
-    }
+    onClose()
+    navigate(`/chat/${user.id}`)
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-         onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.7)' }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div className="w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl"
+        style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.08)' }}>
         {/* Header */}
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">Новый чат</h2>
+        <div className="flex items-center justify-between px-5 py-4"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <h2 className="font-semibold text-white text-base">Новый диалог</h2>
           <button onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+            className="w-8 h-8 flex items-center justify-center rounded-xl transition-colors"
+            style={{ color: 'rgba(255,255,255,0.4)' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
@@ -80,10 +75,10 @@ export function NewChatModal({ onClose }: Props) {
         {/* Search */}
         <div className="p-4">
           <div className="relative">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'rgba(255,255,255,0.3)' }}>
               {searching
                 ? <Spinner size={15} />
-                : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               }
             </span>
             <input
@@ -95,37 +90,35 @@ export function NewChatModal({ onClose }: Props) {
             />
           </div>
 
-          {/* Result */}
           <div className="mt-3 min-h-[64px]">
             {user && (
               <button
                 onClick={openChat}
-                disabled={creating}
-                className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-primary-50 transition-colors group"
+                className="w-full flex items-center gap-3 p-3 rounded-xl transition-colors"
+                style={{ color: 'white' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
                 <Avatar url={user.avatarUrl} nickname={user.nickname} size={44} />
                 <div className="flex-1 text-left">
-                  <p className="font-semibold text-gray-900 group-hover:text-primary-700">{user.nickname}</p>
-                  <p className="text-sm text-gray-400">@{user.username}</p>
+                  <p className="font-semibold text-white text-sm">{user.nickname}</p>
+                  <p className="text-xs" style={{ color: '#6c8998' }}>@{user.username}</p>
                 </div>
-                {creating
-                  ? <Spinner size={16} />
-                  : <svg className="text-primary-400 opacity-0 group-hover:opacity-100 transition-opacity" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M5 12h14M12 5l7 7-7 7"/>
-                    </svg>
-                }
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="2">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
               </button>
             )}
             {notFound && (
-              <p className="text-center text-sm text-gray-400 py-4">
-                Пользователь <span className="font-medium text-gray-600">@{query.replace(/^@/, '')}</span> не найден
+              <p className="text-center text-sm py-4" style={{ color: '#6c8998' }}>
+                Пользователь <span className="text-white/60">@{query.replace(/^@/, '')}</span> не найден
               </p>
             )}
             {!user && !notFound && !searching && query.length >= 3 && (
-              <p className="text-center text-sm text-gray-400 py-4">Введите имя пользователя для поиска</p>
+              <p className="text-center text-sm py-4" style={{ color: '#6c8998' }}>Введите имя пользователя</p>
             )}
             {!user && !notFound && !searching && query.length < 3 && (
-              <p className="text-center text-sm text-gray-400 py-4">Введите минимум 3 символа</p>
+              <p className="text-center text-sm py-4" style={{ color: '#6c8998' }}>Введите минимум 3 символа</p>
             )}
           </div>
         </div>
