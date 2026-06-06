@@ -46,6 +46,9 @@ export const authApi = {
 export const profileApi = {
   getMe: () => api.get<{ data: User }>('/profile/me'),
 
+  getByUsername: (username: string) =>
+    api.get<{ data: User }>(`/profile/${username}`),
+
   updateMe: (body: { nickname?: string; username?: string; birthdate?: string | null }) =>
     api.patch<{ data: User }>('/profile/me', body),
 
