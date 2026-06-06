@@ -17,9 +17,7 @@ section() { echo -e "\n${CYAN}══ $* ══${NC}"; }
 
 # ── 1. Проверка прав ─────────────────────────────────────────
 section "Проверка прав"
-if [[ $EUID -ne 0 ]]; then
-    error "Запустите от root или через sudo: sudo bash install.sh"
-fi
+[[ $EUID -ne 0 ]] && error "Запустите от root или через sudo: sudo bash install.sh"
 
 # ── 2. Проверка ОС ───────────────────────────────────────────
 if ! grep -qi ubuntu /etc/os-release 2>/dev/null; then
@@ -57,16 +55,17 @@ else
 fi
 
 # ── 5. Интерактивная настройка ───────────────────────────────
+# Все read читают с /dev/tty — корректно работает и при curl | bash
 section "Конфигурация"
 
-read -rp "Базовый домен (например: example.com): " DOMAIN
+read -rp "Базовый домен (например: example.com): " DOMAIN </dev/tty
 [[ -z "$DOMAIN" ]] && error "Домен не может быть пустым"
 
-read -rp "Email для Let's Encrypt (уведомления об истечении сертификата): " LE_EMAIL
+read -rp "Email для Let's Encrypt (уведомления об истечении сертификата): " LE_EMAIL </dev/tty
 [[ -z "$LE_EMAIL" ]] && error "Email не может быть пустым"
 
 while true; do
-    read -rsp "Пароль для первого ADMIN-аккаунта (минимум 8 символов): " ADMIN_PASSWORD
+    read -rsp "Пароль для первого ADMIN-аккаунта (минимум 8 символов): " ADMIN_PASSWORD </dev/tty
     echo
     if [[ ${#ADMIN_PASSWORD} -ge 8 ]]; then
         break
@@ -81,7 +80,8 @@ if ! command -v dig &>/dev/null; then
     apt-get install -y -qq dnsutils 2>/dev/null || true
 fi
 
-SERVER_IP=$(curl -4 -fsSL https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
+SERVER_IP=$(curl -4 -fsSL https://ifconfig.me 2>/dev/null) \
+    || SERVER_IP=$(hostname -I | awk '{print $1}')
 info "IP этого сервера: $SERVER_IP"
 
 RESOLVED=$(dig +short "$DOMAIN" A 2>/dev/null | tail -1)
@@ -92,7 +92,7 @@ else
     echo
     warn "Создайте A-запись: ${DOMAIN} → ${SERVER_IP}"
     warn "Распространение DNS может занять до 48 часов."
-    read -rp "Продолжить всё равно? (certbot не сработает при неверном DNS) [y/N] " CONT
+    read -rp "Продолжить всё равно? (certbot не сработает при неверном DNS) [y/N] " CONT </dev/tty
     [[ "$CONT" =~ ^[Yy]$ ]] || error "Прервано. Сначала исправьте DNS."
 fi
 
@@ -115,7 +115,12 @@ fi
 section "Загрузка проекта"
 if [[ -d "$INSTALL_DIR/.git" ]]; then
     info "Репозиторий уже существует, обновляю..."
-    git -C "$INSTALL_DIR" pull --ff-only
+    git -C "$INSTALL_DIR" fetch origin
+    git -C "$INSTALL_DIR" reset --hard origin/main
+elif [[ -d "$INSTALL_DIR" ]]; then
+    info "Директория $INSTALL_DIR существует (не git), очищаю..."
+    rm -rf "$INSTALL_DIR"
+    git clone "$REPO_URL" "$INSTALL_DIR"
 else
     info "Клонирую репозиторий в $INSTALL_DIR..."
     git clone "$REPO_URL" "$INSTALL_DIR"
@@ -172,29 +177,46 @@ EOF
 chmod 600 "$INSTALL_DIR/.env"
 info "Секреты записаны в $INSTALL_DIR/.env"
 
-# ── 10. Подготовка nginx-конфига ─────────────────────────────
-section "Подготовка конфигурации nginx"
+# ── 10. Подготовка prod docker-compose ───────────────────────
+section "Подготовка конфигурации"
 
-sed "s/DOMAIN/${DOMAIN}/g" "$INSTALL_DIR/nginx/prod.conf" \
-    > "$INSTALL_DIR/nginx/active.conf"
-
-# Переключаем docker-compose на prod nginx конфиг
+# Переключаем nginx на active.conf
 sed -i 's|nginx/dev.conf|nginx/active.conf|g' "$INSTALL_DIR/docker-compose.yml"
 
-info "nginx/active.conf создан для домена $DOMAIN"
+# Создаём директорию для certbot ACME-challenge на хосте
+mkdir -p /var/www/certbot
+
+# Bootstrap nginx-конфиг: только HTTP, чтобы nginx стартовал до получения TLS-сертификатов
+cat > "$INSTALL_DIR/nginx/active.conf" <<NGINX_EOF
+server {
+    listen 80;
+    server_name ${DOMAIN};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 200 'Infy Messenger — установка в процессе...';
+        add_header Content-Type text/plain;
+    }
+}
+NGINX_EOF
+
+info "Конфигурация подготовлена"
 
 cd "$INSTALL_DIR"
 
-# ── 11. Запуск контейнеров ───────────────────────────────────
+# ── 11. Сборка и запуск контейнеров ──────────────────────────
 section "Сборка и запуск контейнеров"
 docker compose up -d --build
 info "Контейнеры запущены"
 
-# ── 12. TLS через certbot ────────────────────────────────────
+# ── 12. Получение TLS-сертификата ────────────────────────────
 section "Получение TLS-сертификата"
 
 if ! command -v certbot &>/dev/null; then
-    apt-get install -y -qq certbot python3-certbot-nginx
+    apt-get install -y -qq certbot
 fi
 
 info "Запрашиваю сертификат для $DOMAIN..."
@@ -205,26 +227,27 @@ certbot certonly --webroot \
     --no-eff-email \
     --non-interactive \
     -d "$DOMAIN" \
-    || warn "Не удалось получить сертификат для $DOMAIN (проверьте DNS)"
+    || error "Не удалось получить сертификат для $DOMAIN. Проверьте DNS и повторите."
 
-# Автообновление
-if systemctl is-active --quiet systemd; then
-    systemctl enable --now certbot.timer 2>/dev/null || \
-    (crontab -l 2>/dev/null; echo "0 0,12 * * * certbot renew --quiet --post-hook 'docker compose -f $INSTALL_DIR/docker-compose.yml exec nginx nginx -s reload'") \
-        | crontab -
-    info "Автообновление сертификатов настроено"
-fi
+# Настройка автообновления через cron
+(crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --post-hook 'docker compose -f $INSTALL_DIR/docker-compose.yml exec -T nginx nginx -s reload'") \
+    | sort -u | crontab -
+info "Автообновление сертификатов настроено (cron)"
 
-docker compose exec nginx nginx -s reload 2>/dev/null || true
+# Переключаем nginx на полный prod-конфиг с TLS
+sed "s/DOMAIN/${DOMAIN}/g" "$INSTALL_DIR/nginx/prod.conf" \
+    > "$INSTALL_DIR/nginx/active.conf"
+docker compose exec -T nginx nginx -s reload
+info "nginx перезагружен с TLS-конфигурацией"
 
 # ── 13. Миграции Prisma ──────────────────────────────────────
 section "Применение миграций базы данных"
-docker compose exec core npx prisma migrate deploy
+docker compose exec -T core npx prisma migrate deploy
 info "Миграции применены"
 
 # ── 14. Создание ADMIN-аккаунта ──────────────────────────────
 section "Создание аккаунта администратора"
-docker compose exec core node -e "
+docker compose exec -T core node -e "
 const { PrismaClient } = require('@prisma/client');
 const argon2 = require('argon2');
 async function main() {
@@ -247,7 +270,135 @@ main().catch(e => { console.error(e); process.exit(1); });
 "
 info "Аккаунт администратора создан (логин: admin)"
 
-# ── 15. Готово ───────────────────────────────────────────────
+# ── 15. Установка команды ic ─────────────────────────────────
+section "Установка команды ic"
+
+cat > /usr/local/bin/ic <<'SCRIPT_EOF'
+#!/usr/bin/env bash
+# ic — утилита управления Infy Messenger
+set -euo pipefail
+
+INSTALL_DIR="/opt/infy"
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
+
+info()  { echo -e "${GREEN}▶${NC} $*"; }
+warn()  { echo -e "${YELLOW}⚠${NC}  $*"; }
+error() { echo -e "${RED}✖${NC}  $*"; exit 1; }
+
+[[ $EUID -ne 0 ]] && error "Запустите от root или через sudo"
+cd "$INSTALL_DIR"
+
+cmd="${1:-help}"
+shift || true
+
+case "$cmd" in
+
+  # ── Обновление проекта ──────────────────────────────────────
+  update)
+    info "Обновляю код из репозитория..."
+    git fetch origin
+    git reset --hard origin/main
+    info "Пересобираю и перезапускаю контейнеры..."
+    docker compose up -d --build
+    info "Применяю миграции базы данных..."
+    docker compose exec -T core npx prisma migrate deploy
+    info "Готово — проект обновлён"
+    ;;
+
+  # ── Логи ────────────────────────────────────────────────────
+  logs)
+    # ic logs           — все сервисы, последние 100 строк + follow
+    # ic logs core      — конкретный сервис
+    # ic logs core 200  — конкретный сервис, N строк
+    service="${1:-}"
+    lines="${2:-100}"
+    if [[ -n "$service" ]]; then
+      docker compose logs --tail="$lines" -f "$service"
+    else
+      docker compose logs --tail="$lines" -f
+    fi
+    ;;
+
+  # ── Статус ──────────────────────────────────────────────────
+  status)
+    docker compose ps
+    ;;
+
+  # ── Перезапуск ──────────────────────────────────────────────
+  restart)
+    service="${1:-}"
+    if [[ -n "$service" ]]; then
+      info "Перезапускаю $service..."
+      docker compose restart "$service"
+    else
+      info "Перезапускаю все сервисы..."
+      docker compose restart
+    fi
+    info "Готово"
+    ;;
+
+  # ── Остановка ───────────────────────────────────────────────
+  stop)
+    info "Останавливаю все контейнеры..."
+    docker compose stop
+    info "Контейнеры остановлены"
+    ;;
+
+  # ── Запуск ──────────────────────────────────────────────────
+  start)
+    info "Запускаю все контейнеры..."
+    docker compose up -d
+    info "Контейнеры запущены"
+    ;;
+
+  # ── Shell в контейнере ──────────────────────────────────────
+  shell)
+    service="${1:-core}"
+    info "Открываю shell в контейнере $service..."
+    docker compose exec "$service" /bin/sh
+    ;;
+
+  # ── Резервная копия БД ──────────────────────────────────────
+  backup)
+    BACKUP_FILE="$INSTALL_DIR/backups/db_$(date +%Y%m%d_%H%M%S).sql.gz"
+    mkdir -p "$INSTALL_DIR/backups"
+    info "Создаю резервную копию базы данных..."
+    source "$INSTALL_DIR/.env"
+    docker compose exec -T postgres \
+      pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" \
+      | gzip > "$BACKUP_FILE"
+    info "Резервная копия сохранена: $BACKUP_FILE"
+    ;;
+
+  # ── Помощь ──────────────────────────────────────────────────
+  help|--help|-h)
+    echo -e "\n${CYAN}ic — управление Infy Messenger${NC}\n"
+    echo "Использование: ic <команда> [аргументы]"
+    echo ""
+    echo "Команды:"
+    printf "  ${GREEN}%-22s${NC} %s\n" "update"             "Обновить код, пересобрать контейнеры, применить миграции"
+    printf "  ${GREEN}%-22s${NC} %s\n" "logs [сервис] [N]"  "Просмотр логов (все или конкретный сервис, N последних строк)"
+    printf "  ${GREEN}%-22s${NC} %s\n" "status"             "Статус всех контейнеров"
+    printf "  ${GREEN}%-22s${NC} %s\n" "restart [сервис]"   "Перезапустить все или конкретный сервис"
+    printf "  ${GREEN}%-22s${NC} %s\n" "start"              "Запустить все контейнеры"
+    printf "  ${GREEN}%-22s${NC} %s\n" "stop"               "Остановить все контейнеры"
+    printf "  ${GREEN}%-22s${NC} %s\n" "shell [сервис]"     "Открыть shell в контейнере (по умолчанию: core)"
+    printf "  ${GREEN}%-22s${NC} %s\n" "backup"             "Создать резервную копию базы данных"
+    echo ""
+    echo "Сервисы: core, realtime, media, frontend, nginx, postgres, redis, minio"
+    echo ""
+    ;;
+
+  *)
+    error "Неизвестная команда: $cmd. Запустите 'ic help' для справки."
+    ;;
+esac
+SCRIPT_EOF
+
+chmod +x /usr/local/bin/ic
+info "Команда ic установлена — запустите 'ic help' для справки"
+
+# ── 16. Готово ───────────────────────────────────────────────
 section "Готово!"
 echo
 echo -e "${GREEN}Infy Messenger запущен!${NC}"
@@ -256,9 +407,13 @@ echo "  Приложение:  https://${DOMAIN}"
 echo "  API / Docs:  https://${DOMAIN}/api/docs"
 echo "  Вход:        логин 'admin', пароль — тот, что вы задали"
 echo
-echo "Полезные команды:"
-echo "  cd $INSTALL_DIR && docker compose logs -f"
-echo "  docker compose ps"
-echo "  docker compose restart core"
+echo "Управление сервером:"
+echo "  ic update          — обновить проект"
+echo "  ic logs            — смотреть логи"
+echo "  ic logs core       — логи конкретного сервиса"
+echo "  ic status          — статус контейнеров"
+echo "  ic restart core    — перезапустить сервис"
+echo "  ic backup          — резервная копия БД"
+echo "  ic help            — справка по всем командам"
 echo
 warn "Храните $INSTALL_DIR/.env в безопасности — там все секреты."
