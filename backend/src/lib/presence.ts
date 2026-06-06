@@ -18,3 +18,8 @@ export async function isOnline(redis: Redis, userId: string): Promise<boolean> {
 export async function refreshPresence(redis: Redis, userId: string): Promise<void> {
   await redis.expire(`${PREFIX}${userId}`, TTL_SEC)
 }
+
+export async function getOnlineUserIds(redis: Redis): Promise<string[]> {
+  const keys = await redis.keys(`${PREFIX}*`)
+  return keys.map(k => k.slice(PREFIX.length))
+}

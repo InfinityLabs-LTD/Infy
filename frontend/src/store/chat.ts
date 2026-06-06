@@ -67,9 +67,11 @@ interface ChatState {
   onlineUsers: Set<string>              // set of userIds
   lastSeenMap: Record<string, string>   // userId → ISO string
   typing: TypingState
+  socketReady: boolean
 
   setChats: (chats: Chat[]) => void
   upsertChat: (chat: Chat) => void
+  setSocketReady: (v: boolean) => void
   setMessages: (chatId: string, messages: Message[], nextCursor: string | null) => void
   prependMessages: (chatId: string, messages: Message[], nextCursor: string | null) => void
   addMessage: (msg: Message) => void
@@ -87,8 +89,10 @@ export const useChatStore = create<ChatState>((set) => ({
   onlineUsers: new Set(),
   lastSeenMap: {},
   typing: {},
+  socketReady: false,
 
   setChats: (chats) => set({ chats }),
+  setSocketReady: (v) => set({ socketReady: v }),
 
   upsertChat: (chat) =>
     set((s) => {

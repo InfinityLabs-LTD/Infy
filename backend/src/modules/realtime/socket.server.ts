@@ -6,7 +6,7 @@ import { PrismaClient } from '@prisma/client'
 import { verifyAccessToken } from '../../lib/jwt.js'
 import { Errors } from '../../lib/errors.js'
 import { subscribeToChannel } from '../../lib/pubsub.js'
-import { setOnline, setOffline, refreshPresence, isOnline } from '../../lib/presence.js'
+import { setOnline, setOffline, refreshPresence, isOnline, getOnlineUserIds } from '../../lib/presence.js'
 import * as ChatService from '../chat/chat.service.js'
 import { uuidv7 } from 'uuidv7'
 
@@ -76,7 +76,13 @@ export function createSocketServer(
     await setOnline(pubClient, userId)
     socket.join(`user:${userId}`)
 
-    // Notify contacts that this user came online
+    // Send current online users snapshot to the newly connected client
+    try {
+      const onlineIds = await getOnlineUserIds(pubClient)
+      socket.emit('online_users', { userIds: onlineIds })
+    } catch { /* non-critical */ }
+
+    // Notify everyone that this user came online
     io.emit('user_online', { userId, username })
 
     // Auto-join all user's chat rooms

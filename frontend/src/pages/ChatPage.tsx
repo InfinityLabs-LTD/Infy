@@ -22,7 +22,7 @@ export function ChatPage() {
   const myUser = useAuthStore(s => s.user)
   const myUsername = myUser?.username
 
-  const { chats, messages, nextCursor, setMessages, prependMessages, setTyping } = useChatStore()
+  const { chats, messages, nextCursor, socketReady, setMessages, prependMessages, setTyping } = useChatStore()
   const chat = chats.find(c => c.id === chatId)
   const chatMessages = chatId ? (messages[chatId] ?? []) : []
   const cursor = chatId ? nextCursor[chatId] : null
@@ -46,19 +46,24 @@ export function ChatPage() {
   const voiceRecorder = useMediaRecorder()
   const isRecording = voiceRecorder.state === 'recording'
 
-  // Load messages + join socket room
+  // Load messages
   useEffect(() => {
     if (!chatId) return
     setLoading(true)
     chatApi.getMessages(chatId)
       .then(r => setMessages(chatId, r.data.data.messages, r.data.data.nextCursor))
       .finally(() => setLoading(false))
-    joinChatRoom(chatId)
   }, [chatId])
 
-  // Typing events from socket
+  // Join socket room — re-runs when socket becomes ready (socketReady changes)
   useEffect(() => {
-    if (!chatId) return
+    if (!chatId || !socketReady) return
+    joinChatRoom(chatId)
+  }, [chatId, socketReady])
+
+  // Typing events from socket — re-runs when socket becomes ready
+  useEffect(() => {
+    if (!chatId || !socketReady) return
     const socket = getActiveSocket()
     if (!socket) return
     const handler = ({ chatId: cid, username, typing }: { chatId: string; username: string; typing: boolean }) => {
@@ -66,7 +71,7 @@ export function ChatPage() {
     }
     socket.on('typing', handler)
     return () => { socket.off('typing', handler) }
-  }, [chatId])
+  }, [chatId, socketReady])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -251,9 +256,9 @@ export function ChatPage() {
           {/* Text input */}
           {!isRecording && (
             <textarea ref={inputRef} rows={1}
-              className="flex-1 resize-none rounded-xl bg-white/6 border border-white/10 text-white/90 placeholder-white/25
+              className="flex-1 resize-none rounded-xl bg-[#1e0042] border border-primary-700/50 text-white placeholder-white/30
                          px-3 py-2 text-sm leading-relaxed max-h-28
-                         focus:outline-none focus:border-primary-500/50 focus:bg-white/9 transition-colors"
+                         focus:outline-none focus:border-primary-500/80 focus:ring-1 focus:ring-primary-500/25 transition-colors"
               placeholder="Сообщение…"
               value={text}
               onChange={e => {
