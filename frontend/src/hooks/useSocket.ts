@@ -3,6 +3,7 @@ import { Socket } from 'socket.io-client'
 import { getSocket, disconnectSocket } from '@/lib/socket'
 import { useAuthStore } from '@/store/auth'
 import { useChatStore } from '@/store/chat'
+import type { Message } from '@/store/chat'
 
 export function useSocket(): Socket | null {
   const accessToken = useAuthStore((s) => s.accessToken)
@@ -16,24 +17,27 @@ export function useSocket(): Socket | null {
     const socket = getSocket(accessToken)
     socketRef.current = socket
 
-    socket.on('message_new', (msg) => addMessage(msg))
-    socket.on('message_edited', (msg) => updateMessage(msg))
-    socket.on('message_deleted', ({ id, chatId }: { id: string; chatId: string }) =>
-      removeMessage(chatId, id))
-    socket.on('user_online', ({ userId }: { userId: string }) => setUserOnline(userId))
-    socket.on('user_offline', ({ userId, lastSeenAt }: { userId: string; lastSeenAt: string }) =>
-      setUserOffline(userId, lastSeenAt))
+    const onMessageNew = (msg: Message) => addMessage(msg)
+    const onMessageEdited = (msg: Message) => updateMessage(msg)
+    const onMessageDeleted = ({ id, chatId }: { id: string; chatId: string }) => removeMessage(chatId, id)
+    const onUserOnline = ({ userId }: { userId: string }) => setUserOnline(userId)
+    const onUserOffline = ({ userId, lastSeenAt }: { userId: string; lastSeenAt: string }) => setUserOffline(userId, lastSeenAt)
+
+    socket.on('message_new', onMessageNew)
+    socket.on('message_edited', onMessageEdited)
+    socket.on('message_deleted', onMessageDeleted)
+    socket.on('user_online', onUserOnline)
+    socket.on('user_offline', onUserOffline)
 
     return () => {
-      socket.off('message_new')
-      socket.off('message_edited')
-      socket.off('message_deleted')
-      socket.off('user_online')
-      socket.off('user_offline')
+      socket.off('message_new', onMessageNew)
+      socket.off('message_edited', onMessageEdited)
+      socket.off('message_deleted', onMessageDeleted)
+      socket.off('user_online', onUserOnline)
+      socket.off('user_offline', onUserOffline)
     }
   }, [accessToken])
 
-  // Disconnect on logout
   useEffect(() => {
     if (!accessToken) disconnectSocket()
   }, [accessToken])

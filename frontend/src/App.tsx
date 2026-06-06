@@ -5,6 +5,7 @@ import { RegisterPage } from '@/pages/RegisterPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { EditProfilePage } from '@/pages/EditProfilePage'
 import { SessionsPage } from '@/pages/SessionsPage'
+import { MessengerLayout } from '@/pages/MessengerLayout'
 import { ChatListPage } from '@/pages/ChatListPage'
 import { ChatPage } from '@/pages/ChatPage'
 import { AdminLayout } from '@/pages/admin/AdminLayout'
@@ -35,11 +36,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Main — chat list */}
-        <Route path="/" element={<RequireAuth><ChatListPage /></RequireAuth>} />
-
-        {/* Chat */}
-        <Route path="/chat/:id" element={<RequireAuth><ChatPage /></RequireAuth>} />
+        {/* Messenger (sidebar + chat) */}
+        <Route element={<RequireAuth><MessengerLayout /></RequireAuth>}>
+          <Route path="/" element={<ChatListPage />} />
+          <Route path="/chat/:id" element={<ChatPage />} />
+        </Route>
 
         {/* Profile */}
         <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />

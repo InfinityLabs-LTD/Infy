@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { profileApi, User } from '@/api/auth'
 import { chatApi } from '@/api/chat'
+import { useChatStore } from '@/store/chat'
+import { joinChatRoom } from '@/lib/socket'
 import { Avatar } from '@/components/ui/Avatar'
 import { Spinner } from '@/components/ui/Spinner'
 
@@ -11,6 +13,7 @@ interface Props {
 
 export function NewChatModal({ onClose }: Props) {
   const navigate = useNavigate()
+  const upsertChat = useChatStore(s => s.upsertChat)
   const [query, setQuery] = useState('')
   const [user, setUser] = useState<User | null>(null)
   const [notFound, setNotFound] = useState(false)
@@ -50,6 +53,8 @@ export function NewChatModal({ onClose }: Props) {
     setCreating(true)
     try {
       const res = await chatApi.createChat(user.id)
+      upsertChat(res.data.data)
+      joinChatRoom(res.data.data.id)
       onClose()
       navigate(`/chat/${res.data.data.id}`)
     } finally {
