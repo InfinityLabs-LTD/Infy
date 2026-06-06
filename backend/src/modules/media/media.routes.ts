@@ -53,6 +53,36 @@ const mediaRoutes: FastifyPluginAsync = async (app) => {
     return reply.code(201).send({ data: result })
   })
 
+  // GET /avatars/* — serve avatar files without auth (bucket is public)
+  app.get('/avatars/*', {
+    schema: {
+      tags: ['Media'],
+      summary: 'Serve avatar image (public)',
+    },
+  }, async (request, reply) => {
+    const objectKey = (request.params as { '*': string })['*']
+    const bucket = env.MINIO_BUCKET_AVATARS
+
+    let stat: any  // eslint-disable-line @typescript-eslint/no-explicit-any
+    try {
+      stat = await app.minio.statObject(bucket, objectKey)
+    } catch {
+      return reply.code(404).send({ error: { code: 'MEDIA_NOT_FOUND', message: 'File not found' } })
+    }
+
+    const contentType = (stat.metaData?.['content-type'] as string | undefined) || 'image/jpeg'
+    reply.header('Content-Type', contentType)
+    reply.header('Content-Length', stat.size)
+    reply.header('Cache-Control', 'public, max-age=86400')
+
+    try {
+      const stream = await app.minio.getObject(bucket, objectKey)
+      return reply.send(stream)
+    } catch {
+      return reply.code(500).send({ error: { code: 'MEDIA_ERROR', message: 'Stream error' } })
+    }
+  })
+
   // GET /media/:encodedKey — stream file with range support
   // Auth: Authorization header OR ?token query param (needed for <audio>/<video> elements)
   app.get('/:encodedKey', {
