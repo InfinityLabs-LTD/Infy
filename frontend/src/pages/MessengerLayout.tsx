@@ -56,7 +56,9 @@ export function MessengerLayout() {
   return (
     <div className="h-screen flex overflow-hidden">
       {/* ── Sidebar ── */}
-      <aside className="w-[280px] shrink-0 flex flex-col bg-sidebar border-r border-sidebar-border">
+      <aside className={`flex flex-col bg-sidebar border-r border-sidebar-border
+        w-full md:w-[280px] md:shrink-0
+        ${activeChatId ? 'hidden md:flex' : 'flex'}`}>
 
         {/* Header */}
         <div className="px-3 pt-4 pb-3 space-y-2.5">
@@ -183,7 +185,8 @@ export function MessengerLayout() {
       </aside>
 
       {/* ── Main ── */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+      <div className={`flex-1 min-w-0 flex-col overflow-hidden
+        ${activeChatId ? 'flex' : 'hidden md:flex'}`}>
         <Outlet />
       </div>
 
