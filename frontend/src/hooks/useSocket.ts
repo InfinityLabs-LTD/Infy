@@ -9,7 +9,11 @@ export function useSocket(): Socket | null {
   const accessToken = useAuthStore((s) => s.accessToken)
   const socketRef = useRef<Socket | null>(null)
 
-  const { addMessage, updateMessage, removeMessage, setUserOnline, setUserOffline, setSocketReady } = useChatStore()
+  const {
+    addMessage, updateMessage, removeMessage,
+    setUserOnline, setUserOffline, setSocketReady,
+    updatePartnerRead,
+  } = useChatStore()
 
   useEffect(() => {
     if (!accessToken) return
@@ -17,7 +21,18 @@ export function useSocket(): Socket | null {
     const socket = getSocket(accessToken)
     socketRef.current = socket
 
-    const onMessageNew = (msg: Message) => addMessage(msg)
+    const onMessageNew = (msg: Message) => {
+      addMessage(msg)
+      // Browser notification when tab is not focused
+      const myId = useAuthStore.getState().user?.id
+      if (document.hidden && msg.sender.id !== myId && Notification.permission === 'granted') {
+        new Notification(msg.sender.nickname, {
+          body: msg.type === 'TEXT' ? (msg.content ?? '') : '📎 Вложение',
+          icon: msg.sender.avatarUrl ?? '/icon.svg',
+          tag: msg.chatId,  // replaces previous notification for same chat
+        })
+      }
+    }
     const onMessageEdited = (msg: Message) => updateMessage(msg)
     const onMessageDeleted = ({ id, chatId }: { id: string; chatId: string }) => removeMessage(chatId, id)
     const onUserOnline = ({ userId }: { userId: string }) => setUserOnline(userId)
@@ -25,6 +40,9 @@ export function useSocket(): Socket | null {
     const onOnlineUsers = ({ userIds }: { userIds: string[] }) => userIds.forEach(id => setUserOnline(id))
     const onConnect = () => setSocketReady(true)
     const onDisconnect = () => setSocketReady(false)
+    const onMessagesRead = ({ chatId, messageId }: { chatId: string; userId: string; messageId: string }) => {
+      updatePartnerRead(chatId, messageId)
+    }
 
     socket.on('message_new', onMessageNew)
     socket.on('message_edited', onMessageEdited)
@@ -34,6 +52,7 @@ export function useSocket(): Socket | null {
     socket.on('online_users', onOnlineUsers)
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
+    socket.on('messages_read', onMessagesRead)
 
     if (socket.connected) setSocketReady(true)
 
@@ -46,6 +65,7 @@ export function useSocket(): Socket | null {
       socket.off('online_users', onOnlineUsers)
       socket.off('connect', onConnect)
       socket.off('disconnect', onDisconnect)
+      socket.off('messages_read', onMessagesRead)
       setSocketReady(false)
     }
   }, [accessToken])

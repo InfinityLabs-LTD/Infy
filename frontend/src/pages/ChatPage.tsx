@@ -65,7 +65,7 @@ export function ChatPage() {
   const myUser = useAuthStore(s => s.user)
   const myUsername = myUser?.username
 
-  const { chats, messages, nextCursor, socketReady, setMessages, prependMessages, setTyping, upsertChat } = useChatStore()
+  const { chats, messages, nextCursor, socketReady, setMessages, prependMessages, setTyping, upsertChat, resetUnread } = useChatStore()
 
   // ── Resolve partnerId → chatId ──────────────────────────────
   const [chatId, setChatId] = useState<string | null>(() => {
@@ -116,14 +116,37 @@ export function ChatPage() {
   const voiceRecorder = useMediaRecorder()
   const isRecording = voiceRecorder.state === 'recording'
 
-  // Load messages once chatId is known
+  // Load messages once chatId is known; mark read after load
   useEffect(() => {
     if (!chatId) return
+    resetUnread(chatId)
     setLoading(true)
     chatApi.getMessages(chatId)
-      .then(r => setMessages(chatId, r.data.data.messages, r.data.data.nextCursor))
+      .then(r => {
+        setMessages(chatId, r.data.data.messages, r.data.data.nextCursor)
+        const msgs = r.data.data.messages
+        const lastId = msgs.at(-1)?.id
+        if (lastId) {
+          const socket = getActiveSocket()
+          socket?.emit('mark_read', { chatId, messageId: lastId })
+        }
+      })
       .finally(() => setLoading(false))
   }, [chatId])
+
+  // Mark read when new messages arrive while chat is open
+  const chatMessagesLen = chatMessages.length
+  useEffect(() => {
+    if (!chatId || chatMessagesLen === 0) return
+    const lastId = chatMessages.at(-1)?.id
+    if (!lastId) return
+    const lastMsg = chatMessages.at(-1)!
+    const myId = useAuthStore.getState().user?.id
+    if (lastMsg.sender.id === myId) return  // own message, no need to mark
+    const socket = getActiveSocket()
+    socket?.emit('mark_read', { chatId, messageId: lastId })
+    resetUnread(chatId)
+  }, [chatMessagesLen, chatId])
 
   useEffect(() => {
     if (!chatId || !socketReady) return
@@ -309,7 +332,7 @@ export function ChatPage() {
                 return (
                   <Fragment key={msg.id}>
                     {showDate && <DateSeparator label={formatDateLabel(msg.createdAt)} />}
-                    <MessageBubble message={msg} />
+                    <MessageBubble message={msg} partnerLastReadMessageId={chat?.partnerLastReadMessageId} />
                   </Fragment>
                 )
               })

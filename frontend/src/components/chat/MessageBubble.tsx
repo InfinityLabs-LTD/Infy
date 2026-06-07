@@ -8,9 +8,10 @@ import { CircleVideoMessage } from './CircleVideoMessage'
 interface Props {
   message: Message
   showSenderName?: boolean
+  partnerLastReadMessageId?: string | null
 }
 
-export function MessageBubble({ message, showSenderName }: Props) {
+export function MessageBubble({ message, showSenderName, partnerLastReadMessageId }: Props) {
   const myId = useAuthStore((s) => s.user?.id)
   const isOwn = message.sender.id === myId
 
@@ -94,11 +95,17 @@ export function MessageBubble({ message, showSenderName }: Props) {
           <span className="text-[11px]" style={{ color: isOwn ? 'rgba(255,255,255,0.55)' : '#6c8998' }}>
             {time}
           </span>
-          {isOwn && (
-            <svg width="15" height="10" viewBox="0 0 15 10" fill="none" style={{ opacity: 0.65 }}>
-              <path d="M1 5l3.5 3.5L13 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          )}
+          {isOwn && (() => {
+            const isRead = !!(partnerLastReadMessageId && message.id <= partnerLastReadMessageId)
+            const tickColor = isRead ? '#2aabee' : 'rgba(255,255,255,0.55)'
+            return (
+              <svg width="18" height="10" viewBox="0 0 18 10" fill="none">
+                {/* double checkmarks: left tick slightly offset */}
+                <path d="M1 5l3 3L11 1" stroke={tickColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M5 5l3 3L15 1" stroke={tickColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )
+          })()}
         </div>
       </div>
     </div>

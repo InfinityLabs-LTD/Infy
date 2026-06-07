@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useAuthStore } from '@/store/auth'
 
 export interface ChatPartner {
   id: string
@@ -21,6 +22,8 @@ export interface Chat {
   type: string
   partner: ChatPartner | null
   lastMessage: LastMessage | null
+  unreadCount: number
+  partnerLastReadMessageId: string | null
   createdAt: string
 }
 
@@ -77,6 +80,8 @@ interface ChatState {
   addMessage: (msg: Message) => void
   updateMessage: (msg: Message) => void
   removeMessage: (chatId: string, id: string) => void
+  resetUnread: (chatId: string) => void
+  updatePartnerRead: (chatId: string, messageId: string) => void
   setUserOnline: (userId: string) => void
   setUserOffline: (userId: string, lastSeenAt: string) => void
   setTyping: (chatId: string, username: string, isTyping: boolean) => void
@@ -123,11 +128,12 @@ export const useChatStore = create<ChatState>((set) => ({
   addMessage: (msg) =>
     set((s) => {
       const existing = s.messages[msg.chatId] ?? []
-      // Deduplicate
       if (existing.some((m) => m.id === msg.id)) return s
 
       const updated = [...existing, msg]
-      // Update last message in chat list
+      const myId = useAuthStore.getState().user?.id
+      const isOwn = msg.sender.id === myId
+
       const chats = s.chats.map((c) => {
         if (c.id !== msg.chatId) return c
         return {
@@ -137,8 +143,9 @@ export const useChatStore = create<ChatState>((set) => ({
             content: msg.content,
             type: msg.type,
             createdAt: msg.createdAt,
-            isOwn: false,  // will be recalculated by component
+            isOwn,
           },
+          unreadCount: isOwn ? c.unreadCount : c.unreadCount + 1,
         }
       })
       return {
@@ -164,6 +171,18 @@ export const useChatStore = create<ChatState>((set) => ({
         ...s.messages,
         [chatId]: (s.messages[chatId] ?? []).filter((m) => m.id !== id),
       },
+    })),
+
+  resetUnread: (chatId) =>
+    set((s) => ({
+      chats: s.chats.map((c) => c.id === chatId ? { ...c, unreadCount: 0 } : c),
+    })),
+
+  updatePartnerRead: (chatId, messageId) =>
+    set((s) => ({
+      chats: s.chats.map((c) =>
+        c.id === chatId ? { ...c, partnerLastReadMessageId: messageId } : c
+      ),
     })),
 
   setUserOnline: (userId) =>

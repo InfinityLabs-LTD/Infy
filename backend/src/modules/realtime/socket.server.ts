@@ -132,6 +132,15 @@ export function createSocketServer(
       }
     })
 
+    // ── mark_read ───────────────────────────────────────────
+    socket.on('mark_read', async ({ chatId, messageId }: { chatId: string; messageId: string }) => {
+      if (!chatId || !messageId) return
+      try {
+        await ChatService.markAsRead(prisma, chatId, BigInt(userId), messageId)
+        socket.to(`chat:${chatId}`).emit('messages_read', { chatId, userId, messageId })
+      } catch { /* non-critical */ }
+    })
+
     // ── typing ──────────────────────────────────────────────
     socket.on('typing_start', (chatId: string) => {
       socket.to(`chat:${chatId}`).emit('typing', { chatId, userId, username, typing: true })

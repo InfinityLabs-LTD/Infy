@@ -90,9 +90,10 @@ model Chat {
 }
 
 model ChatMember {
-  chatId   String
-  userId   BigInt
-  joinedAt DateTime @default(now())
+  chatId            String
+  userId            BigInt
+  joinedAt          DateTime @default(now())
+  lastReadMessageId String?
 
   chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

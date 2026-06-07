@@ -69,24 +69,55 @@ export async function getOrCreateDirectChat(
 }
 
 export async function listChats(prisma: PrismaClient, userId: bigint) {
-  const memberships = await prisma.chatMember.findMany({
-    where: { userId },
-    include: {
-      chat: {
-        include: {
-          members: { include: { user: true } },
-          messages: {
-            where: { deletedAt: null },
-            orderBy: { id: 'desc' },
-            take: 1,
+  const [memberships, unreadRows] = await Promise.all([
+    prisma.chatMember.findMany({
+      where: { userId },
+      include: {
+        chat: {
+          include: {
+            members: { include: { user: true } },
+            messages: {
+              where: { deletedAt: null },
+              orderBy: { id: 'desc' },
+              take: 1,
+            },
           },
         },
       },
-    },
-    orderBy: { joinedAt: 'desc' },
-  })
+      orderBy: { joinedAt: 'desc' },
+    }),
+    prisma.$queryRaw<{ chatId: string; count: number }[]>`
+      SELECT cm."chatId", CAST(COUNT(m.id) AS INTEGER) as count
+      FROM chat_members cm
+      LEFT JOIN messages m ON
+        m."chatId" = cm."chatId"
+        AND m."senderId" != ${userId}
+        AND m."deletedAt" IS NULL
+        AND (cm."lastReadMessageId" IS NULL OR m.id > cm."lastReadMessageId")
+      WHERE cm."userId" = ${userId}
+      GROUP BY cm."chatId"
+    `,
+  ])
 
-  return memberships.map(m => serializeChat(m.chat, userId))
+  const unreadMap: Record<string, number> = {}
+  for (const r of unreadRows) unreadMap[r.chatId] = Number(r.count)
+
+  return memberships.map(m => serializeChat(m.chat, userId, unreadMap[m.chat.id] ?? 0))
+}
+
+export async function markAsRead(
+  prisma: PrismaClient,
+  chatId: string,
+  userId: bigint,
+  messageId: string,
+) {
+  await prisma.$executeRaw`
+    UPDATE chat_members
+    SET "lastReadMessageId" = ${messageId}
+    WHERE "chatId" = ${chatId}
+      AND "userId" = ${userId}
+      AND ("lastReadMessageId" IS NULL OR "lastReadMessageId" < ${messageId})
+  `
 }
 
 export async function getMessages(
@@ -211,6 +242,7 @@ type ChatWithMembers = {
   type: string
   createdAt: Date
   members: Array<{
+    lastReadMessageId: string | null
     user: {
       id: bigint
       username: string
@@ -228,8 +260,9 @@ type ChatWithMembers = {
   }>
 }
 
-export function serializeChat(chat: ChatWithMembers, viewerId: bigint) {
+export function serializeChat(chat: ChatWithMembers, viewerId: bigint, unreadCount = 0) {
   const partner = chat.members.find(m => m.user.id !== viewerId)?.user
+  const partnerMember = chat.members.find(m => m.user.id !== viewerId)
   const lastMessage = chat.messages[0] ?? null
 
   return {
@@ -253,6 +286,8 @@ export function serializeChat(chat: ChatWithMembers, viewerId: bigint) {
           isOwn: lastMessage.senderId === viewerId,
         }
       : null,
+    unreadCount,
+    partnerLastReadMessageId: partnerMember?.lastReadMessageId ?? null,
     createdAt: chat.createdAt,
   }
 }

@@ -4,6 +4,7 @@ import { chatApi } from '@/api/chat'
 import { useChatStore, Chat } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { useSocket } from '@/hooks/useSocket'
+import { useNotifications } from '@/hooks/useNotifications'
 import { Avatar } from '@/components/ui/Avatar'
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator'
 import { Spinner } from '@/components/ui/Spinner'
@@ -86,11 +87,21 @@ function ChatRow({ chat, active }: { chat: Chat; active: boolean }) {
           <p className="text-[14px] font-medium text-white truncate leading-tight">
             {chat.partner?.nickname ?? 'Неизвестный'}
           </p>
-          {chat.lastMessage && (
-            <span className="text-[11px] shrink-0" style={{ color: active ? 'rgba(255,255,255,0.65)' : '#6c8998' }}>
-              {formatTime(chat.lastMessage.createdAt)}
-            </span>
-          )}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {chat.lastMessage && (
+              <span className="text-[11px]" style={{ color: active ? 'rgba(255,255,255,0.65)' : '#6c8998' }}>
+                {formatTime(chat.lastMessage.createdAt)}
+              </span>
+            )}
+            {!active && chat.unreadCount > 0 && (
+              <span
+                className="min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-semibold text-white flex items-center justify-center"
+                style={{ background: '#2aabee' }}
+              >
+                {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
+              </span>
+            )}
+          </div>
         </div>
         <p className="text-[13px] truncate leading-snug" style={{ color: active ? 'rgba(255,255,255,0.6)' : '#6c8998' }}>
           {chat.lastMessage
@@ -119,6 +130,7 @@ export function MessengerLayout() {
   const menuRef = useRef<HTMLDivElement>(null)
 
   useSocket()
+  useNotifications()
 
   useEffect(() => {
     chatApi.listChats()
