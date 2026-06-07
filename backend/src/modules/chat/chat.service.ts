@@ -1,5 +1,5 @@
 import { PrismaClient, MessageType } from '@prisma/client'
-import { uuidv7 } from 'uuidv7'
+import { ulid } from 'ulid'
 import { AppError } from '../../lib/errors.js'
 
 export interface AttachmentInput {
@@ -137,7 +137,7 @@ export async function sendMessage(
     throw new AppError('MESSAGE_EMPTY', 'Message must have content or an attachment', 400)
   }
 
-  const id = uuidv7()
+  const id = ulid()
   const message = await prisma.message.create({
     data: {
       id,

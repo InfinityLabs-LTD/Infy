@@ -8,7 +8,6 @@ import { Errors } from '../../lib/errors.js'
 import { subscribeToChannel } from '../../lib/pubsub.js'
 import { setOnline, setOffline, refreshPresence, isOnline, getOnlineUserIds } from '../../lib/presence.js'
 import * as ChatService from '../chat/chat.service.js'
-import { uuidv7 } from 'uuidv7'
 
 interface AuthSocket extends Socket {
   userId: string

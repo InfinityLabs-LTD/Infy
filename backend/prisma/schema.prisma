@@ -47,7 +47,7 @@ model User {
 }
 
 model DeviceSession {
-  id               String    @id @default(uuid())
+  id               String    @id @default(cuid())
   userId           BigInt
   refreshTokenHash String    @unique
   deviceName       String?   @db.VarChar(255)
@@ -66,7 +66,7 @@ model DeviceSession {
 
 // Schema only — email verification flow not yet implemented
 model EmailVerificationToken {
-  id         String    @id @default(uuid())
+  id         String    @id @default(cuid())
   userId     BigInt
   tokenHash  String    @unique
   expiresAt  DateTime
@@ -79,7 +79,7 @@ model EmailVerificationToken {
 }
 
 model Chat {
-  id        String   @id @default(uuid())
+  id        String   @id @default(cuid())
   type      ChatType @default(DIRECT)
   createdAt DateTime @default(now())
 
@@ -122,7 +122,7 @@ model Message {
 }
 
 model Attachment {
-  id           String  @id @default(uuid())
+  id           String  @id @default(cuid())
   messageId    String
   storageKey   String          // MinIO object key
   mimeType     String
