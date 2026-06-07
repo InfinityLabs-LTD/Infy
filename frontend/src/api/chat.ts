@@ -10,6 +10,9 @@ export const chatApi = {
   createChat: (partnerId: string) =>
     api.post<{ data: Chat }>('/chats', { partnerId }),
 
+  getOrCreateChat: (partnerId: string) =>
+    api.get<{ data: Chat }>(`/chats/partner/${partnerId}`),
+
   getMessages: (chatId: string, cursor?: string, limit = 50) =>
     api.get<{ data: { messages: Message[]; nextCursor: string | null } }>(
       `/chats/${chatId}/messages`,

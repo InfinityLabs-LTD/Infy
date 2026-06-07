@@ -41,6 +41,25 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
     return reply.code(201).send({ data: ChatService.serializeChat(chat as Parameters<typeof ChatService.serializeChat>[0], userId) })
   })
 
+  // GET /chats/partner/:partnerId — get or create direct chat (CDN-safe, no POST required)
+  app.get('/partner/:partnerId', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'Get or create direct chat by partner user ID',
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: 'object',
+        required: ['partnerId'],
+        properties: { partnerId: { type: 'string' } },
+      },
+    },
+  }, async (request) => {
+    const { partnerId } = request.params as { partnerId: string }
+    const userId = BigInt(request.user.sub)
+    const chat = await ChatService.getOrCreateDirectChat(app.prisma, userId, BigInt(partnerId))
+    return { data: ChatService.serializeChat(chat as Parameters<typeof ChatService.serializeChat>[0], userId) }
+  })
+
   // GET /chats/:id/messages — paginated history
   app.get('/:id/messages', {
     schema: {

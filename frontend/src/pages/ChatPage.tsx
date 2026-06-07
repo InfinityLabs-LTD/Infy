@@ -79,7 +79,7 @@ export function ChatPage() {
     const found = useChatStore.getState().chats.find(c => c.partner?.id === partnerId)
     if (found) { setChatId(found.id); setResolving(false); return }
     setResolving(true)
-    chatApi.createChat(partnerId)
+    chatApi.getOrCreateChat(partnerId)
       .then(r => { upsertChat(r.data.data); setChatId(r.data.data.id) })
       .catch(() => navigate('/'))
       .finally(() => setResolving(false))
@@ -100,7 +100,7 @@ export function ChatPage() {
   const typingSet = useChatStore(s => chatId ? s.typing[chatId] : undefined)
   const typingNames = typingSet ? [...typingSet].filter(u => u !== myUsername) : []
 
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
