@@ -105,7 +105,7 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
       'Content-Type': data.mimetype,
     })
 
-    const avatarUrl = `${env.MINIO_PUBLIC_URL}/${env.MINIO_BUCKET_AVATARS}/${objectKey}`
+    const avatarUrl = `/media/avatars/${objectKey}`
 
     const user = await app.prisma.user.update({
       where: { id: userId },
