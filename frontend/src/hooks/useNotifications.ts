@@ -31,7 +31,7 @@ export function useNotifications() {
         if (existing) return
 
         const { data } = await pushApi.getVapidPublicKey()
-        const applicationServerKey = urlBase64ToUint8Array(data.data.publicKey)
+        const applicationServerKey = urlBase64ToUint8Array(data.data.publicKey).buffer as ArrayBuffer
 
         const sub = await registration.pushManager.subscribe({
           userVisibleOnly: true,
