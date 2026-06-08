@@ -4,19 +4,25 @@ interface Props {
   url: string
   thumbnailUrl?: string | null
   durationMs?: number | null
+  mirrored?: boolean
 }
 
-export function CircleVideoMessage({ url, thumbnailUrl, durationMs }: Props) {
+const SPEEDS = [1, 1.5, 2] as const
+
+export function CircleVideoMessage({ url, thumbnailUrl, durationMs, mirrored = true }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [speedIdx, setSpeedIdx] = useState(0)
   const SIZE = 180
+
+  const speed = SPEEDS[speedIdx]
 
   function toggle() {
     const v = videoRef.current
     if (!v) return
     if (playing) { v.pause(); setPlaying(false) }
-    else { v.play(); setPlaying(true) }
+    else { v.playbackRate = speed; v.play(); setPlaying(true) }
   }
 
   function onTimeUpdate() {
@@ -32,6 +38,13 @@ export function CircleVideoMessage({ url, thumbnailUrl, durationMs }: Props) {
     if (v) v.currentTime = 0
   }
 
+  function cycleSpeed(e: React.MouseEvent) {
+    e.stopPropagation()
+    const nextIdx = (speedIdx + 1) % SPEEDS.length
+    setSpeedIdx(nextIdx)
+    if (videoRef.current) videoRef.current.playbackRate = SPEEDS[nextIdx]
+  }
+
   const radius = SIZE / 2 - 3
   const circumference = 2 * Math.PI * radius
   const strokeDash = circumference * progress
@@ -42,7 +55,6 @@ export function CircleVideoMessage({ url, thumbnailUrl, durationMs }: Props) {
       style={{ width: SIZE, height: SIZE }}
       onClick={toggle}
     >
-      {/* Circular clip */}
       <video
         ref={videoRef}
         src={url}
@@ -52,30 +64,29 @@ export function CircleVideoMessage({ url, thumbnailUrl, durationMs }: Props) {
         onTimeUpdate={onTimeUpdate}
         onEnded={onEnded}
         className="absolute inset-0 w-full h-full object-cover"
-        style={{ borderRadius: '50%' }}
+        style={{ borderRadius: '50%', transform: mirrored ? 'scaleX(-1)' : 'none' }}
       />
 
       {/* Progress ring */}
       {playing && (
-        <svg
-          className="absolute inset-0 -rotate-90"
-          width={SIZE}
-          height={SIZE}
-          viewBox={`0 0 ${SIZE} ${SIZE}`}
-        >
-          <circle
-            cx={SIZE / 2}
-            cy={SIZE / 2}
-            r={radius}
-            fill="none"
-            stroke="white"
-            strokeWidth="3"
-            strokeOpacity="0.5"
+        <svg className="absolute inset-0 -rotate-90" width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
+          <circle cx={SIZE/2} cy={SIZE/2} r={radius} fill="none"
+            stroke="white" strokeWidth="3" strokeOpacity="0.5"
             strokeDasharray={circumference}
             strokeDashoffset={circumference - strokeDash}
             strokeLinecap="round"
           />
         </svg>
+      )}
+
+      {/* Speed button while playing */}
+      {playing && (
+        <button
+          onClick={cycleSpeed}
+          className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs font-bold px-2 py-0.5 rounded-full"
+          style={{ background: 'rgba(0,0,0,0.55)', color: 'white', backdropFilter: 'blur(4px)' }}>
+          {speed}x
+        </button>
       )}
 
       {/* Play overlay */}

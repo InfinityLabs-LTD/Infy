@@ -107,6 +107,8 @@ export function ChatPage() {
   const [sending, setSending] = useState(false)
   const [showCircle, setShowCircle] = useState(false)
   const [showPanel, setShowPanel] = useState(false)
+  const [recordMode, setRecordMode] = useState<'voice' | 'circle'>('voice')
+  const [recordLocked, setRecordLocked] = useState(false)
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -116,6 +118,10 @@ export function ChatPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
+  const holdStartTime = useRef(0)
+  const holdStartY = useRef(0)
+  const isHoldingRef = useRef(false)
+  const circleSendTrigger = useRef<(() => void) | null>(null)
 
   const voiceRecorder = useMediaRecorder()
   const isRecording = voiceRecorder.state === 'recording'
@@ -239,19 +245,58 @@ export function ChatPage() {
     } finally { setSending(false) }
   }
 
-  async function toggleVoice() {
-    if (voiceRecorder.state === 'idle') {
-      await voiceRecorder.start()
-    } else {
-      const blob = await voiceRecorder.stop()
-      if (!blob || blob.size < 1000 || !chatId) return
-      setSending(true)
-      try {
-        const file = new File([blob], 'voice.webm', { type: blob.type })
-        const { data: { data: upload } } = await mediaApi.upload(file)
-        await chatApi.sendMedia(chatId, 'AUDIO', upload)
-      } finally { setSending(false) }
+  async function sendVoiceBlob() {
+    const blob = await voiceRecorder.stop()
+    setRecordLocked(false)
+    isHoldingRef.current = false
+    if (!blob || blob.size < 1000 || !chatId) return
+    setSending(true)
+    try {
+      const file = new File([blob], 'voice.webm', { type: blob.type })
+      const { data: { data: upload } } = await mediaApi.upload(file)
+      await chatApi.sendMedia(chatId, 'AUDIO', upload)
+    } finally { setSending(false) }
+  }
+
+  function cancelRecord() {
+    if (recordMode === 'voice') voiceRecorder.cancel()
+    else setShowCircle(false)
+    setRecordLocked(false)
+    isHoldingRef.current = false
+  }
+
+  function onRecordPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
+    if (text.trim() || sending || recordLocked) return
+    e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    isHoldingRef.current = true
+    holdStartTime.current = Date.now()
+    holdStartY.current = e.clientY
+    if (recordMode === 'voice') voiceRecorder.start()
+    else setShowCircle(true)
+  }
+
+  function onRecordPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
+    if (!isHoldingRef.current || recordLocked) return
+    const dy = holdStartY.current - e.clientY
+    if (dy > 60) setRecordLocked(true)
+  }
+
+  function onRecordPointerUp(e: React.PointerEvent<HTMLButtonElement>) {
+    if (!isHoldingRef.current) return
+    isHoldingRef.current = false
+    const held = Date.now() - holdStartTime.current
+    if (held < 250) {
+      // Короткое нажатие — переключить режим
+      if (recordMode === 'voice') voiceRecorder.cancel()
+      else setShowCircle(false)
+      setRecordMode(m => m === 'voice' ? 'circle' : 'voice')
+      return
     }
+    if (recordLocked) return
+    // Отпустили после удержания — автоотправка
+    if (recordMode === 'voice') sendVoiceBlob()
+    else circleSendTrigger.current?.()
   }
 
   function startTyping() {
@@ -372,16 +417,44 @@ export function ChatPage() {
 
       {/* ── Input bar ── */}
       <div className="shrink-0 px-2 py-2" style={{ background: '#17212b' }}>
-        {isRecording && (
+        {/* Запись голосового — индикатор */}
+        {isRecording && !recordLocked && (
           <div className="flex items-center gap-2 px-3 py-1.5 mb-2 rounded-xl"
             style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)' }}>
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
             <span className="text-xs text-red-300 flex-1">
               Запись · {Math.floor(voiceRecorder.duration / 60)}:{String(voiceRecorder.duration % 60).padStart(2, '0')}
             </span>
-            <button onClick={() => voiceRecorder.cancel()} className="text-xs text-red-400 hover:text-red-200 transition-colors">
+            <span className="text-xs flex items-center gap-1 opacity-40">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                <path d="M12 19V5M5 12l7-7 7 7"/>
+              </svg>
+              зафиксировать
+            </span>
+            <button onClick={cancelRecord} className="text-xs text-red-400 hover:text-red-200 transition-colors ml-1">
               Отмена
             </button>
+          </div>
+        )}
+
+        {/* Запись голосового — зафиксировано */}
+        {isRecording && recordLocked && (
+          <div className="flex items-center gap-2 px-3 py-1.5 mb-2 rounded-xl"
+            style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)' }}>
+            <button onClick={cancelRecord} className="text-red-400 hover:text-red-200 transition-colors shrink-0">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                <path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+              </svg>
+            </button>
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+            <span className="text-xs text-red-300 flex-1">
+              Запись · {Math.floor(voiceRecorder.duration / 60)}:{String(voiceRecorder.duration % 60).padStart(2, '0')}
+            </span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="2.5">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
           </div>
         )}
 
@@ -415,6 +488,7 @@ export function ChatPage() {
             />
           )}
 
+          {/* Правая кнопка */}
           {text.trim() ? (
             <button
               onClick={sendText}
@@ -430,26 +504,48 @@ export function ChatPage() {
                 </svg>
               )}
             </button>
-          ) : (
+          ) : recordLocked ? (
+            // Зафиксировано — кнопка отправки голосового
             <button
-              onClick={toggleVoice}
+              onClick={sendVoiceBlob}
               disabled={sending}
-              title={isRecording ? 'Отправить' : 'Голосовое'}
               className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-all disabled:opacity-40 active:scale-95"
-              style={{ background: isRecording ? '#ef4444' : '#2aabee' }}
+              style={{ background: '#2aabee' }}
             >
-              {sending ? <Spinner size={14} /> : isRecording ? (
+              {sending ? <Spinner size={14} /> : (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"
                   style={{ transform: 'rotate(45deg)', marginLeft: '2px' }}>
                   <line x1="22" y1="2" x2="11" y2="13"/>
                   <polygon points="22 2 15 22 11 13 2 9 22 2"/>
                 </svg>
-              ) : (
+              )}
+            </button>
+          ) : (
+            // Кнопка записи: удержание = запись, нажатие = смена режима
+            <button
+              onPointerDown={onRecordPointerDown}
+              onPointerMove={onRecordPointerMove}
+              onPointerUp={onRecordPointerUp}
+              onPointerCancel={() => cancelRecord()}
+              disabled={sending}
+              title={recordMode === 'voice' ? 'Голосовое (удержать)' : 'Кружок (удержать)'}
+              className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-all disabled:opacity-40 select-none touch-none"
+              style={{
+                background: isRecording ? '#ef4444' : '#2aabee',
+                cursor: 'pointer',
+              }}
+            >
+              {sending ? <Spinner size={14} /> : recordMode === 'voice' ? (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
                   <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
                   <path d="M19 10v2a7 7 0 01-14 0v-2"/>
                   <line x1="12" y1="19" x2="12" y2="23"/>
                   <line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polygon points="10,8 16,12 10,16 10,8"/>
                 </svg>
               )}
             </button>
@@ -468,16 +564,6 @@ export function ChatPage() {
               </svg>
               Видео
             </button>
-            <button onClick={() => setShowCircle(true)} disabled={sending} title="Кружок"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-colors disabled:opacity-30"
-              style={{ color: 'rgba(255,255,255,0.35)' }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#2aabee')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16 10,8"/>
-              </svg>
-              Кружок
-            </button>
           </div>
         )}
       </div>
@@ -487,7 +573,14 @@ export function ChatPage() {
       <input ref={videoInputRef} type="file" accept={ALLOWED_VIDEO} className="hidden"
         onChange={e => { const f = e.target.files?.[0]; if (f) sendMediaFile(f, 'VIDEO'); e.target.value = '' }} />
 
-      {showCircle && <CircleRecorderModal onSend={sendCircle} onClose={() => setShowCircle(false)} />}
+      {showCircle && (
+        <CircleRecorderModal
+          onSend={sendCircle}
+          onClose={() => { setShowCircle(false); setRecordLocked(false); isHoldingRef.current = false }}
+          sendTriggerRef={circleSendTrigger}
+          locked={recordLocked}
+        />
+      )}
 
       {showPanel && partner && chatId && (
         <PartnerInfoPanel chatId={chatId} partner={partner} onClose={() => setShowPanel(false)} />

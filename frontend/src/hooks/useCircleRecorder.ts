@@ -6,10 +6,12 @@ export interface UseCircleRecorderResult {
   state: CircleRecordState
   error: string | null
   duration: number
+  isFrontCamera: boolean
   videoRef: React.RefObject<HTMLVideoElement>
   start: () => Promise<void>
   stop: () => Promise<Blob | null>
   cancel: () => void
+  switchCamera: () => Promise<void>
 }
 
 const MAX_DURATION_SEC = 60
@@ -22,6 +24,7 @@ export function useCircleRecorder(): UseCircleRecorderResult {
   const [state, setState] = useState<CircleRecordState>('idle')
   const [error, setError] = useState<string | null>(null)
   const [duration, setDuration] = useState(0)
+  const [isFrontCamera, setIsFrontCamera] = useState(true)
   const videoRef = useRef<HTMLVideoElement>(null)
 
   const recorderRef = useRef<MediaRecorder | null>(null)
@@ -71,6 +74,7 @@ export function useCircleRecorder(): UseCircleRecorderResult {
   const start = useCallback(async () => {
     setError(null)
     setState('requesting')
+    setIsFrontCamera(true)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 400 }, height: { ideal: 400 } },
@@ -111,6 +115,35 @@ export function useCircleRecorder(): UseCircleRecorderResult {
     }
   }, [stop, cleanup])
 
+  const switchCamera = useCallback(async () => {
+    if (!streamRef.current || state !== 'recording') return
+    const newFacing = isFrontCamera ? 'environment' : 'user'
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: newFacing, width: { ideal: 400 }, height: { ideal: 400 } },
+        audio: false,
+      })
+      const newVideoTrack = newStream.getVideoTracks()[0]
+      if (!newVideoTrack) return
+
+      const oldTrack = streamRef.current.getVideoTracks()[0]
+      if (oldTrack) {
+        streamRef.current.removeTrack(oldTrack)
+        oldTrack.stop()
+      }
+      streamRef.current.addTrack(newVideoTrack)
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = streamRef.current
+        await videoRef.current.play().catch(() => {})
+      }
+
+      setIsFrontCamera(f => !f)
+    } catch {
+      // Камера не переключилась — игнорируем
+    }
+  }, [isFrontCamera, state])
+
   const cancel = useCallback(() => {
     recorderRef.current?.stop()
     recorderRef.current = null
@@ -119,8 +152,9 @@ export function useCircleRecorder(): UseCircleRecorderResult {
     setState('idle')
     setError(null)
     setDuration(0)
+    setIsFrontCamera(true)
     stopPromiseRef.current?.(null)
   }, [cleanup])
 
-  return { state, error, duration, videoRef, start, stop, cancel }
+  return { state, error, duration, isFrontCamera, videoRef, start, stop, cancel, switchCamera }
 }

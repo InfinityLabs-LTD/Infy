@@ -7,12 +7,16 @@ interface Props {
   isOwn: boolean
 }
 
+const SPEEDS = [1, 1.5, 2] as const
+
 export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
-  const [progress, setProgress] = useState(0)   // 0-1
+  const [progress, setProgress] = useState(0)
   const [elapsed, setElapsed] = useState(0)
+  const [speedIdx, setSpeedIdx] = useState(0)
 
+  const speed = SPEEDS[speedIdx]
   const totalSec = durationMs ? Math.round(durationMs / 1000) : 0
 
   useEffect(() => {
@@ -38,6 +42,10 @@ export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
     }
   }, [])
 
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = speed
+  }, [speed])
+
   function toggle() {
     const audio = audioRef.current
     if (!audio) return
@@ -53,6 +61,10 @@ export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
     audio.currentTime = ratio * audio.duration
   }
 
+  function cycleSpeed() {
+    setSpeedIdx(i => (i + 1) % SPEEDS.length)
+  }
+
   const bars = waveform ?? Array(40).fill(0.5)
   const activeBars = Math.round(progress * bars.length)
 
@@ -62,9 +74,8 @@ export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
 
       <button
         onClick={toggle}
-        className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
-          isOwn ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-primary-100 hover:bg-primary-200 text-primary-600'
-        }`}
+        className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+        style={{ background: isOwn ? 'rgba(255,255,255,0.2)' : 'rgba(42,171,238,0.15)', color: isOwn ? 'white' : '#2aabee' }}
       >
         {playing ? (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -79,32 +90,42 @@ export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
 
       <div className="flex-1 flex flex-col gap-1">
         {/* Waveform */}
-        <div
-          className="flex items-center gap-px h-8 cursor-pointer"
-          onClick={seek}
-        >
+        <div className="flex items-center gap-px h-8 cursor-pointer" onClick={seek}>
           {bars.map((amp, i) => (
             <div
               key={i}
-              className={`rounded-full transition-colors ${
-                i < activeBars
-                  ? (isOwn ? 'bg-white' : 'bg-primary-500')
-                  : (isOwn ? 'bg-white/40' : 'bg-gray-300')
-              }`}
+              className="rounded-full transition-colors"
               style={{
                 width: 2,
                 height: `${Math.max(4, amp * 28)}px`,
                 flex: '0 0 auto',
+                background: i < activeBars
+                  ? (isOwn ? 'white' : '#2aabee')
+                  : (isOwn ? 'rgba(255,255,255,0.35)' : 'rgba(42,171,238,0.3)'),
               }}
             />
           ))}
         </div>
 
-        {/* Duration */}
-        <div className={`text-xs ${isOwn ? 'text-white/70' : 'text-gray-400'}`}>
-          {playing || elapsed > 0
-            ? `${formatSec(elapsed)} / ${formatSec(totalSec)}`
-            : formatSec(totalSec)}
+        {/* Duration + speed */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs" style={{ color: isOwn ? 'rgba(255,255,255,0.65)' : '#6c8998' }}>
+            {playing || elapsed > 0
+              ? `${formatSec(elapsed)} / ${formatSec(totalSec)}`
+              : formatSec(totalSec)}
+          </span>
+          {playing && (
+            <button
+              onClick={cycleSpeed}
+              className="text-xs font-semibold px-1.5 py-0.5 rounded-md transition-colors"
+              style={{
+                color: isOwn ? 'rgba(255,255,255,0.9)' : '#2aabee',
+                background: isOwn ? 'rgba(255,255,255,0.15)' : 'rgba(42,171,238,0.12)',
+              }}
+            >
+              {speed}x
+            </button>
+          )}
         </div>
       </div>
     </div>

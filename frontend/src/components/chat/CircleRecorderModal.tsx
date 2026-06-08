@@ -5,10 +5,12 @@ import { Spinner } from '@/components/ui/Spinner'
 interface Props {
   onSend: (blob: Blob) => void
   onClose: () => void
+  sendTriggerRef?: React.MutableRefObject<(() => void) | null>
+  locked?: boolean
 }
 
-export function CircleRecorderModal({ onSend, onClose }: Props) {
-  const { state, error, duration, videoRef, start, stop, cancel } = useCircleRecorder()
+export function CircleRecorderModal({ onSend, onClose, sendTriggerRef, locked }: Props) {
+  const { state, error, duration, isFrontCamera, videoRef, start, stop, cancel, switchCamera } = useCircleRecorder()
 
   useEffect(() => {
     start()
@@ -25,6 +27,15 @@ export function CircleRecorderModal({ onSend, onClose }: Props) {
     cancel()
     onClose()
   }
+
+  // Expose send trigger for auto-send on pointer release
+  useEffect(() => {
+    if (!sendTriggerRef) return
+    sendTriggerRef.current = () => {
+      if (state === 'recording' && duration >= 1) handleSend()
+    }
+    return () => { if (sendTriggerRef) sendTriggerRef.current = null }
+  }, [state, duration])
 
   const pct = Math.min(100, (duration / 60) * 100)
   const circumference = 2 * Math.PI * 116
@@ -50,17 +61,41 @@ export function CircleRecorderModal({ onSend, onClose }: Props) {
               Закрыть
             </button>
             <button onClick={() => start()}
-              className="px-5 py-2 rounded-xl bg-primary-600 text-white text-sm hover:bg-primary-500 transition-colors">
+              className="px-5 py-2 rounded-xl text-white text-sm transition-colors"
+              style={{ background: '#2aabee' }}>
               Повторить
             </button>
           </div>
         </div>
       ) : (
         <>
+          {/* Lock indicator */}
+          {locked && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full"
+              style={{ background: 'rgba(42,171,238,0.15)', border: '1px solid rgba(42,171,238,0.3)' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="2.5">
+                <rect x="3" y="11" width="18" height="11" rx="2"/>
+                <path d="M7 11V7a5 5 0 0110 0v4"/>
+              </svg>
+              <span className="text-xs font-medium" style={{ color: '#2aabee' }}>Зафиксировано</span>
+            </div>
+          )}
+
+          {/* Hint when not locked */}
+          {!locked && state === 'recording' && (
+            <div className="flex items-center gap-1.5 opacity-50">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                <path d="M12 19V5M5 12l7-7 7 7"/>
+              </svg>
+              <span className="text-white text-xs">Свайп вверх — зафиксировать</span>
+            </div>
+          )}
+
           {/* Video preview circle */}
           <div className="relative" style={{ width: 240, height: 240 }}>
             <video ref={videoRef} muted playsInline
               className="absolute inset-0 w-full h-full object-cover rounded-full"
+              style={{ transform: isFrontCamera ? 'scaleX(-1)' : 'none' }}
             />
 
             {/* Static ring */}
@@ -68,7 +103,7 @@ export function CircleRecorderModal({ onSend, onClose }: Props) {
               <circle cx={120} cy={120} r={118} fill="none" stroke="white" strokeWidth="2" strokeOpacity="0.12"/>
             </svg>
 
-            {/* Animated progress ring */}
+            {/* Progress ring */}
             {state === 'recording' && (
               <svg className="absolute inset-0 -rotate-90" width={240} height={240} viewBox="0 0 240 240">
                 <defs>
@@ -104,6 +139,22 @@ export function CircleRecorderModal({ onSend, onClose }: Props) {
                 </span>
               </div>
             )}
+
+            {/* Camera switch button */}
+            {state === 'recording' && (
+              <button
+                onClick={switchCamera}
+                className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+                style={{ background: 'rgba(0,0,0,0.5)' }}
+                title="Переключить камеру">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                  <path d="M20 7h-9"/>
+                  <path d="M14 17H5"/>
+                  <circle cx="17" cy="17" r="3"/>
+                  <circle cx="7" cy="7" r="3"/>
+                </svg>
+              </button>
+            )}
           </div>
 
           {/* Controls */}
@@ -117,8 +168,10 @@ export function CircleRecorderModal({ onSend, onClose }: Props) {
 
             <button onClick={handleSend}
               disabled={state !== 'recording' || duration < 1}
-              className="w-16 h-16 rounded-full bg-primary-600 text-white flex items-center justify-center disabled:opacity-30 hover:bg-primary-500 hover:scale-105 active:scale-95 transition-all shadow-lg">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              className="w-16 h-16 rounded-full text-white flex items-center justify-center disabled:opacity-30 hover:scale-105 active:scale-95 transition-all shadow-lg"
+              style={{ background: '#2aabee' }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                style={{ transform: 'rotate(45deg)', marginLeft: '3px' }}>
                 <line x1="22" y1="2" x2="11" y2="13"/>
                 <polygon points="22 2 15 22 11 13 2 9 22 2"/>
               </svg>
