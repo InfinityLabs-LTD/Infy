@@ -17,6 +17,7 @@ import { useMediaRecorder } from '@/hooks/useMediaRecorder'
 const TYPING_DEBOUNCE_MS = 1500
 const ALLOWED_IMAGE = 'image/jpeg,image/png,image/gif,image/webp'
 const ALLOWED_VIDEO = 'video/mp4,video/webm,video/quicktime'
+const ALLOWED_FILE = '*/*'
 
 function formatDateLabel(iso: string): string {
   const d = new Date(iso)
@@ -107,6 +108,7 @@ export function ChatPage() {
   const [sending, setSending] = useState(false)
   const [showCircle, setShowCircle] = useState(false)
   const [showPanel, setShowPanel] = useState(false)
+  const [showAttachMenu, setShowAttachMenu] = useState(false)
   const [recordMode, setRecordMode] = useState<'voice' | 'circle'>('voice')
   const [recordLocked, setRecordLocked] = useState(false)
   const [circleAutoSend, setCircleAutoSend] = useState(false)
@@ -119,6 +121,8 @@ export function ChatPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
   const holdStartY = useRef(0)
   const isHoldingRef = useRef(false)
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -504,14 +508,82 @@ export function ChatPage() {
           </div>
         )}
 
-        <div className="flex items-end gap-1.5">
+        <div className="relative flex items-end gap-1.5">
+          {/* Скрепочка — вложения */}
           {!isRecording && (
-            <div className="flex shrink-0 pb-0.5">
-              <IconBtn onClick={() => imageInputRef.current?.click()} disabled={sending} title="Фото/видео">
+            <div className="shrink-0 pb-0.5 relative">
+              <IconBtn
+                onClick={() => setShowAttachMenu(v => !v)}
+                disabled={sending}
+                title="Вложение"
+                color={showAttachMenu ? '#2aabee' : 'rgba(255,255,255,0.4)'}
+              >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/>
                 </svg>
               </IconBtn>
+
+              {/* Выпадающее меню */}
+              {showAttachMenu && (
+                <>
+                  {/* Затемнение для закрытия по клику вне */}
+                  <div className="fixed inset-0 z-10" onClick={() => setShowAttachMenu(false)} />
+                  <div className="absolute bottom-12 left-0 z-20 rounded-2xl overflow-hidden shadow-2xl"
+                    style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.08)', minWidth: 200 }}>
+                    <button
+                      className="flex items-center gap-3 w-full px-4 py-3 text-sm text-white hover:bg-white/5 transition-colors"
+                      onClick={() => { setShowAttachMenu(false); imageInputRef.current?.click() }}
+                    >
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                        style={{ background: 'rgba(42,171,238,0.15)' }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="2">
+                          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+                          <polyline points="21 15 16 10 5 21"/>
+                        </svg>
+                      </div>
+                      Фото
+                    </button>
+                    <button
+                      className="flex items-center gap-3 w-full px-4 py-3 text-sm text-white hover:bg-white/5 transition-colors"
+                      onClick={() => { setShowAttachMenu(false); videoInputRef.current?.click() }}
+                    >
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                        style={{ background: 'rgba(167,139,250,0.15)' }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2">
+                          <polygon points="23,7 16,12 23,17 23,7"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+                        </svg>
+                      </div>
+                      Видео
+                    </button>
+                    <button
+                      className="flex items-center gap-3 w-full px-4 py-3 text-sm text-white hover:bg-white/5 transition-colors"
+                      onClick={() => { setShowAttachMenu(false); fileInputRef.current?.click() }}
+                    >
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                        style={{ background: 'rgba(251,191,36,0.15)' }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2">
+                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                          <polyline points="14 2 14 8 20 8"/>
+                        </svg>
+                      </div>
+                      Файл
+                    </button>
+                    <button
+                      className="flex items-center gap-3 w-full px-4 py-3 text-sm text-white hover:bg-white/5 transition-colors"
+                      onClick={() => { setShowAttachMenu(false); cameraInputRef.current?.click() }}
+                    >
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                        style={{ background: 'rgba(52,211,153,0.15)' }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2">
+                          <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                          <circle cx="12" cy="13" r="4"/>
+                        </svg>
+                      </div>
+                      Камера
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -534,8 +606,8 @@ export function ChatPage() {
             />
           )}
 
-          {/* Правая кнопка */}
-          {text.trim() ? (
+          {/* Кнопка отправки текста — слева от записи, только когда есть текст */}
+          {text.trim() && !isRecording && (
             <button
               onClick={sendText}
               disabled={sending}
@@ -550,8 +622,10 @@ export function ChatPage() {
                 </svg>
               )}
             </button>
-          ) : recordLocked ? (
-            // Зафиксировано — кнопка отправки голосового
+          )}
+
+          {/* Кнопка записи / отправки зафиксированного */}
+          {recordLocked ? (
             <button
               onClick={sendVoiceBlob}
               disabled={sending}
@@ -567,7 +641,6 @@ export function ChatPage() {
               )}
             </button>
           ) : (
-            // Кнопка записи: удержание = запись, нажатие = смена режима
             <button
               onPointerDown={onRecordPointerDown}
               disabled={sending}
@@ -594,27 +667,22 @@ export function ChatPage() {
             </button>
           )}
         </div>
-
-        {!isRecording && (
-          <div className="flex items-center gap-1 mt-1 px-0.5">
-            <button onClick={() => videoInputRef.current?.click()} disabled={sending} title="Видео"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-colors disabled:opacity-30"
-              style={{ color: 'rgba(255,255,255,0.35)' }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#2aabee')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polygon points="23,7 16,12 23,17 23,7"/><rect x="1" y="5" width="15" height="14" rx="2"/>
-              </svg>
-              Видео
-            </button>
-          </div>
-        )}
       </div>
 
       <input ref={imageInputRef} type="file" accept={ALLOWED_IMAGE} className="hidden"
         onChange={e => { const f = e.target.files?.[0]; if (f) sendMediaFile(f, 'IMAGE'); e.target.value = '' }} />
       <input ref={videoInputRef} type="file" accept={ALLOWED_VIDEO} className="hidden"
         onChange={e => { const f = e.target.files?.[0]; if (f) sendMediaFile(f, 'VIDEO'); e.target.value = '' }} />
+      <input ref={fileInputRef} type="file" accept={ALLOWED_FILE} className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) sendMediaFile(f, 'VIDEO'); e.target.value = '' }} />
+      <input ref={cameraInputRef} type="file" accept="image/*,video/*" capture="environment" className="hidden"
+        onChange={e => {
+          const f = e.target.files?.[0]
+          if (!f) { e.target.value = ''; return }
+          const msgType = f.type.startsWith('image/') ? 'IMAGE' : 'VIDEO'
+          sendMediaFile(f, msgType)
+          e.target.value = ''
+        }} />
 
       {showCircle && (
         <CircleRecorderModal
