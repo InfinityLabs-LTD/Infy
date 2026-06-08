@@ -109,6 +109,11 @@ export function ChatPage() {
   const [showCircle, setShowCircle] = useState(false)
   const [showPanel, setShowPanel] = useState(false)
   const [showAttachMenu, setShowAttachMenu] = useState(false)
+  const [shortRecordToast, setShortRecordToast] = useState(false)
+  const [searchMode, setSearchMode] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [recordMode, setRecordMode] = useState<'voice' | 'circle'>('voice')
   const [recordLocked, setRecordLocked] = useState(false)
   const [circleAutoSend, setCircleAutoSend] = useState(false)
@@ -263,11 +268,17 @@ export function ChatPage() {
   }
 
   async function sendVoiceBlob() {
+    const dur = voiceRecorder.duration
     const blob = await voiceRecorder.stop()
     recordLockedRef.current = false
     setRecordLocked(false)
     isHoldingRef.current = false
     if (!blob || blob.size < 1000 || !chatId) return
+    if (dur < 2) {
+      setShortRecordToast(true)
+      setTimeout(() => setShortRecordToast(false), 2500)
+      return
+    }
     setSending(true)
     try {
       const file = new File([blob], 'voice.webm', { type: blob.type })
@@ -368,50 +379,115 @@ export function ChatPage() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText() }
   }
 
+  function scrollToMessage(msgId: string) {
+    const el = document.getElementById(`msg-${msgId}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setHighlightedMsgId(msgId)
+    setTimeout(() => setHighlightedMsgId(null), 1800)
+  }
+
+  const searchResults = searchQuery.trim().length > 1
+    ? chatMessages.filter(m =>
+        m.content?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : []
+
   const partner = chat?.partner
 
   return (
     <div className="flex flex-col flex-1 min-h-0" style={{ background: '#0e1621' }}>
       {/* ── Header ── */}
-      <div className="shrink-0 flex items-center gap-2 px-2 py-2 z-10"
-        style={{ background: '#17212b', borderBottom: '1px solid rgba(0,0,0,0.3)' }}>
-        <Link to="/" className="md:hidden shrink-0">
-          <IconBtn color="rgba(255,255,255,0.6)">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-              <polyline points="15 18 9 12 15 6"/>
-            </svg>
-          </IconBtn>
-        </Link>
-
-        <button
-          className="flex items-center gap-3 flex-1 min-w-0 text-left rounded-lg px-1 py-0.5 hover:bg-white/5 transition-colors"
-          onClick={() => partner && !resolving && setShowPanel(true)}
-        >
-          <Avatar url={partner?.avatarUrl ?? null} nickname={partner?.nickname ?? '?'} size={38} />
-          <div className="min-w-0">
-            <p className="text-[15px] font-semibold text-white truncate leading-tight">
-              {resolving
-                ? <span style={{ color: 'rgba(255,255,255,0.3)' }}>Загрузка…</span>
-                : (partner?.nickname ?? '—')}
-            </p>
-            {partner && (
-              <OnlineIndicator userId={partner.id} lastSeenAt={partner.lastSeenAt} showLabel />
+      <div className="shrink-0 z-10" style={{ background: '#17212b', borderBottom: '1px solid rgba(0,0,0,0.3)' }}>
+        {searchMode ? (
+          /* Режим поиска */
+          <div className="flex items-center gap-2 px-2 py-2">
+            <IconBtn onClick={() => { setSearchMode(false); setSearchQuery('') }} color="rgba(255,255,255,0.6)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+            </IconBtn>
+            <input
+              ref={searchInputRef}
+              autoFocus
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Поиск по сообщениям…"
+              className="flex-1 bg-transparent text-sm text-white outline-none placeholder-white/30"
+            />
+            {searchQuery && (
+              <IconBtn onClick={() => setSearchQuery('')} color="rgba(255,255,255,0.4)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </IconBtn>
             )}
           </div>
-        </button>
+        ) : (
+          /* Обычный хедер */
+          <div className="flex items-center gap-2 px-2 py-2">
+            <Link to="/" className="md:hidden shrink-0">
+              <IconBtn color="rgba(255,255,255,0.6)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <polyline points="15 18 9 12 15 6"/>
+                </svg>
+              </IconBtn>
+            </Link>
 
-        <div className="flex items-center shrink-0">
-          <IconBtn color="rgba(255,255,255,0.5)">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-          </IconBtn>
-          <IconBtn color="rgba(255,255,255,0.5)">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
-            </svg>
-          </IconBtn>
-        </div>
+            <button
+              className="flex items-center gap-3 flex-1 min-w-0 text-left rounded-lg px-1 py-0.5 hover:bg-white/5 transition-colors"
+              onClick={() => partner && !resolving && setShowPanel(true)}
+            >
+              <Avatar url={partner?.avatarUrl ?? null} nickname={partner?.nickname ?? '?'} size={38} />
+              <div className="min-w-0">
+                <p className="text-[15px] font-semibold text-white truncate leading-tight">
+                  {resolving
+                    ? <span style={{ color: 'rgba(255,255,255,0.3)' }}>Загрузка…</span>
+                    : (partner?.nickname ?? '—')}
+                </p>
+                {partner && (
+                  <OnlineIndicator userId={partner.id} lastSeenAt={partner.lastSeenAt} showLabel />
+                )}
+              </div>
+            </button>
+
+            <div className="flex items-center shrink-0">
+              <IconBtn onClick={() => setSearchMode(true)} color="rgba(255,255,255,0.5)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+              </IconBtn>
+              <IconBtn color="rgba(255,255,255,0.5)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
+                </svg>
+              </IconBtn>
+            </div>
+          </div>
+        )}
+
+        {/* Результаты поиска */}
+        {searchMode && searchQuery.trim().length > 1 && (
+          <div className="border-t border-white/5 overflow-y-auto" style={{ maxHeight: 240 }}>
+            {searchResults.length === 0 ? (
+              <p className="text-xs text-center py-3" style={{ color: '#6c8998' }}>Ничего не найдено</p>
+            ) : (
+              searchResults.map(msg => (
+                <button
+                  key={msg.id}
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-white/5 transition-colors"
+                  style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                  onClick={() => { setSearchMode(false); setSearchQuery(''); scrollToMessage(msg.id) }}
+                >
+                  <p className="text-white truncate">{msg.content}</p>
+                  <p className="text-xs mt-0.5" style={{ color: '#6c8998' }}>
+                    {new Date(msg.createdAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Messages ── */}
@@ -451,10 +527,17 @@ export function ChatPage() {
               chatMessages.map((msg, idx) => {
                 const prev = chatMessages[idx - 1]
                 const showDate = !prev || new Date(msg.createdAt).toDateString() !== new Date(prev.createdAt).toDateString()
+                const isHighlighted = highlightedMsgId === msg.id
                 return (
                   <Fragment key={msg.id}>
                     {showDate && <DateSeparator label={formatDateLabel(msg.createdAt)} />}
-                    <MessageBubble message={msg} partnerLastReadMessageId={chat?.partnerLastReadMessageId} />
+                    <div
+                      id={`msg-${msg.id}`}
+                      className="transition-all duration-300 rounded-xl"
+                      style={isHighlighted ? { background: 'rgba(42,171,238,0.15)' } : {}}
+                    >
+                      <MessageBubble message={msg} partnerLastReadMessageId={chat?.partnerLastReadMessageId} />
+                    </div>
                   </Fragment>
                 )
               })
@@ -465,9 +548,17 @@ export function ChatPage() {
         )}
       </div>
 
+      {/* Тост: запись слишком короткая */}
+      {shortRecordToast && (
+        <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm text-white shadow-xl"
+          style={{ background: 'rgba(30,44,58,0.97)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          Минимальная длина записи — 2 секунды
+        </div>
+      )}
+
       {/* ── Input bar ── */}
-      <div className="shrink-0 px-2 py-2" style={{ background: '#17212b' }}>
-        {/* Запись голосового — индикатор */}
+      <div className="shrink-0 px-2 pt-2 pb-[max(8px,env(safe-area-inset-bottom))]" style={{ background: '#17212b' }}>
+        {/* Запись голосового — индикатор (не зафиксировано) */}
         {isRecording && !recordLocked && (
           <div className="flex items-center gap-2 px-3 py-1.5 mb-2 rounded-xl"
             style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)' }}>
@@ -505,6 +596,21 @@ export function ChatPage() {
               <rect x="3" y="11" width="18" height="11" rx="2"/>
               <path d="M7 11V7a5 5 0 0110 0v4"/>
             </svg>
+            {/* Кнопка отправки справа от дорожки */}
+            <button
+              onClick={sendVoiceBlob}
+              disabled={sending}
+              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all disabled:opacity-40 active:scale-95 ml-1"
+              style={{ background: '#2aabee' }}
+            >
+              {sending ? <Spinner size={12} /> : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"
+                  style={{ transform: 'rotate(45deg)', marginLeft: '2px' }}>
+                  <line x1="22" y1="2" x2="11" y2="13"/>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                </svg>
+              )}
+            </button>
           </div>
         )}
 

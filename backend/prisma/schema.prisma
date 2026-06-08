@@ -45,6 +45,7 @@ model User {
   chatMemberships         ChatMember[]
   messages                Message[]
   pushSubscriptions       PushSubscription[]
+  reactions               MessageReaction[]
 
   @@map("users")
 }
@@ -116,9 +117,10 @@ model Message {
   editedAt  DateTime?
   deletedAt DateTime?
 
-  chat        Chat        @relation(fields: [chatId], references: [id], onDelete: Cascade)
-  sender      User        @relation(fields: [senderId], references: [id])
+  chat        Chat              @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender      User              @relation(fields: [senderId], references: [id])
   attachments Attachment[]
+  reactions   MessageReaction[]
 
   @@index([chatId, id])   // range scan for cursor pagination
   @@index([senderId])
@@ -137,6 +139,21 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    BigInt
+  emoji     String   // e.g. "👍"
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@map("message_reactions")
 }
 
 model Attachment {

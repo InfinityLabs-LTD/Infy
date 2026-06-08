@@ -48,6 +48,12 @@ export interface MessageAttachment {
   thumbnailUrl?: string
 }
 
+export interface MessageReaction {
+  emoji: string
+  count: number
+  userIds: string[]
+}
+
 export interface Message {
   id: string
   chatId: string
@@ -57,6 +63,7 @@ export interface Message {
   editedAt: string | null
   sender: MessageSender
   attachments?: MessageAttachment[]
+  reactions?: MessageReaction[]
 }
 
 interface TypingState {
@@ -87,6 +94,14 @@ interface ChatState {
   setTyping: (chatId: string, username: string, isTyping: boolean) => void
 }
 
+function sortChats(chats: Chat[]): Chat[] {
+  return [...chats].sort((a, b) => {
+    const ta = a.lastMessage?.createdAt ?? a.createdAt
+    const tb = b.lastMessage?.createdAt ?? b.createdAt
+    return tb.localeCompare(ta)
+  })
+}
+
 export const useChatStore = create<ChatState>((set) => ({
   chats: [],
   messages: {},
@@ -96,7 +111,7 @@ export const useChatStore = create<ChatState>((set) => ({
   typing: {},
   socketReady: false,
 
-  setChats: (chats) => set({ chats }),
+  setChats: (chats) => set({ chats: sortChats(chats) }),
   setSocketReady: (v) => set({ socketReady: v }),
 
   upsertChat: (chat) =>
@@ -105,9 +120,9 @@ export const useChatStore = create<ChatState>((set) => ({
       if (existing >= 0) {
         const updated = [...s.chats]
         updated[existing] = chat
-        return { chats: updated }
+        return { chats: sortChats(updated) }
       }
-      return { chats: [chat, ...s.chats] }
+      return { chats: sortChats([chat, ...s.chats]) }
     }),
 
   setMessages: (chatId, messages, nextCursor) =>
@@ -150,7 +165,7 @@ export const useChatStore = create<ChatState>((set) => ({
       })
       return {
         messages: { ...s.messages, [msg.chatId]: updated },
-        chats,
+        chats: sortChats(chats),
       }
     }),
 

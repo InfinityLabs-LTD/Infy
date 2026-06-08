@@ -8,6 +8,7 @@ import { SessionsPage } from '@/pages/SessionsPage'
 import { MessengerLayout } from '@/pages/MessengerLayout'
 import { ChatListPage } from '@/pages/ChatListPage'
 import { ChatPage } from '@/pages/ChatPage'
+import { ContactsPage } from '@/pages/ContactsPage'
 import { UserProfilePage } from '@/pages/UserProfilePage'
 import { AdminLayout } from '@/pages/admin/AdminLayout'
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage'
@@ -40,6 +41,7 @@ export default function App() {
         {/* Messenger (sidebar + chat) */}
         <Route element={<RequireAuth><MessengerLayout /></RequireAuth>}>
           <Route path="/" element={<ChatListPage />} />
+          <Route path="/contacts" element={<ContactsPage />} />
           <Route path="/chat/:id" element={<ChatPage />} />
         </Route>
 

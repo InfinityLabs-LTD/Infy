@@ -48,4 +48,7 @@ export const chatApi = {
 
   deleteMessage: (messageId: string) =>
     api.delete(`/chats/messages/${messageId}`),
+
+  reactToMessage: (messageId: string, emoji: string) =>
+    api.post<{ data: Message }>(`/chats/messages/${messageId}/react`, { emoji }),
 }

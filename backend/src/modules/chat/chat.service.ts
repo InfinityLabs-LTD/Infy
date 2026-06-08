@@ -139,7 +139,7 @@ export async function getMessages(
       deletedAt: null,
       ...(cursor ? { id: { lt: cursor } } : {}),
     },
-    include: { sender: true, attachments: true },
+    include: { sender: true, attachments: true, reactions: { include: { user: true } } },
     orderBy: { id: 'desc' },
     take: limit + 1,
   })
@@ -193,10 +193,42 @@ export async function sendMessage(
           }
         : {}),
     },
-    include: { sender: true, attachments: true },
+    include: { sender: true, attachments: true, reactions: { include: { user: true } } },
   })
 
   return serializeMessage(message)
+}
+
+export async function toggleReaction(
+  prisma: PrismaClient,
+  messageId: string,
+  userId: bigint,
+  emoji: string,
+) {
+  const msg = await prisma.message.findUnique({
+    where: { id: messageId },
+    include: { chat: { include: { members: true } } },
+  })
+  if (!msg || msg.deletedAt) throw new AppError('MESSAGE_NOT_FOUND', 'Message not found', 404)
+  const isMember = msg.chat.members.some(m => m.userId === userId)
+  if (!isMember) throw new AppError('CHAT_NOT_MEMBER', 'Not a member', 403)
+
+  const existing = await prisma.messageReaction.findUnique({
+    where: { messageId_userId_emoji: { messageId, userId, emoji } },
+  })
+
+  if (existing) {
+    await prisma.messageReaction.delete({ where: { id: existing.id } })
+  } else {
+    await prisma.messageReaction.create({ data: { messageId, userId, emoji } })
+  }
+
+  const updated = await prisma.message.findUnique({
+    where: { id: messageId },
+    include: { sender: true, attachments: true, reactions: { include: { user: true } } },
+  })
+
+  return serializeMessage(updated!)
 }
 
 export async function getChatMedia(
@@ -350,9 +382,23 @@ type MessageWithSender = {
     durationMs: number | null
     waveform: unknown
   }>
+  reactions?: Array<{
+    id: string
+    emoji: string
+    userId: bigint
+    user: { id: bigint; username: string; nickname: string }
+  }>
 }
 
 export function serializeMessage(msg: MessageWithSender) {
+  // Group reactions by emoji: { emoji → { count, userIds[] } }
+  const reactionsMap: Record<string, { emoji: string; count: number; userIds: string[] }> = {}
+  for (const r of msg.reactions ?? []) {
+    if (!reactionsMap[r.emoji]) reactionsMap[r.emoji] = { emoji: r.emoji, count: 0, userIds: [] }
+    reactionsMap[r.emoji].count++
+    reactionsMap[r.emoji].userIds.push(r.userId.toString())
+  }
+
   return {
     id: msg.id,
     chatId: msg.chatId,
@@ -377,5 +423,6 @@ export function serializeMessage(msg: MessageWithSender) {
       durationMs: a.durationMs,
       waveform: a.waveform,
     })),
+    reactions: Object.values(reactionsMap),
   }
 }

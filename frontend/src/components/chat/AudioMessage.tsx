@@ -69,7 +69,7 @@ export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
   const activeBars = Math.round(progress * bars.length)
 
   return (
-    <div className="flex items-center gap-2.5" style={{ minWidth: 200, maxWidth: 260 }}>
+    <div className="flex items-center gap-2.5 px-3 py-2" style={{ minWidth: 200, maxWidth: 260 }}>
       <audio ref={audioRef} src={url} preload="metadata" />
 
       <button

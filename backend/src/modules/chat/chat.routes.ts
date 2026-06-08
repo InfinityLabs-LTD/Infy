@@ -192,6 +192,28 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
     return { data: message }
   })
 
+  // POST /messages/:id/react — toggle emoji reaction
+  app.post('/messages/:id/react', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'Toggle emoji reaction on a message',
+      security: [{ bearerAuth: [] }],
+      params: { type: 'object', properties: { id: { type: 'string' } } },
+      body: {
+        type: 'object',
+        required: ['emoji'],
+        properties: { emoji: { type: 'string', maxLength: 8 } },
+      },
+    },
+  }, async (request) => {
+    const { id } = request.params as { id: string }
+    const { emoji } = request.body as { emoji: string }
+    const userId = BigInt(request.user.sub)
+    const message = await ChatService.toggleReaction(app.prisma, id, userId, emoji)
+    await publishMessage(app.redis, 'chat:message', { event: 'message_updated', data: message })
+    return { data: message }
+  })
+
   // DELETE /messages/:id — soft delete
   app.delete('/messages/:id', {
     schema: {

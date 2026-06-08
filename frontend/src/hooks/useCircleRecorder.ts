@@ -124,13 +124,13 @@ export function useCircleRecorder(): UseCircleRecorderResult {
         audio: true,
       })
 
-      // Останавливаем старый рекордер без resolve — заменим его ниже
-      const oldRecorder = recorderRef.current
-      if (oldRecorder && oldRecorder.state !== 'inactive') {
-        oldRecorder.ondataavailable = null
-        oldRecorder.onstop = null
+      // Финализируем текущий рекордер — чанки НЕ сбрасываем, продолжаем пушить в тот же массив
+      await new Promise<void>((resolveSwitch) => {
+        const oldRecorder = recorderRef.current
+        if (!oldRecorder || oldRecorder.state === 'inactive') { resolveSwitch(); return }
+        oldRecorder.onstop = () => resolveSwitch()
         oldRecorder.stop()
-      }
+      })
 
       // Останавливаем старый стрим
       streamRef.current.getTracks().forEach(t => t.stop())
@@ -141,7 +141,7 @@ export function useCircleRecorder(): UseCircleRecorderResult {
         await videoRef.current.play().catch(() => {})
       }
 
-      // Пересоздаём MediaRecorder на новом стриме, сохраняем накопленные чанки
+      // Новый рекордер на новом стриме
       const recorder = new MediaRecorder(newStream, { mimeType: PREFERRED_VIDEO_MIME })
       recorderRef.current = recorder
       recorder.ondataavailable = (e) => {
@@ -159,6 +159,7 @@ export function useCircleRecorder(): UseCircleRecorderResult {
     recorderRef.current?.stop()
     recorderRef.current = null
     chunksRef.current = []
+    finishedBlobsRef.current = []
     cleanup()
     setState('idle')
     setError(null)
