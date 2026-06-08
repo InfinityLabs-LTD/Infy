@@ -122,6 +122,10 @@ export function ChatPage() {
   const holdStartY = useRef(0)
   const isHoldingRef = useRef(false)
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Рефы для актуального состояния в нативных обработчиках (без stale closure)
+  const recordModeRef = useRef<'voice' | 'circle'>('voice')
+  const recordLockedRef = useRef(false)
+  const globalListenersCleanupRef = useRef<(() => void) | null>(null)
 
   const voiceRecorder = useMediaRecorder()
   const isRecording = voiceRecorder.state === 'recording'
@@ -162,6 +166,10 @@ export function ChatPage() {
     if (!chatId || !socketReady) return
     joinChatRoom(chatId)
   }, [chatId, socketReady])
+
+  // Синхронизируем рефы со state для нативных обработчиков
+  useEffect(() => { recordModeRef.current = recordMode }, [recordMode])
+  useEffect(() => { recordLockedRef.current = recordLocked }, [recordLocked])
 
   // Освобождаем аудио-стрим при уходе со страницы
   useEffect(() => {
@@ -252,6 +260,7 @@ export function ChatPage() {
 
   async function sendVoiceBlob() {
     const blob = await voiceRecorder.stop()
+    recordLockedRef.current = false
     setRecordLocked(false)
     isHoldingRef.current = false
     if (!blob || blob.size < 1000 || !chatId) return
@@ -264,16 +273,18 @@ export function ChatPage() {
   }
 
   function cancelRecord() {
-    if (recordMode === 'voice') voiceRecorder.cancel()
-    else { setShowCircle(false); setCircleAutoSend(false) }
-    setRecordLocked(false)
+    if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null }
+    globalListenersCleanupRef.current?.()
     isHoldingRef.current = false
+    if (recordModeRef.current === 'voice') voiceRecorder.cancel()
+    else { setShowCircle(false); setCircleAutoSend(false) }
+    recordLockedRef.current = false
+    setRecordLocked(false)
   }
 
   function onRecordPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
-    if (text.trim() || sending || recordLocked) return
+    if (text.trim() || sending || recordLockedRef.current) return
     e.preventDefault()
-    e.currentTarget.setPointerCapture(e.pointerId)
     isHoldingRef.current = true
     holdStartY.current = e.clientY
 
@@ -281,33 +292,57 @@ export function ChatPage() {
     holdTimerRef.current = setTimeout(() => {
       holdTimerRef.current = null
       if (!isHoldingRef.current) return
-      if (recordMode === 'voice') voiceRecorder.start()
+      if (recordModeRef.current === 'voice') voiceRecorder.start()
       else setShowCircle(true)
     }, 250)
-  }
 
-  function onRecordPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
-    if (!isHoldingRef.current || recordLocked) return
-    const dy = holdStartY.current - e.clientY
-    if (dy > 120) setRecordLocked(true)
-  }
-
-  function onRecordPointerUp(e: React.PointerEvent<HTMLButtonElement>) {
-    if (!isHoldingRef.current) return
-    isHoldingRef.current = false
-
-    if (holdTimerRef.current) {
-      // Таймер ещё не сработал — это одиночное нажатие, переключаем режим
-      clearTimeout(holdTimerRef.current)
-      holdTimerRef.current = null
-      setRecordMode(m => m === 'voice' ? 'circle' : 'voice')
-      return
+    // Нативные обработчики на document — надёжно на мобильном
+    function onMove(ev: PointerEvent) {
+      if (!isHoldingRef.current || recordLockedRef.current) return
+      const dy = holdStartY.current - ev.clientY
+      if (dy > 120) {
+        recordLockedRef.current = true
+        setRecordLocked(true)
+      }
     }
 
-    if (recordLocked) return
-    // Отпустили после удержания — автоотправка
-    if (recordMode === 'voice') sendVoiceBlob()
-    else setCircleAutoSend(true)
+    function onUp() {
+      cleanup()
+      if (!isHoldingRef.current) return
+      isHoldingRef.current = false
+
+      if (holdTimerRef.current) {
+        clearTimeout(holdTimerRef.current)
+        holdTimerRef.current = null
+        const next = recordModeRef.current === 'voice' ? 'circle' : 'voice'
+        recordModeRef.current = next
+        setRecordMode(next)
+        return
+      }
+
+      if (recordLockedRef.current) return
+      if (recordModeRef.current === 'voice') sendVoiceBlob()
+      else setCircleAutoSend(true)
+    }
+
+    function onCancel() {
+      cleanup()
+      cancelRecord()
+    }
+
+    function cleanup() {
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+      document.removeEventListener('pointercancel', onCancel)
+      document.removeEventListener('touchend', onUp)
+      globalListenersCleanupRef.current = null
+    }
+
+    globalListenersCleanupRef.current = cleanup
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
+    document.addEventListener('pointercancel', onCancel)
+    document.addEventListener('touchend', onUp)  // fallback для iOS
   }
 
   function startTyping() {
@@ -535,9 +570,6 @@ export function ChatPage() {
             // Кнопка записи: удержание = запись, нажатие = смена режима
             <button
               onPointerDown={onRecordPointerDown}
-              onPointerMove={onRecordPointerMove}
-              onPointerUp={onRecordPointerUp}
-              onPointerCancel={() => cancelRecord()}
               disabled={sending}
               title={recordMode === 'voice' ? 'Голосовое (удержать)' : 'Кружок (удержать)'}
               className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-all disabled:opacity-40 select-none touch-none"
