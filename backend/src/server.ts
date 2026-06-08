@@ -21,6 +21,7 @@ import chatRoutes from './modules/chat/chat.routes.js'
 import mediaRoutes from './modules/media/media.routes.js'
 import adminUsersRoutes from './modules/admin/admin.users.routes.js'
 import adminContainersRoutes from './modules/admin/admin.containers.routes.js'
+import pushRoutes from './modules/push/push.routes.js'
 import { createSocketServer } from './modules/realtime/socket.server.js'
 
 async function buildCoreServer() {
@@ -111,6 +112,7 @@ async function buildCoreServer() {
   await app.register(mediaRoutes, { prefix: '/media' })
   await app.register(adminUsersRoutes, { prefix: '/admin/users' })
   await app.register(adminContainersRoutes, { prefix: '/admin/containers' })
+  await app.register(pushRoutes, { prefix: '/push' })
 
   return app
 }

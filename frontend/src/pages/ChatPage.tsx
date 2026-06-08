@@ -10,6 +10,7 @@ import { OnlineIndicator } from '@/components/ui/OnlineIndicator'
 import { TypingIndicator } from '@/components/ui/TypingIndicator'
 import { MessageBubble } from '@/components/chat/MessageBubble'
 import { CircleRecorderModal } from '@/components/chat/CircleRecorderModal'
+import { PartnerInfoPanel } from '@/components/chat/PartnerInfoPanel'
 import { Spinner } from '@/components/ui/Spinner'
 import { useMediaRecorder } from '@/hooks/useMediaRecorder'
 
@@ -105,8 +106,10 @@ export function ChatPage() {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [showCircle, setShowCircle] = useState(false)
+  const [showPanel, setShowPanel] = useState(false)
 
   const bottomRef = useRef<HTMLDivElement>(null)
+  const initialScrollDone = useRef(false)
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isTypingRef = useRef(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -164,8 +167,19 @@ export function ChatPage() {
     return () => { socket.off('typing', handler) }
   }, [chatId, socketReady])
 
+  // Reset scroll flag when switching chats
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    initialScrollDone.current = false
+  }, [chatId])
+
+  useEffect(() => {
+    if (chatMessages.length === 0) return
+    if (!initialScrollDone.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'instant' })
+      initialScrollDone.current = true
+    } else {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [chatMessages.length])
 
   async function loadMore() {
@@ -264,7 +278,10 @@ export function ChatPage() {
           </IconBtn>
         </Link>
 
-        <button className="flex items-center gap-3 flex-1 min-w-0 text-left rounded-lg px-1 py-0.5 hover:bg-white/5 transition-colors">
+        <button
+          className="flex items-center gap-3 flex-1 min-w-0 text-left rounded-lg px-1 py-0.5 hover:bg-white/5 transition-colors"
+          onClick={() => partner && !resolving && setShowPanel(true)}
+        >
           <Avatar url={partner?.avatarUrl ?? null} nickname={partner?.nickname ?? '?'} size={38} />
           <div className="min-w-0">
             <p className="text-[15px] font-semibold text-white truncate leading-tight">
@@ -461,6 +478,10 @@ export function ChatPage() {
         onChange={e => { const f = e.target.files?.[0]; if (f) sendMediaFile(f, 'VIDEO'); e.target.value = '' }} />
 
       {showCircle && <CircleRecorderModal onSend={sendCircle} onClose={() => setShowCircle(false)} />}
+
+      {showPanel && partner && chatId && (
+        <PartnerInfoPanel chatId={chatId} partner={partner} onClose={() => setShowPanel(false)} />
+      )}
     </div>
   )
 }

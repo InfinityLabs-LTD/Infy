@@ -8,6 +8,7 @@ import { SessionsPage } from '@/pages/SessionsPage'
 import { MessengerLayout } from '@/pages/MessengerLayout'
 import { ChatListPage } from '@/pages/ChatListPage'
 import { ChatPage } from '@/pages/ChatPage'
+import { UserProfilePage } from '@/pages/UserProfilePage'
 import { AdminLayout } from '@/pages/admin/AdminLayout'
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage'
 import { AdminUserMessagesPage } from '@/pages/admin/AdminUserMessagesPage'
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="/profile/edit" element={<RequireAuth><EditProfilePage /></RequireAuth>} />
         <Route path="/sessions" element={<RequireAuth><SessionsPage /></RequireAuth>} />
+        <Route path="/u/:username" element={<RequireAuth><UserProfilePage /></RequireAuth>} />
 
         {/* Auth */}
         <Route path="/login" element={<RequireGuest><LoginPage /></RequireGuest>} />

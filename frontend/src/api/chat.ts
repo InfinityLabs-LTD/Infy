@@ -37,6 +37,12 @@ export const chatApi = {
       },
     }),
 
+  getChatMedia: (chatId: string, cursor?: string, limit = 30) =>
+    api.get<{ data: { messages: Message[]; nextCursor: string | null } }>(
+      `/chats/${chatId}/media`,
+      { params: { cursor, limit } },
+    ),
+
   editMessage: (messageId: string, content: string) =>
     api.patch<{ data: Message }>(`/chats/messages/${messageId}`, { content }),
 

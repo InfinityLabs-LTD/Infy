@@ -60,6 +60,29 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
     return { data: ChatService.serializeChat(chat as Parameters<typeof ChatService.serializeChat>[0], userId) }
   })
 
+  // GET /chats/:id/media — paginated media messages (non-TEXT)
+  app.get('/:id/media', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'Get media messages for a chat (images, videos, audio)',
+      security: [{ bearerAuth: [] }],
+      params: { type: 'object', properties: { id: { type: 'string' } } },
+      querystring: {
+        type: 'object',
+        properties: {
+          cursor: { type: 'string' },
+          limit: { type: 'integer', minimum: 1, maximum: 50, default: 30 },
+        },
+      },
+    },
+  }, async (request) => {
+    const { id } = request.params as { id: string }
+    const { cursor, limit } = request.query as { cursor?: string; limit?: number }
+    const userId = BigInt(request.user.sub)
+    const result = await ChatService.getChatMedia(app.prisma, id, userId, cursor, limit ?? 30)
+    return { data: result }
+  })
+
   // GET /chats/:id/messages — paginated history
   app.get('/:id/messages', {
     schema: {

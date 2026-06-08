@@ -34,6 +34,10 @@ const schema = z.object({
   RATE_LIMIT_LOGIN_WINDOW_MS: z.coerce.number().default(900_000),
   RATE_LIMIT_GLOBAL_MAX: z.coerce.number().default(100),
   RATE_LIMIT_GLOBAL_WINDOW_MS: z.coerce.number().default(60_000),
+
+  VAPID_PUBLIC_KEY: z.string().min(1),
+  VAPID_PRIVATE_KEY: z.string().min(1),
+  VAPID_SUBJECT: z.string().default('mailto:admin@example.com'),
 })
 
 const parsed = schema.safeParse(process.env)

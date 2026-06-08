@@ -199,6 +199,39 @@ export async function sendMessage(
   return serializeMessage(message)
 }
 
+export async function getChatMedia(
+  prisma: PrismaClient,
+  chatId: string,
+  userId: bigint,
+  cursor?: string,
+  limit = 30,
+) {
+  const member = await prisma.chatMember.findUnique({
+    where: { chatId_userId: { chatId, userId } },
+  })
+  if (!member) throw new AppError('CHAT_NOT_MEMBER', 'You are not a member of this chat', 403)
+
+  const messages = await prisma.message.findMany({
+    where: {
+      chatId,
+      deletedAt: null,
+      type: { not: 'TEXT' },
+      ...(cursor ? { id: { lt: cursor } } : {}),
+    },
+    include: { sender: true, attachments: true },
+    orderBy: { id: 'desc' },
+    take: limit + 1,
+  })
+
+  const hasMore = messages.length > limit
+  if (hasMore) messages.pop()
+
+  return {
+    messages: messages.map(serializeMessage),
+    nextCursor: hasMore ? messages.at(-1)?.id ?? null : null,
+  }
+}
+
 export async function editMessage(
   prisma: PrismaClient,
   messageId: string,

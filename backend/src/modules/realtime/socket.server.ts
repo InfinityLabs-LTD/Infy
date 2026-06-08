@@ -7,6 +7,7 @@ import { verifyAccessToken } from '../../lib/jwt.js'
 import { Errors } from '../../lib/errors.js'
 import { subscribeToChannel } from '../../lib/pubsub.js'
 import { setOnline, setOffline, refreshPresence, isOnline, getOnlineUserIds } from '../../lib/presence.js'
+import { sendPush } from '../../lib/webpush.js'
 import * as ChatService from '../chat/chat.service.js'
 
 interface AuthSocket extends Socket {
@@ -14,6 +15,56 @@ interface AuthSocket extends Socket {
   username: string
   role: string
   sessionId: string
+}
+
+interface MessageForPush {
+  chatId: string
+  sender?: { id: string; nickname: string; avatarUrl?: string | null }
+  content?: string | null
+  type?: string
+}
+
+async function pushToOfflineMembers(
+  redis: Redis,
+  prisma: PrismaClient,
+  msg: MessageForPush,
+  senderUserId: string,
+): Promise<void> {
+  try {
+    const members = await prisma.chatMember.findMany({
+      where: { chatId: msg.chatId },
+      select: { userId: true },
+    })
+
+    const offlineUserIds: bigint[] = []
+    for (const m of members) {
+      if (m.userId.toString() === senderUserId) continue
+      const online = await isOnline(redis, m.userId.toString())
+      if (!online) offlineUserIds.push(m.userId)
+    }
+
+    if (offlineUserIds.length === 0) return
+
+    const subscriptions = await prisma.pushSubscription.findMany({
+      where: { userId: { in: offlineUserIds } },
+    })
+
+    const senderName = msg.sender?.nickname ?? 'Infy'
+    const senderAvatar = msg.sender?.avatarUrl ?? '/icon.svg'
+    const body = msg.type === 'TEXT' ? (msg.content ?? '') : '📎 Вложение'
+
+    await Promise.allSettled(
+      subscriptions.map(sub =>
+        sendPush(sub, {
+          title: senderName,
+          body,
+          icon: senderAvatar,
+          tag: msg.chatId,
+          url: `/`,
+        }),
+      ),
+    )
+  } catch { /* non-critical */ }
 }
 
 export function createSocketServer(
@@ -59,9 +110,12 @@ export function createSocketServer(
     pubClient.duplicate(),
     'chat:message',
     (payload) => {
-      const p = payload as { event: string; data: { chatId?: string; id?: string } }
+      const p = payload as { event: string; data: { chatId?: string; sender?: { id: string; nickname: string; avatarUrl?: string | null }; content?: string; type?: string } }
       if (p.data?.chatId) {
         io.to(`chat:${p.data.chatId}`).emit(p.event, p.data)
+        if (p.event === 'message_new' && p.data.sender?.id) {
+          pushToOfflineMembers(pubClient, prisma, p.data as MessageForPush, p.data.sender.id).catch(() => {})
+        }
       }
     },
   )
@@ -125,6 +179,7 @@ export function createSocketServer(
         )
 
         io.to(`chat:${chatId}`).emit('message_new', message)
+        pushToOfflineMembers(pubClient, prisma, message, userId).catch(() => {})
         ack?.({ ok: true, message })
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Error'

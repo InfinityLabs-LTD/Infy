@@ -42,6 +42,7 @@ model User {
   emailVerificationTokens EmailVerificationToken[]
   chatMemberships         ChatMember[]
   messages                Message[]
+  pushSubscriptions       PushSubscription[]
 
   @@map("users")
 }
@@ -120,6 +121,20 @@ model Message {
   @@index([chatId, id])   // range scan for cursor pagination
   @@index([senderId])
   @@map("messages")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    BigInt
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model Attachment {
