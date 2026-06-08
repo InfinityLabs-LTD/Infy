@@ -159,7 +159,6 @@ export function useCircleRecorder(): UseCircleRecorderResult {
     recorderRef.current?.stop()
     recorderRef.current = null
     chunksRef.current = []
-    finishedBlobsRef.current = []
     cleanup()
     setState('idle')
     setError(null)
