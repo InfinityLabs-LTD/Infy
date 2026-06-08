@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Message } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { chatApi } from '@/api/chat'
@@ -15,7 +16,6 @@ interface Props {
   showSenderName?: boolean
   partnerLastReadMessageId?: string | null
   partnerReadAt?: string | null
-  onScrollTo?: (messageId: string) => void
 }
 
 export function MessageBubble({ message, showSenderName, partnerLastReadMessageId, partnerReadAt }: Props) {
@@ -24,25 +24,22 @@ export function MessageBubble({ message, showSenderName, partnerLastReadMessageI
   const { updateMessage, removeMessage } = useChatStore()
 
   const [showMenu, setShowMenu] = useState(false)
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
-  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
+  const bubbleRef = useRef<HTMLDivElement>(null)
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
 
   const time = new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-
   const att = message.attachments?.[0]
   const isMediaOnly = !message.content && att
   const isCircle = message.type === 'CIRCLE_VIDEO'
+  const reactions = message.reactions ?? []
+  const isRead = !!(partnerLastReadMessageId && message.id <= partnerLastReadMessageId)
+  const tickColor = isRead ? '#2aabee' : 'rgba(255,255,255,0.55)'
 
-  function openMenu(clientX: number, clientY: number) {
-    setMenuPos({ x: clientX, y: clientY })
-    setShowMenu(true)
-  }
+  function openMenu() { setShowMenu(true) }
 
   function onPointerDown(e: React.PointerEvent) {
     if (e.pointerType === 'touch') {
-      holdTimer.current = setTimeout(() => openMenu(e.clientX, e.clientY), 500)
+      holdTimer.current = setTimeout(openMenu, 500)
     }
   }
 
@@ -52,7 +49,7 @@ export function MessageBubble({ message, showSenderName, partnerLastReadMessageI
 
   function onContextMenu(e: React.MouseEvent) {
     e.preventDefault()
-    openMenu(e.clientX, e.clientY)
+    openMenu()
   }
 
   async function handleDelete() {
@@ -69,7 +66,6 @@ export function MessageBubble({ message, showSenderName, partnerLastReadMessageI
   }
 
   async function handleReact(emoji: string) {
-    setShowEmojiPicker(false)
     setShowMenu(false)
     try {
       const res = await chatApi.reactToMessage(message.id, emoji)
@@ -77,137 +73,220 @@ export function MessageBubble({ message, showSenderName, partnerLastReadMessageI
     } catch {}
   }
 
-  const isRead = !!(partnerLastReadMessageId && message.id <= partnerLastReadMessageId)
-  const tickColor = isRead ? '#2aabee' : 'rgba(255,255,255,0.55)'
-
-  const reactions = message.reactions ?? []
-
-  if (isCircle && att) {
-    return (
-      <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-0.5 msg-appear`}
-        onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
-        onContextMenu={onContextMenu}>
-        <div className="flex flex-col items-end gap-0.5">
-          <CircleVideoMessage
-            url={mediaUrl(att.publicUrl, att.storageKey)}
-            thumbnailUrl={att.thumbnailKey ? mediaUrl(null, att.thumbnailKey) : null}
-            durationMs={att.durationMs}
-          />
-          {reactions.length > 0 && (
-            <ReactionBar reactions={reactions} myId={myId} onReact={handleReact} />
-          )}
-          <span className="text-[11px] px-1" style={{ color: '#6c8998' }}>{time}</span>
-        </div>
-        {showMenu && (
-          <ContextMenu
-            ref={menuRef}
-            pos={menuPos}
-            isOwn={isOwn}
-            isText={false}
-            readAt={isRead ? partnerReadAt : null}
-            onClose={() => setShowMenu(false)}
-            onDelete={isOwn ? handleDelete : undefined}
-            onReact={() => { setShowMenu(false); setShowEmojiPicker(true) }}
-          />
+  const bubbleContent = isCircle && att ? (
+    <div className="flex flex-col items-end gap-0.5">
+      <CircleVideoMessage
+        url={mediaUrl(att.publicUrl, att.storageKey)}
+        thumbnailUrl={att.thumbnailKey ? mediaUrl(null, att.thumbnailKey) : null}
+        durationMs={att.durationMs}
+      />
+      {reactions.length > 0 && <ReactionBar reactions={reactions} myId={myId} onReact={handleReact} />}
+      <span className="text-[11px] px-1" style={{ color: '#6c8998' }}>{time}</span>
+    </div>
+  ) : (
+    <div className="flex flex-col items-end gap-0.5" style={{ maxWidth: '78%' }}>
+      <div className={`text-sm overflow-hidden w-full ${isMediaOnly ? '' : 'px-3 py-2'} ${isOwn ? 'bubble-own' : 'bubble-other'}`}>
+        {showSenderName && !isOwn && (
+          <p className="text-xs font-semibold mb-0.5 px-3 pt-2" style={{ color: '#2aabee' }}>
+            {message.sender.nickname}
+          </p>
         )}
-        {showEmojiPicker && (
-          <EmojiPicker onSelect={handleReact} onClose={() => setShowEmojiPicker(false)} isOwn={isOwn} />
-        )}
-      </div>
-    )
-  }
-
-  return (
-    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-0.5 msg-appear`}
-      onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
-      onContextMenu={onContextMenu}>
-      <div className="flex flex-col items-end gap-0.5" style={{ maxWidth: '78%' }}>
-        <div className={`
-          text-sm overflow-hidden w-full
-          ${isMediaOnly ? '' : 'px-3 py-2'}
-          ${isOwn ? 'bubble-own' : 'bubble-other'}
-        `}>
-          {showSenderName && !isOwn && (
-            <p className="text-xs font-semibold mb-0.5 px-3 pt-2" style={{ color: '#2aabee' }}>
-              {message.sender.nickname}
-            </p>
-          )}
-
-          {att && (
-            <div className={isMediaOnly ? '' : 'mb-1.5'}>
-              {message.type === 'IMAGE' && (
-                <ImageMessage
-                  url={mediaUrl(att.publicUrl, att.storageKey)}
-                  width={att.width}
-                  height={att.height}
-                />
-              )}
-              {message.type === 'VIDEO' && (
-                <VideoMessage
-                  url={mediaUrl(att.publicUrl, att.storageKey)}
-                  thumbnailUrl={att.thumbnailKey ? mediaUrl(null, att.thumbnailKey) : null}
-                  durationMs={att.durationMs}
-                />
-              )}
-              {message.type === 'AUDIO' && (
-                <AudioMessage
-                  url={mediaUrl(att.publicUrl, att.storageKey)}
-                  durationMs={att.durationMs}
-                  waveform={att.waveform as number[] | null}
-                  isOwn={isOwn}
-                />
-              )}
-            </div>
-          )}
-
-          {message.content && (
-            <p className={`whitespace-pre-wrap break-words leading-relaxed ${isMediaOnly ? 'px-3 pb-2' : ''}`}>
-              {message.content}
-            </p>
-          )}
-
-          <div className={`flex items-center justify-end gap-1 mt-0.5 ${isMediaOnly ? 'px-3 pb-2' : ''}`}>
-            {message.editedAt && (
-              <span className="text-[10px] italic" style={{ color: isOwn ? 'rgba(255,255,255,0.5)' : '#6c8998' }}>изм.</span>
+        {att && (
+          <div className={isMediaOnly ? '' : 'mb-1.5'}>
+            {message.type === 'IMAGE' && (
+              <ImageMessage url={mediaUrl(att.publicUrl, att.storageKey)} width={att.width} height={att.height} />
             )}
-            <span className="text-[11px]" style={{ color: isOwn ? 'rgba(255,255,255,0.55)' : '#6c8998' }}>
-              {time}
-            </span>
-            {isOwn && (
-              <svg width="18" height="10" viewBox="0 0 18 10" fill="none">
-                <path d="M1 5l3 3L11 1" stroke={tickColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M5 5l3 3L15 1" stroke={tickColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+            {message.type === 'VIDEO' && (
+              <VideoMessage
+                url={mediaUrl(att.publicUrl, att.storageKey)}
+                thumbnailUrl={att.thumbnailKey ? mediaUrl(null, att.thumbnailKey) : null}
+                durationMs={att.durationMs}
+              />
+            )}
+            {message.type === 'AUDIO' && (
+              <AudioMessage
+                url={mediaUrl(att.publicUrl, att.storageKey)}
+                durationMs={att.durationMs}
+                waveform={att.waveform as number[] | null}
+                isOwn={isOwn}
+              />
             )}
           </div>
-        </div>
-
-        {reactions.length > 0 && (
-          <ReactionBar reactions={reactions} myId={myId} onReact={handleReact} />
         )}
+        {message.content && (
+          <p className={`whitespace-pre-wrap break-words leading-relaxed ${isMediaOnly ? 'px-3 pb-2' : ''}`}>
+            {message.content}
+          </p>
+        )}
+        <div className={`flex items-center justify-end gap-1 mt-0.5 ${isMediaOnly ? 'px-3 pb-2' : ''}`}>
+          {message.editedAt && (
+            <span className="text-[10px] italic" style={{ color: isOwn ? 'rgba(255,255,255,0.5)' : '#6c8998' }}>изм.</span>
+          )}
+          <span className="text-[11px]" style={{ color: isOwn ? 'rgba(255,255,255,0.55)' : '#6c8998' }}>{time}</span>
+          {isOwn && (
+            <svg width="18" height="10" viewBox="0 0 18 10" fill="none">
+              <path d="M1 5l3 3L11 1" stroke={tickColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M5 5l3 3L15 1" stroke={tickColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </div>
+      </div>
+      {reactions.length > 0 && <ReactionBar reactions={reactions} myId={myId} onReact={handleReact} />}
+    </div>
+  )
+
+  return (
+    <>
+      <div
+        ref={bubbleRef}
+        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-0.5 msg-appear`}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onContextMenu={onContextMenu}
+      >
+        {bubbleContent}
       </div>
 
-      {showMenu && (
-        <ContextMenu
-          ref={menuRef}
-          pos={menuPos}
+      {showMenu && createPortal(
+        <MessageContextMenu
+          bubbleRef={bubbleRef}
           isOwn={isOwn}
           isText={message.type === 'TEXT' && !!message.content}
-          readAt={isRead ? partnerReadAt : null}
+          readAt={isRead ? (partnerReadAt ?? null) : null}
           onClose={() => setShowMenu(false)}
-          onDelete={isOwn ? handleDelete : undefined}
+          onReact={handleReact}
           onCopy={message.type === 'TEXT' && message.content ? handleCopy : undefined}
-          onReact={() => { setShowMenu(false); setShowEmojiPicker(true) }}
-        />
+          onDelete={isOwn ? handleDelete : undefined}
+        />,
+        document.body
       )}
-      {showEmojiPicker && (
-        <EmojiPicker onSelect={handleReact} onClose={() => setShowEmojiPicker(false)} isOwn={isOwn} />
-      )}
-    </div>
+    </>
   )
 }
 
-// ── Reaction bar ─────────────────────────────────────────────
+// ── Context menu (Telegram-style, anchored to bubble) ─────────
+
+function MessageContextMenu({
+  bubbleRef, isOwn, isText, readAt, onClose, onReact, onCopy, onDelete,
+}: {
+  bubbleRef: React.RefObject<HTMLDivElement>
+  isOwn: boolean
+  isText: boolean
+  readAt: string | null
+  onClose: () => void
+  onReact: (emoji: string) => void
+  onCopy?: () => void
+  onDelete?: () => void
+}) {
+  const rect = bubbleRef.current?.getBoundingClientRect()
+  if (!rect) return null
+
+  const EMOJI_H = 56   // высота emoji bar
+  const MENU_W = 200
+  const MENU_ITEM_H = 44
+  const itemCount = 1 + (onCopy ? 1 : 0) + (onDelete ? 1 : 0)
+  const MENU_H = itemCount * MENU_ITEM_H + (readAt ? 36 : 0)
+
+  const viewW = window.innerWidth
+  const viewH = window.innerHeight
+
+  // Горизонталь: выравниваем по краю пузыря
+  let menuLeft = isOwn ? rect.right - MENU_W : rect.left
+  menuLeft = Math.max(8, Math.min(menuLeft, viewW - MENU_W - 8))
+
+  // Вертикаль: сначала пробуем снизу от пузыря
+  let menuTop = rect.bottom + 8
+  if (menuTop + EMOJI_H + MENU_H > viewH - 8) {
+    // Не помещается снизу — ставим сверху
+    menuTop = rect.top - EMOJI_H - MENU_H - 8
+  }
+  if (menuTop < 8) menuTop = 8
+
+  const emojiTop = menuTop
+  const listTop = menuTop + EMOJI_H
+
+  const readLabel = readAt
+    ? `Прочитано ${new Date(readAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+    : null
+
+  return (
+    <>
+      {/* Затемнение */}
+      <div
+        className="fixed inset-0 z-40"
+        style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(1px)' }}
+        onClick={onClose}
+      />
+
+      {/* Emoji bar */}
+      <div
+        className="fixed z-50 flex items-center gap-1 px-3 py-2 rounded-2xl shadow-2xl"
+        style={{
+          left: menuLeft,
+          top: emojiTop,
+          background: '#1e2c3a',
+          border: '1px solid rgba(255,255,255,0.1)',
+        }}
+      >
+        {QUICK_EMOJIS.map(emoji => (
+          <button
+            key={emoji}
+            onPointerDown={e => { e.stopPropagation(); onReact(emoji) }}
+            className="text-2xl leading-none w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:scale-125 active:scale-95"
+          >
+            {emoji}
+          </button>
+        ))}
+      </div>
+
+      {/* Action list */}
+      <div
+        className="fixed z-50 rounded-2xl overflow-hidden shadow-2xl"
+        style={{
+          left: menuLeft,
+          top: listTop,
+          width: MENU_W,
+          background: '#1e2c3a',
+          border: '1px solid rgba(255,255,255,0.1)',
+        }}
+      >
+        {readLabel && (
+          <div className="px-4 py-2 text-xs" style={{ color: '#6c8998', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+            {readLabel}
+          </div>
+        )}
+        {onCopy && isText && (
+          <CtxItem icon="📋" label="Скопировать" onPointerDown={e => { e.stopPropagation(); onCopy() }} />
+        )}
+        <CtxItem icon="😊" label="Реакция" onPointerDown={e => { e.stopPropagation(); onClose() }} />
+        {onDelete && (
+          <CtxItem icon="🗑" label="Удалить" onPointerDown={e => { e.stopPropagation(); onDelete() }} danger />
+        )}
+      </div>
+    </>
+  )
+}
+
+function CtxItem({ icon, label, onPointerDown, danger }: {
+  icon: string
+  label: string
+  onPointerDown: (e: React.PointerEvent) => void
+  danger?: boolean
+}) {
+  return (
+    <button
+      onPointerDown={onPointerDown}
+      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left transition-colors active:bg-white/10"
+      style={{ color: danger ? '#fc8181' : 'rgba(255,255,255,0.85)' }}
+    >
+      <span>{icon}</span>
+      {label}
+    </button>
+  )
+}
+
+// ── Reaction bar ──────────────────────────────────────────────
 
 function ReactionBar({ reactions, myId, onReact }: {
   reactions: NonNullable<Message['reactions']>
@@ -238,107 +317,7 @@ function ReactionBar({ reactions, myId, onReact }: {
   )
 }
 
-// ── Emoji picker (quick) ─────────────────────────────────────
-
-function EmojiPicker({ onSelect, onClose, isOwn }: {
-  onSelect: (emoji: string) => void
-  onClose: () => void
-  isOwn: boolean
-}) {
-  return (
-    <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div
-        className={`fixed bottom-24 z-50 flex gap-1.5 px-3 py-2 rounded-2xl shadow-2xl`}
-        style={{
-          background: '#1e2c3a',
-          border: '1px solid rgba(255,255,255,0.1)',
-          [isOwn ? 'right' : 'left']: 16,
-        }}
-      >
-        {QUICK_EMOJIS.map(emoji => (
-          <button
-            key={emoji}
-            onClick={() => onSelect(emoji)}
-            className="text-2xl leading-none p-1 rounded-xl transition-all hover:scale-125 active:scale-95"
-          >
-            {emoji}
-          </button>
-        ))}
-      </div>
-    </>
-  )
-}
-
-// ── Context menu ─────────────────────────────────────────────
-
-import { forwardRef } from 'react'
-
-const ContextMenu = forwardRef<HTMLDivElement, {
-  pos: { x: number; y: number }
-  isOwn: boolean
-  isText: boolean
-  readAt: string | null | undefined
-  onClose: () => void
-  onDelete?: () => void
-  onCopy?: () => void
-  onReact: () => void
-}>(({ pos, isOwn, isText, readAt, onClose, onDelete, onCopy, onReact }, ref) => {
-  const viewW = window.innerWidth
-  const viewH = window.innerHeight
-  const menuW = 200
-  const menuH = 200
-
-  const x = Math.min(pos.x, viewW - menuW - 8)
-  const y = pos.y + menuH > viewH ? pos.y - menuH : pos.y
-
-  const readLabel = readAt
-    ? `Прочитано ${new Date(readAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`
-    : null
-
-  return (
-    <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div
-        ref={ref}
-        className="fixed z-50 rounded-2xl overflow-hidden shadow-2xl min-w-[180px]"
-        style={{ left: x, top: y, background: '#1e2c3a', border: '1px solid rgba(255,255,255,0.1)' }}
-      >
-        {readLabel && (
-          <div className="px-4 py-2.5 text-xs" style={{ color: '#6c8998', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-            {readLabel}
-          </div>
-        )}
-        <MenuItem icon="😊" label="Реакция" onClick={onReact} />
-        {onCopy && isText && <MenuItem icon="📋" label="Скопировать" onClick={onCopy} />}
-        {onDelete && <MenuItem icon="🗑" label="Удалить" onClick={onDelete} danger />}
-      </div>
-    </>
-  )
-})
-
-function MenuItem({ icon, label, onClick, danger }: {
-  icon: string; label: string; onClick: () => void; danger?: boolean
-}) {
-  const [hov, setHov] = useState(false)
-  return (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left"
-      style={{
-        color: danger ? '#fc8181' : 'rgba(255,255,255,0.85)',
-        background: hov ? 'rgba(255,255,255,0.06)' : 'transparent',
-      }}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-    >
-      <span>{icon}</span>
-      {label}
-    </button>
-  )
-}
-
-// ── Helpers ──────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────
 
 function mediaUrl(publicUrl: string | null | undefined, storageKey: string): string {
   if (publicUrl && !publicUrl.includes('minio:') && !publicUrl.includes('localhost:9000')) {
