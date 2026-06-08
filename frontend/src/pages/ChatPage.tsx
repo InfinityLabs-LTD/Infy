@@ -118,9 +118,9 @@ export function ChatPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
-  const holdStartTime = useRef(0)
   const holdStartY = useRef(0)
   const isHoldingRef = useRef(false)
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const circleSendTrigger = useRef<(() => void) | null>(null)
 
   const voiceRecorder = useMediaRecorder()
@@ -162,6 +162,11 @@ export function ChatPage() {
     if (!chatId || !socketReady) return
     joinChatRoom(chatId)
   }, [chatId, socketReady])
+
+  // Освобождаем аудио-стрим при уходе со страницы
+  useEffect(() => {
+    return () => { (voiceRecorder as ReturnType<typeof useMediaRecorder> & { releaseStream?: () => void }).releaseStream?.() }
+  }, [])
 
   useEffect(() => {
     if (!chatId || !socketReady) return
@@ -270,10 +275,15 @@ export function ChatPage() {
     e.preventDefault()
     e.currentTarget.setPointerCapture(e.pointerId)
     isHoldingRef.current = true
-    holdStartTime.current = Date.now()
     holdStartY.current = e.clientY
-    if (recordMode === 'voice') voiceRecorder.start()
-    else setShowCircle(true)
+
+    // Запускаем запись только через 250мс — до этого считается одиночным нажатием
+    holdTimerRef.current = setTimeout(() => {
+      holdTimerRef.current = null
+      if (!isHoldingRef.current) return
+      if (recordMode === 'voice') voiceRecorder.start()
+      else setShowCircle(true)
+    }, 250)
   }
 
   function onRecordPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
@@ -285,14 +295,15 @@ export function ChatPage() {
   function onRecordPointerUp(e: React.PointerEvent<HTMLButtonElement>) {
     if (!isHoldingRef.current) return
     isHoldingRef.current = false
-    const held = Date.now() - holdStartTime.current
-    if (held < 250) {
-      // Короткое нажатие — переключить режим
-      if (recordMode === 'voice') voiceRecorder.cancel()
-      else setShowCircle(false)
+
+    if (holdTimerRef.current) {
+      // Таймер ещё не сработал — это одиночное нажатие, переключаем режим
+      clearTimeout(holdTimerRef.current)
+      holdTimerRef.current = null
       setRecordMode(m => m === 'voice' ? 'circle' : 'voice')
       return
     }
+
     if (recordLocked) return
     // Отпустили после удержания — автоотправка
     if (recordMode === 'voice') sendVoiceBlob()

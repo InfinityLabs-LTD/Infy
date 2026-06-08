@@ -28,30 +28,37 @@ export function useMediaRecorder(): UseMediaRecorderResult {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
   }
 
-  const start = useCallback(async () => {
+  // Получить стрим — переиспользуем существующий чтобы не запрашивать разрешение повторно
+  const ensureStream = useCallback(async (): Promise<MediaStream | null> => {
+    if (streamRef.current?.active) return streamRef.current
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
-      chunksRef.current = []
-
-      const recorder = new MediaRecorder(stream, {
-        mimeType: PREFERRED_AUDIO_MIME || undefined,
-      })
-      recorderRef.current = recorder
-
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data)
-      }
-
-      recorder.start(200)  // collect in 200ms chunks
-      setState('recording')
-      setDuration(0)
-
-      timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
+      return stream
     } catch {
-      setState('idle')
+      return null
     }
   }, [])
+
+  const start = useCallback(async () => {
+    const stream = await ensureStream()
+    if (!stream) { setState('idle'); return }
+
+    chunksRef.current = []
+    const recorder = new MediaRecorder(stream, {
+      mimeType: PREFERRED_AUDIO_MIME || undefined,
+    })
+    recorderRef.current = recorder
+
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data)
+    }
+
+    recorder.start(200)
+    setState('recording')
+    setDuration(0)
+    timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
+  }, [ensureStream])
 
   const stop = useCallback((): Promise<Blob | null> => {
     return new Promise((resolve) => {
@@ -65,8 +72,7 @@ export function useMediaRecorder(): UseMediaRecorderResult {
         const blob = new Blob(chunksRef.current, {
           type: PREFERRED_AUDIO_MIME || 'audio/webm',
         })
-        streamRef.current?.getTracks().forEach(t => t.stop())
-        streamRef.current = null
+        // Стрим не останавливаем — переиспользуем при следующей записи
         recorderRef.current = null
         setState('idle')
         setDuration(0)
@@ -80,14 +86,18 @@ export function useMediaRecorder(): UseMediaRecorderResult {
   const cancel = useCallback(() => {
     clearTimer()
     recorderRef.current?.stop()
-    streamRef.current?.getTracks().forEach(t => t.stop())
     recorderRef.current = null
-    streamRef.current = null
     chunksRef.current = []
     setState('idle')
     setDuration(0)
     resolveRef.current?.(null)
   }, [])
 
-  return { state, duration, start, stop, cancel }
+  // Освобождаем стрим только при размонтировании компонента
+  const releaseStream = useCallback(() => {
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+  }, [])
+
+  return { state, duration, start, stop, cancel, releaseStream } as UseMediaRecorderResult & { releaseStream: () => void }
 }
