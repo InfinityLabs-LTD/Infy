@@ -41,7 +41,11 @@
       "Bash(ssh root@144.31.101.68 \"sed -n '40,62p' /opt/infy/backend/src/modules/chat/chat.service.ts\")",
       "Bash(ssh root@144.31.101.68 'python3 -c \" *)",
       "Bash(ssh root@144.31.101.68 \"sed -n '43,62p' /opt/infy/backend/src/modules/chat/chat.service.ts\")",
-      "Bash(ssh root@144.31.101.68 \"sed -n '1,30p' /opt/infy/backend/src/modules/media/media.routes.ts\")"
+      "Bash(ssh root@144.31.101.68 \"sed -n '1,30p' /opt/infy/backend/src/modules/media/media.routes.ts\")",
+      "Bash(nslookup app.infinity-cloud.ru)",
+      "Bash(nslookup mqx7q0951p.cdn.twcstorage.ru)",
+      "Bash(ssh -i ~/.ssh/id_ed25519 root@144.31.101.68 \"docker run --rm infy-frontend sh -c 'grep -ro \\\\\"infinity-cloud\\\\\\\\.ru/api\\\\\" /usr/share/nginx/html/assets/*.js | wc -l'\")",
+      "Bash(xargs grep -l \"manifest\\\\|serviceWorker\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\danya\\.claude\\projects\\c--Repositories-Infy\\memory"
