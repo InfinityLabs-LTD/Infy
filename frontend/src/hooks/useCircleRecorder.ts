@@ -121,22 +121,33 @@ export function useCircleRecorder(): UseCircleRecorderResult {
     try {
       const newStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: newFacing, width: { ideal: 400 }, height: { ideal: 400 } },
-        audio: false,
+        audio: true,
       })
-      const newVideoTrack = newStream.getVideoTracks()[0]
-      if (!newVideoTrack) return
 
-      const oldTrack = streamRef.current.getVideoTracks()[0]
-      if (oldTrack) {
-        streamRef.current.removeTrack(oldTrack)
-        oldTrack.stop()
+      // Останавливаем старый рекордер без resolve — заменим его ниже
+      const oldRecorder = recorderRef.current
+      if (oldRecorder && oldRecorder.state !== 'inactive') {
+        oldRecorder.ondataavailable = null
+        oldRecorder.onstop = null
+        oldRecorder.stop()
       }
-      streamRef.current.addTrack(newVideoTrack)
+
+      // Останавливаем старый стрим
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = newStream
 
       if (videoRef.current) {
-        videoRef.current.srcObject = streamRef.current
+        videoRef.current.srcObject = newStream
         await videoRef.current.play().catch(() => {})
       }
+
+      // Пересоздаём MediaRecorder на новом стриме, сохраняем накопленные чанки
+      const recorder = new MediaRecorder(newStream, { mimeType: PREFERRED_VIDEO_MIME })
+      recorderRef.current = recorder
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
+      recorder.start(200)
 
       setIsFrontCamera(f => !f)
     } catch {

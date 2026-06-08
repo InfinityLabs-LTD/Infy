@@ -81,7 +81,11 @@ export function useMediaRecorder(): UseMediaRecorderResult {
         const blob = new Blob(chunksRef.current, {
           type: PREFERRED_AUDIO_MIME || 'audio/webm',
         })
-        // Стрим не останавливаем — переиспользуем при следующей записи
+        // Останавливаем трек чтобы браузер убрал индикатор микрофона.
+        // При следующей записи ensureStream() запросит стрим заново — разрешение
+        // браузер помнит и больше не спрашивает.
+        streamRef.current?.getTracks().forEach(t => t.stop())
+        streamRef.current = null
         recorderRef.current = null
         setState('idle')
         setDuration(0)
