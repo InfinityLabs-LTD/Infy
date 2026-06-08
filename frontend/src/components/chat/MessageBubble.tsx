@@ -401,28 +401,28 @@ function FullEmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => v
     : null
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)' }}>
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-end" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)' }}>
       {/* Backdrop close */}
-      <div className="flex-1" onClick={onClose} />
+      <div className="absolute inset-0" onClick={onClose} />
 
-      {/* Panel */}
+      {/* Panel — макс 480px на десктопе, полная ширина на мобильном */}
       <div
-        className="shrink-0 rounded-t-3xl flex flex-col"
-        style={{ background: '#17212b', maxHeight: '70vh', height: '70vh' }}
+        className="relative shrink-0 rounded-t-3xl flex flex-col w-full"
+        style={{ background: '#17212b', maxHeight: '60vh', height: '60vh', maxWidth: 480 }}
       >
         {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} />
+        <div className="flex justify-center pt-2.5 pb-1">
+          <div className="w-8 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} />
         </div>
 
         {/* Search */}
-        <div className="px-3 pb-2">
+        <div className="px-3 pb-1.5">
           <input
             autoFocus
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Поиск эмодзи…"
-            className="w-full rounded-xl px-3 py-2 text-sm text-white outline-none placeholder-white/30"
+            className="w-full rounded-xl px-3 py-1.5 text-sm text-white outline-none placeholder-white/30"
             style={{ background: '#242f3d' }}
           />
         </div>
@@ -434,7 +434,7 @@ function FullEmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => v
               <button
                 key={i}
                 onClick={() => setActiveCategory(i)}
-                className="shrink-0 w-9 h-9 flex items-center justify-center rounded-xl text-xl transition-all"
+                className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-lg transition-all"
                 style={{ background: activeCategory === i ? 'rgba(42,171,238,0.2)' : 'transparent' }}
               >
                 {cat.icon}
@@ -444,11 +444,11 @@ function FullEmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => v
         )}
 
         {/* Emoji grid */}
-        <div className="flex-1 overflow-y-auto px-2 pb-4">
+        <div className="flex-1 overflow-y-auto px-2 pb-3">
           {search.trim() ? (
             <>
-              <p className="text-xs px-1 py-1.5" style={{ color: '#6c8998' }}>Результаты поиска</p>
-              <div className="grid gap-0.5" style={{ gridTemplateColumns: 'repeat(8, 1fr)' }}>
+              <p className="text-xs px-1 py-1" style={{ color: '#6c8998' }}>Результаты поиска</p>
+              <div className="grid" style={{ gridTemplateColumns: 'repeat(9, 1fr)', gap: 2 }}>
                 {EMOJI_CATEGORIES.flatMap(c => c.emojis)
                   .filter((e, i, arr) => arr.indexOf(e) === i)
                   .map(emoji => (
@@ -461,10 +461,10 @@ function FullEmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => v
             </>
           ) : (
             <>
-              <p className="text-xs px-1 py-1.5 font-medium" style={{ color: '#6c8998' }}>
+              <p className="text-xs px-1 py-1 font-medium" style={{ color: '#6c8998' }}>
                 {EMOJI_CATEGORIES[activeCategory].label}
               </p>
-              <div className="grid gap-0.5" style={{ gridTemplateColumns: 'repeat(8, 1fr)' }}>
+              <div className="grid" style={{ gridTemplateColumns: 'repeat(9, 1fr)', gap: 2 }}>
                 {EMOJI_CATEGORIES[activeCategory].emojis.map(emoji => (
                   <EmojiBtn key={emoji} emoji={emoji} onSelect={onSelect} />
                 ))}
@@ -481,7 +481,8 @@ function EmojiBtn({ emoji, onSelect }: { emoji: string; onSelect: (e: string) =>
   return (
     <button
       onPointerDown={e => { e.preventDefault(); onSelect(emoji) }}
-      className="w-full aspect-square flex items-center justify-center text-2xl rounded-xl transition-all active:scale-90 hover:bg-white/10"
+      className="w-full aspect-square flex items-center justify-center rounded-lg transition-all active:scale-90 hover:bg-white/10"
+      style={{ fontSize: 22 }}
     >
       {emoji}
     </button>
