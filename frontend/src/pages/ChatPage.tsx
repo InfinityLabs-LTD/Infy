@@ -109,6 +109,7 @@ export function ChatPage() {
   const [showPanel, setShowPanel] = useState(false)
   const [recordMode, setRecordMode] = useState<'voice' | 'circle'>('voice')
   const [recordLocked, setRecordLocked] = useState(false)
+  const [circleAutoSend, setCircleAutoSend] = useState(false)
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -121,7 +122,6 @@ export function ChatPage() {
   const holdStartY = useRef(0)
   const isHoldingRef = useRef(false)
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const circleSendTrigger = useRef<(() => void) | null>(null)
 
   const voiceRecorder = useMediaRecorder()
   const isRecording = voiceRecorder.state === 'recording'
@@ -242,7 +242,7 @@ export function ChatPage() {
 
   async function sendCircle(blob: Blob) {
     if (!chatId) return
-    setShowCircle(false); setSending(true)
+    setShowCircle(false); setCircleAutoSend(false); setSending(true)
     try {
       const file = new File([blob], 'circle.webm', { type: blob.type })
       const { data: { data: upload } } = await mediaApi.upload(file, 'circle_video')
@@ -265,7 +265,7 @@ export function ChatPage() {
 
   function cancelRecord() {
     if (recordMode === 'voice') voiceRecorder.cancel()
-    else setShowCircle(false)
+    else { setShowCircle(false); setCircleAutoSend(false) }
     setRecordLocked(false)
     isHoldingRef.current = false
   }
@@ -289,7 +289,7 @@ export function ChatPage() {
   function onRecordPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
     if (!isHoldingRef.current || recordLocked) return
     const dy = holdStartY.current - e.clientY
-    if (dy > 60) setRecordLocked(true)
+    if (dy > 120) setRecordLocked(true)
   }
 
   function onRecordPointerUp(e: React.PointerEvent<HTMLButtonElement>) {
@@ -307,7 +307,7 @@ export function ChatPage() {
     if (recordLocked) return
     // Отпустили после удержания — автоотправка
     if (recordMode === 'voice') sendVoiceBlob()
-    else circleSendTrigger.current?.()
+    else setCircleAutoSend(true)
   }
 
   function startTyping() {
@@ -587,8 +587,8 @@ export function ChatPage() {
       {showCircle && (
         <CircleRecorderModal
           onSend={sendCircle}
-          onClose={() => { setShowCircle(false); setRecordLocked(false); isHoldingRef.current = false }}
-          sendTriggerRef={circleSendTrigger}
+          onClose={() => { setShowCircle(false); setCircleAutoSend(false); setRecordLocked(false); isHoldingRef.current = false }}
+          autoSend={circleAutoSend}
           locked={recordLocked}
         />
       )}

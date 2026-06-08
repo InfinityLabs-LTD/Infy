@@ -1,16 +1,17 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useCircleRecorder } from '@/hooks/useCircleRecorder'
 import { Spinner } from '@/components/ui/Spinner'
 
 interface Props {
   onSend: (blob: Blob) => void
   onClose: () => void
-  sendTriggerRef?: React.MutableRefObject<(() => void) | null>
+  autoSend?: boolean
   locked?: boolean
 }
 
-export function CircleRecorderModal({ onSend, onClose, sendTriggerRef, locked }: Props) {
+export function CircleRecorderModal({ onSend, onClose, autoSend, locked }: Props) {
   const { state, error, duration, isFrontCamera, videoRef, start, stop, cancel, switchCamera } = useCircleRecorder()
+  const autoSentRef = useRef(false)
 
   useEffect(() => {
     start()
@@ -28,14 +29,13 @@ export function CircleRecorderModal({ onSend, onClose, sendTriggerRef, locked }:
     onClose()
   }
 
-  // Expose send trigger for auto-send on pointer release
+  // Автоотправка при отпускании кнопки (если запись уже идёт ≥1 сек)
   useEffect(() => {
-    if (!sendTriggerRef) return
-    sendTriggerRef.current = () => {
-      if (state === 'recording' && duration >= 1) handleSend()
+    if (autoSend && state === 'recording' && duration >= 1 && !autoSentRef.current) {
+      autoSentRef.current = true
+      handleSend()
     }
-    return () => { if (sendTriggerRef) sendTriggerRef.current = null }
-  }, [state, duration])
+  }, [autoSend, state, duration])
 
   const pct = Math.min(100, (duration / 60) * 100)
   const circumference = 2 * Math.PI * 116

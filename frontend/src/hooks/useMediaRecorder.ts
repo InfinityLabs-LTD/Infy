@@ -23,6 +23,7 @@ export function useMediaRecorder(): UseMediaRecorderResult {
   const streamRef = useRef<MediaStream | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const resolveRef = useRef<((blob: Blob | null) => void) | null>(null)
+  const startPromiseRef = useRef<Promise<void> | null>(null)
 
   const clearTimer = () => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
@@ -40,27 +41,35 @@ export function useMediaRecorder(): UseMediaRecorderResult {
     }
   }, [])
 
-  const start = useCallback(async () => {
-    const stream = await ensureStream()
-    if (!stream) { setState('idle'); return }
+  const start = useCallback(() => {
+    const promise = (async () => {
+      const stream = await ensureStream()
+      if (!stream) { setState('idle'); return }
 
-    chunksRef.current = []
-    const recorder = new MediaRecorder(stream, {
-      mimeType: PREFERRED_AUDIO_MIME || undefined,
-    })
-    recorderRef.current = recorder
+      chunksRef.current = []
+      const recorder = new MediaRecorder(stream, {
+        mimeType: PREFERRED_AUDIO_MIME || undefined,
+      })
+      recorderRef.current = recorder
 
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunksRef.current.push(e.data)
-    }
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
 
-    recorder.start(200)
-    setState('recording')
-    setDuration(0)
-    timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
+      recorder.start(200)
+      setState('recording')
+      setDuration(0)
+      timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
+    })()
+    startPromiseRef.current = promise
+    promise.finally(() => { startPromiseRef.current = null })
+    return promise
   }, [ensureStream])
 
-  const stop = useCallback((): Promise<Blob | null> => {
+  const stop = useCallback(async (): Promise<Blob | null> => {
+    // Ждём завершения start() если он ещё выполняется
+    if (startPromiseRef.current) await startPromiseRef.current
+
     return new Promise((resolve) => {
       const recorder = recorderRef.current
       if (!recorder || recorder.state === 'inactive') { resolve(null); return }
