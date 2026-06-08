@@ -109,7 +109,8 @@ export function ChatPage() {
   const [showPanel, setShowPanel] = useState(false)
 
   const bottomRef = useRef<HTMLDivElement>(null)
-  const initialScrollDone = useRef(false)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const prevMsgLengthRef = useRef(0)
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isTypingRef = useRef(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -167,17 +168,26 @@ export function ChatPage() {
     return () => { socket.off('typing', handler) }
   }, [chatId, socketReady])
 
-  // Reset scroll flag when switching chats
+  // Instant scroll to bottom after initial load (or chat switch)
   useEffect(() => {
-    initialScrollDone.current = false
-  }, [chatId])
+    if (loading) return
+    // double rAF ensures the browser has painted the messages before scrolling
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = scrollContainerRef.current
+        if (el) el.scrollTop = el.scrollHeight
+        prevMsgLengthRef.current = chatMessages.length
+      })
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [loading, chatId])
 
+  // Smooth scroll only for a single newly appended message (incoming/sent)
   useEffect(() => {
-    if (chatMessages.length === 0) return
-    if (!initialScrollDone.current) {
-      bottomRef.current?.scrollIntoView({ behavior: 'instant' })
-      initialScrollDone.current = true
-    } else {
+    if (loading) return
+    const prev = prevMsgLengthRef.current
+    prevMsgLengthRef.current = chatMessages.length
+    if (prev > 0 && chatMessages.length === prev + 1) {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
   }, [chatMessages.length])
@@ -310,7 +320,7 @@ export function ChatPage() {
       </div>
 
       {/* ── Messages ── */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-2 py-2 chat-bg">
+      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto px-2 py-2 chat-bg">
         {resolving ? (
           <div className="flex justify-center py-12"><Spinner size={28} /></div>
         ) : (
