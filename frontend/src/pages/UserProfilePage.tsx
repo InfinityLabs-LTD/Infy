@@ -1,4 +1,13 @@
 import { useEffect, useState } from 'react'
+
+function calcAge(birthdate: string): number {
+  const birth = new Date(birthdate)
+  const now = new Date()
+  let age = now.getFullYear() - birth.getFullYear()
+  const m = now.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--
+  return age
+}
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { profileApi } from '@/api/auth'
 import { chatApi } from '@/api/chat'
@@ -130,7 +139,15 @@ export function UserProfilePage() {
           <div className="rounded-2xl p-5 space-y-3"
             style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
             <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#6c8998' }}>Аккаунт</h2>
-            <InfoRow label="Регистрация" value={
+            {user.email && (
+              <InfoRow icon="✉️" label="Email" value={user.email} />
+            )}
+            {user.birthdate && (
+              <InfoRow icon="🎂" label="День рождения" value={
+                `${new Date(user.birthdate).toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' })} (${calcAge(user.birthdate)} лет)`
+              } />
+            )}
+            <InfoRow icon="📅" label="Регистрация" value={
               new Date(user.createdAt).toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' })
             } />
           </div>
@@ -188,11 +205,12 @@ export function UserProfilePage() {
   )
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ icon, label, value }: { icon?: string; label: string; value: string }) {
   return (
-    <div className="flex items-center gap-3 text-sm">
+    <div className="flex items-center gap-3 text-sm" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '12px' }}>
+      {icon && <span className="text-base w-5 text-center">{icon}</span>}
       <span className="flex-1" style={{ color: '#6c8998' }}>{label}</span>
-      <span className="font-medium text-white">{value}</span>
+      <span className="font-medium text-white text-right" style={{ maxWidth: '60%', wordBreak: 'break-word' }}>{value}</span>
     </div>
   )
 }

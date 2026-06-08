@@ -188,6 +188,7 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
         coverUrl: user.coverUrl,
         bio: user.bio,
         birthdate: user.birthdate,
+        email: user.email,
         role: user.role,
         createdAt: user.createdAt,
         lastSeenAt: user.lastSeenAt,
