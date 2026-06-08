@@ -14,14 +14,17 @@ interface TokenPair {
   sessionId: string
 }
 
-export function serializeUser(user: { id: bigint; username: string; nickname: string; avatarUrl: string | null; role: string; email: string | null; createdAt: Date; lastSeenAt: Date }) {
+export function serializeUser(user: { id: bigint; username: string; nickname: string; avatarUrl: string | null; coverUrl: string | null; bio: string | null; role: string; email: string | null; birthdate: Date | null; createdAt: Date; lastSeenAt: Date }) {
   return {
     id: user.id.toString(),
     username: user.username,
     nickname: user.nickname,
     avatarUrl: user.avatarUrl,
+    coverUrl: user.coverUrl,
+    bio: user.bio,
     role: user.role,
     email: user.email,
+    birthdate: user.birthdate,
     createdAt: user.createdAt,
     lastSeenAt: user.lastSeenAt,
   }

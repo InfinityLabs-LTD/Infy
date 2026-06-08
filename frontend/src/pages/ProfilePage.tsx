@@ -6,29 +6,56 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Spinner } from '@/components/ui/Spinner'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 
+function calcAge(birthdate: string): number {
+  const birth = new Date(birthdate)
+  const now = new Date()
+  let age = now.getFullYear() - birth.getFullYear()
+  const m = now.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--
+  return age
+}
+
 export function ProfilePage() {
   const navigate = useNavigate()
   const { user, setUser, logout } = useAuthStore()
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [uploading, setUploading] = useState(false)
+  const avatarRef = useRef<HTMLInputElement>(null)
+  const coverRef = useRef<HTMLInputElement>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [uploadingCover, setUploadingCover] = useState(false)
   const [error, setError] = useState<unknown>(null)
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setUploading(true); setError(null)
+    setUploadingAvatar(true); setError(null)
     try {
       await profileApi.uploadAvatar(file)
       const res = await profileApi.getMe()
       setUser(res.data.data)
     } catch (err) { setError(err) }
-    finally { setUploading(false); if (fileRef.current) fileRef.current.value = '' }
+    finally { setUploadingAvatar(false); if (avatarRef.current) avatarRef.current.value = '' }
+  }
+
+  async function handleCoverChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingCover(true); setError(null)
+    try {
+      await profileApi.uploadCover(file)
+      const res = await profileApi.getMe()
+      setUser(res.data.data)
+    } catch (err) { setError(err) }
+    finally { setUploadingCover(false); if (coverRef.current) coverRef.current.value = '' }
   }
 
   if (!user) return null
 
   const joined = new Date(user.createdAt).toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' })
   const roleLabel: Record<string, string> = { USER: 'Пользователь', ADMIN: 'Администратор' }
+  const birthdateFormatted = user.birthdate
+    ? new Date(user.birthdate).toLocaleDateString('ru-RU', { year: 'numeric', month: 'long', day: 'numeric' })
+    : null
+  const age = user.birthdate ? calcAge(user.birthdate) : null
 
   return (
     <div className="min-h-screen" style={{ background: '#0e1621' }}>
@@ -54,22 +81,41 @@ export function ProfilePage() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-5 space-y-3">
-        {/* Avatar card */}
+        {/* Avatar + Cover card */}
         <div className="rounded-2xl overflow-hidden" style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <div className="h-20" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2b5278 100%)' }} />
+          {/* Cover */}
+          <div className="relative h-28 overflow-hidden">
+            {user.coverUrl ? (
+              <img src={user.coverUrl} alt="cover" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2b5278 100%)' }} />
+            )}
+            <button onClick={() => coverRef.current?.click()} disabled={uploadingCover}
+              className="absolute bottom-2 right-2 flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-xl transition-colors disabled:opacity-50"
+              style={{ background: 'rgba(0,0,0,0.55)', color: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(4px)' }}>
+              {uploadingCover ? <Spinner size={12} /> : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                </svg>
+              )}
+              Обложка
+            </button>
+          </div>
+
           <div className="px-6 pb-6 -mt-10">
             <div className="relative w-20 h-20 mb-3">
-              {uploading ? (
+              {uploadingAvatar ? (
                 <div className="w-20 h-20 rounded-2xl flex items-center justify-center"
                   style={{ background: '#242f3d', border: '3px solid #17212b' }}>
                   <Spinner size={24} />
                 </div>
               ) : (
-                <div className="rounded-2xl overflow-hidden" style={{ border: '3px solid #17212b' }}>
-                  <Avatar url={user.avatarUrl} nickname={user.nickname} size={80} />
+                <div className="w-20 h-20 rounded-2xl overflow-hidden" style={{ border: '3px solid #17212b' }}>
+                  <Avatar url={user.avatarUrl} nickname={user.nickname} size={80} rounded="2xl" />
                 </div>
               )}
-              <button onClick={() => fileRef.current?.click()} disabled={uploading}
+              <button onClick={() => avatarRef.current?.click()} disabled={uploadingAvatar}
                 className="absolute -bottom-1 -right-1 w-7 h-7 rounded-xl flex items-center justify-center shadow transition-colors"
                 style={{ background: '#2aabee', border: '2px solid #17212b' }}
                 title="Изменить аватар">
@@ -79,7 +125,8 @@ export function ProfilePage() {
                 </svg>
               </button>
             </div>
-            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={handleAvatarChange} />
+            <input ref={avatarRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={handleAvatarChange} />
+            <input ref={coverRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={handleCoverChange} />
             {error !== null && <ErrorMessage error={error} />}
             <p className="text-xl font-bold text-white">{user.nickname}</p>
             <p className="text-sm" style={{ color: '#6c8998' }}>@{user.username}</p>
@@ -95,11 +142,22 @@ export function ProfilePage() {
           </div>
         </div>
 
+        {/* Bio */}
+        {user.bio && (
+          <div className="rounded-2xl p-5" style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6c8998' }}>О себе</h2>
+            <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.85)', whiteSpace: 'pre-wrap' }}>{user.bio}</p>
+          </div>
+        )}
+
         {/* Info */}
         <div className="rounded-2xl p-5 space-y-3" style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
           <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#6c8998' }}>Аккаунт</h2>
           <InfoRow icon="👤" label="Роль" value={roleLabel[user.role] ?? user.role} />
           {user.email && <InfoRow icon="✉️" label="Email" value={user.email} />}
+          {birthdateFormatted && age !== null && (
+            <InfoRow icon="🎂" label="День рождения" value={`${birthdateFormatted} (${age} лет)`} />
+          )}
           <InfoRow icon="📅" label="Регистрация" value={joined} />
         </div>
 
@@ -135,7 +193,7 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
     <div className="flex items-center gap-3 text-sm" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '12px' }}>
       <span className="text-base w-5 text-center">{icon}</span>
       <span className="flex-1" style={{ color: '#6c8998' }}>{label}</span>
-      <span className="font-medium text-white">{value}</span>
+      <span className="font-medium text-white text-right" style={{ maxWidth: '60%', wordBreak: 'break-word' }}>{value}</span>
     </div>
   )
 }

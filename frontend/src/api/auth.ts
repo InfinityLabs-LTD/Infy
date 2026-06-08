@@ -5,8 +5,11 @@ export interface User {
   username: string
   nickname: string
   avatarUrl: string | null
+  coverUrl: string | null
+  bio: string | null
   role: string
   email: string | null
+  birthdate: string | null
   createdAt: string
   lastSeenAt: string
 }
@@ -49,13 +52,21 @@ export const profileApi = {
   getByUsername: (username: string) =>
     api.get<{ data: User }>(`/profile/${username}`),
 
-  updateMe: (body: { nickname?: string; username?: string; birthdate?: string | null }) =>
+  updateMe: (body: { nickname?: string; username?: string; birthdate?: string | null; bio?: string | null }) =>
     api.patch<{ data: User }>('/profile/me', body),
 
   uploadAvatar: (file: File) => {
     const form = new FormData()
     form.append('file', file)
     return api.post<{ data: { avatarUrl: string } }>('/profile/me/avatar', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+
+  uploadCover: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post<{ data: { coverUrl: string } }>('/profile/me/cover', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },

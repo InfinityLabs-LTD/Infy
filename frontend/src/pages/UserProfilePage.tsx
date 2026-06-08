@@ -91,11 +91,17 @@ export function UserProfilePage() {
         <div className="max-w-lg mx-auto px-4 py-5 space-y-3">
           {/* Avatar card */}
           <div className="rounded-2xl overflow-hidden" style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <div className="h-20" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2b5278 100%)' }} />
+            <div className="h-28 overflow-hidden">
+              {user.coverUrl ? (
+                <img src={user.coverUrl} alt="cover" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2b5278 100%)' }} />
+              )}
+            </div>
             <div className="px-6 pb-6 -mt-10">
               <div className="w-20 h-20 mb-3 rounded-2xl overflow-hidden"
                 style={{ border: '3px solid #17212b' }}>
-                <Avatar url={user.avatarUrl} nickname={user.nickname} size={80} />
+                <Avatar url={user.avatarUrl} nickname={user.nickname} size={80} rounded="2xl" />
               </div>
               <p className="text-xl font-bold text-white">{user.nickname}</p>
               <p className="text-sm mb-2" style={{ color: '#6c8998' }}>@{user.username}</p>
@@ -111,6 +117,14 @@ export function UserProfilePage() {
               )}
             </div>
           </div>
+
+          {/* Bio */}
+          {user.bio && (
+            <div className="rounded-2xl p-5" style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6c8998' }}>О себе</h2>
+              <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.85)', whiteSpace: 'pre-wrap' }}>{user.bio}</p>
+            </div>
+          )}
 
           {/* Info */}
           <div className="rounded-2xl p-5 space-y-3"

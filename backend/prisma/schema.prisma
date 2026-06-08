@@ -31,6 +31,8 @@ model User {
   nickname        String    @db.VarChar(64)
   birthdate       DateTime? @db.Date
   avatarUrl       String?
+  coverUrl        String?
+  bio             String?   @db.VarChar(500)
   passwordHash    String
   email           String?   @unique @db.VarChar(255)
   emailVerifiedAt DateTime?

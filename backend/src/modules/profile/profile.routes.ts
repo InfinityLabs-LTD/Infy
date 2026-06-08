@@ -9,11 +9,13 @@ import { env } from '../../lib/env.js'
 
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024 // 5 MB
+const MAX_COVER_BYTES = 10 * 1024 * 1024 // 10 MB
 
 const updateProfileSchema = z.object({
   nickname: z.string().min(1).max(64).trim().optional(),
   username: usernameSchema.optional(),
   birthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  bio: z.string().max(500).trim().optional().nullable(),
 })
 
 const profileRoutes: FastifyPluginAsync = async (app) => {
@@ -44,6 +46,7 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
           nickname: { type: 'string', minLength: 1, maxLength: 64 },
           username: { type: 'string', minLength: 3, maxLength: 32 },
           birthdate: { type: 'string', nullable: true },
+          bio: { type: 'string', maxLength: 500, nullable: true },
         },
       },
     },
@@ -66,6 +69,7 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
         ...(input.birthdate !== undefined && {
           birthdate: input.birthdate ? new Date(input.birthdate) : null,
         }),
+        ...(input.bio !== undefined && { bio: input.bio ?? null }),
       },
     })
 
@@ -115,6 +119,49 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
     return { data: { avatarUrl: user.avatarUrl } }
   })
 
+  // POST /profile/me/cover — cover image upload
+  app.post('/me/cover', {
+    preHandler: [authenticate],
+    schema: {
+      tags: ['Profile'],
+      summary: 'Upload cover image',
+      security: [{ bearerAuth: [] }],
+      consumes: ['multipart/form-data'],
+    },
+  }, async (request, reply) => {
+    const userId = BigInt(request.user.sub)
+
+    const data = await request.file()
+    if (!data) return reply.code(400).send({ error: { code: 'NO_FILE', message: 'No file uploaded' } })
+
+    if (!ALLOWED_MIME.has(data.mimetype)) throw Errors.AVATAR_INVALID_TYPE()
+
+    const chunks: Buffer[] = []
+    let size = 0
+    for await (const chunk of data.file) {
+      size += chunk.length
+      if (size > MAX_COVER_BYTES) throw Errors.AVATAR_TOO_LARGE()
+      chunks.push(chunk)
+    }
+
+    const buffer = Buffer.concat(chunks)
+    const ext = path.extname(data.filename) || `.${data.mimetype.split('/')[1]}`
+    const objectKey = `covers/${userId.toString()}/${Date.now()}${ext}`
+
+    await app.minio.putObject(env.MINIO_BUCKET_AVATARS, objectKey, buffer, buffer.length, {
+      'Content-Type': data.mimetype,
+    })
+
+    const coverUrl = `/media/avatars/${objectKey}`
+
+    const user = await app.prisma.user.update({
+      where: { id: userId },
+      data: { coverUrl },
+    })
+
+    return { data: { coverUrl: user.coverUrl } }
+  })
+
   // GET /users/:username — public profile
   app.get('/:username', {
     preHandler: [authenticate],
@@ -138,6 +185,11 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
         username: user.username,
         nickname: user.nickname,
         avatarUrl: user.avatarUrl,
+        coverUrl: user.coverUrl,
+        bio: user.bio,
+        birthdate: user.birthdate,
+        role: user.role,
+        createdAt: user.createdAt,
         lastSeenAt: user.lastSeenAt,
       },
     }

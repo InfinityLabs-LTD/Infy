@@ -5,6 +5,15 @@ import { useAuthStore } from '@/store/auth'
 import { Spinner } from '@/components/ui/Spinner'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 
+function toDateInput(value: string | null | undefined): string {
+  if (!value) return ''
+  try {
+    return new Date(value).toISOString().split('T')[0]
+  } catch {
+    return ''
+  }
+}
+
 export function EditProfilePage() {
   const navigate = useNavigate()
   const { user, setUser } = useAuthStore()
@@ -12,13 +21,14 @@ export function EditProfilePage() {
   const [form, setForm] = useState({
     nickname: user?.nickname ?? '',
     username: user?.username ?? '',
-    birthdate: user?.createdAt ? '' : '',
+    birthdate: toDateInput(user?.birthdate),
+    bio: user?.bio ?? '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<unknown>(null)
 
   function set(field: keyof typeof form) {
-    return (e: React.ChangeEvent<HTMLInputElement>) =>
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((prev) => ({
         ...prev,
         [field]: field === 'username' ? e.target.value.toLowerCase() : e.target.value,
@@ -33,6 +43,7 @@ export function EditProfilePage() {
         nickname: form.nickname || undefined,
         username: form.username || undefined,
         birthdate: form.birthdate || null,
+        bio: form.bio.trim() || null,
       })
       setUser(res.data.data)
       navigate('/profile')
@@ -77,6 +88,20 @@ export function EditProfilePage() {
             <div>
               <label className="label">Дата рождения <span className="font-normal" style={{ color: '#6c8998' }}>(необязательно)</span></label>
               <input className="input" type="date" value={form.birthdate} onChange={set('birthdate')} />
+            </div>
+
+            <div>
+              <label className="label">О себе <span className="font-normal" style={{ color: '#6c8998' }}>(необязательно)</span></label>
+              <textarea
+                className="input resize-none"
+                rows={4}
+                value={form.bio}
+                onChange={set('bio')}
+                maxLength={500}
+                placeholder="Расскажите немного о себе..."
+                style={{ height: 'auto' }}
+              />
+              <p className="text-xs mt-1 text-right" style={{ color: '#6c8998' }}>{form.bio.length}/500</p>
             </div>
 
             <div className="flex gap-3 pt-2">

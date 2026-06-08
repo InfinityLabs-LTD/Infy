@@ -1,0 +1,2 @@
+ALTER TABLE "users" ADD COLUMN "coverUrl" TEXT;
+ALTER TABLE "users" ADD COLUMN "bio" VARCHAR(500);
