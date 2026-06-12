@@ -18,6 +18,7 @@ import authRoutes from './modules/auth/auth.routes.js'
 import sessionsRoutes from './modules/sessions/sessions.routes.js'
 import profileRoutes from './modules/profile/profile.routes.js'
 import chatRoutes from './modules/chat/chat.routes.js'
+import calendarRoutes from './modules/calendar/calendar.routes.js'
 import mediaRoutes from './modules/media/media.routes.js'
 import adminUsersRoutes from './modules/admin/admin.users.routes.js'
 import adminContainersRoutes from './modules/admin/admin.containers.routes.js'
@@ -59,6 +60,7 @@ async function buildCoreServer() {
         { name: 'Sessions', description: 'Device session management' },
         { name: 'Profile', description: 'User profiles' },
         { name: 'Chat', description: 'Chats and messages' },
+        { name: 'Calendar', description: 'Shared chat calendar and reminders' },
         { name: 'Media', description: 'File upload and serving' },
         { name: 'Admin', description: 'Admin panel (role=ADMIN only)' },
       ],
@@ -109,6 +111,7 @@ async function buildCoreServer() {
   await app.register(sessionsRoutes, { prefix: '/sessions' })
   await app.register(profileRoutes, { prefix: '/profile' })
   await app.register(chatRoutes, { prefix: '/chats' })
+  await app.register(calendarRoutes, { prefix: '/calendar' })
   await app.register(mediaRoutes, { prefix: '/media' })
   await app.register(adminUsersRoutes, { prefix: '/admin/users' })
   await app.register(adminContainersRoutes, { prefix: '/admin/containers' })
@@ -149,6 +152,12 @@ async function startRealtime() {
 async function main() {
   if (env.SERVICE_ROLE === 'realtime') {
     await startRealtime()
+    return
+  }
+
+  if (env.SERVICE_ROLE === 'scheduler') {
+    const { startScheduler } = await import('./modules/scheduler/reminder.worker.js')
+    await startScheduler(env.REDIS_URL)
     return
   }
 

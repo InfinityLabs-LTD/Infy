@@ -25,6 +25,13 @@ enum MessageType {
   CIRCLE_VIDEO
 }
 
+// Кому адресовано напоминание о событии календаря
+enum ReminderTarget {
+  SELF      // только создателю
+  PARTNER   // только второму участнику
+  BOTH      // обоим
+}
+
 model User {
   id              BigInt    @id @default(autoincrement())
   username        String    @unique @db.VarChar(32)
@@ -46,6 +53,9 @@ model User {
   messages                Message[]
   pushSubscriptions       PushSubscription[]
   reactions               MessageReaction[]
+  createdEvents           CalendarEvent[]      @relation("EventCreator")
+  createdCategories       CalendarCategory[]   @relation("CategoryCreator")
+  reminderDeliveries      ReminderDelivery[]
 
   @@map("users")
 }
@@ -87,8 +97,11 @@ model Chat {
   type      ChatType @default(DIRECT)
   createdAt DateTime @default(now())
 
-  members  ChatMember[]
-  messages Message[]
+  members    ChatMember[]
+  messages   Message[]
+  events     CalendarEvent[]
+  categories CalendarCategory[]
+  settings   ChatCalendarSetting[]
 
   @@map("chats")
 }
@@ -172,4 +185,99 @@ model Attachment {
 
   @@index([messageId])
   @@map("attachments")
+}
+
+// ── Календарь чата ───────────────────────────────────────────
+// Пользовательская категория событий внутри конкретного чата.
+// Встроенные пресеты (планы, значимые даты и т.д.) хранятся в коде,
+// здесь — только созданные участниками категории.
+model CalendarCategory {
+  id        String   @id @default(cuid())
+  chatId    String
+  name      String   @db.VarChar(40)
+  color     String   @db.VarChar(9)   // hex "#RRGGBB" или "#RRGGBBAA"
+  createdById BigInt
+  createdAt DateTime @default(now())
+
+  chat      Chat            @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  createdBy User            @relation("CategoryCreator", fields: [createdById], references: [id])
+  events    CalendarEvent[]
+
+  @@index([chatId])
+  @@map("calendar_categories")
+}
+
+model CalendarEvent {
+  id          String    @id @default(cuid())
+  chatId      String
+  createdById BigInt
+  title       String    @db.VarChar(120)
+  notes       String?   @db.VarChar(1000)
+  // Момент события. allDay → берётся только дата (в TZ создателя сохраняем как полночь UTC).
+  eventAt     DateTime
+  allDay      Boolean   @default(false)
+  // Категория: ровно одно из двух — пресет (presetKey) либо пользовательская (categoryId).
+  presetKey   String?   @db.VarChar(32)
+  categoryId  String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  chat      Chat              @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  createdBy User              @relation("EventCreator", fields: [createdById], references: [id])
+  category  CalendarCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  reminders EventReminder[]
+
+  @@index([chatId, eventAt])
+  @@map("calendar_events")
+}
+
+model EventReminder {
+  id        String         @id @default(cuid())
+  eventId   String
+  // За сколько минут до eventAt напомнить (0 = в момент события).
+  offsetMin Int            @default(0)
+  // Кому шлём это напоминание.
+  target    ReminderTarget @default(BOTH)
+  // Включена ли отправка push/уведомления для этого напоминания.
+  notify    Boolean        @default(true)
+  // Вычисляется при создании/изменении: eventAt - offsetMin. Поле для выборки воркером.
+  fireAt    DateTime
+  // Когда воркер реально доставил (null = ещё в очереди).
+  sentAt    DateTime?
+
+  event      CalendarEvent      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  deliveries ReminderDelivery[]
+
+  @@index([sentAt, fireAt])   // воркер выбирает: sentAt IS NULL AND fireAt <= now()
+  @@index([eventId])
+  @@map("event_reminders")
+}
+
+// Факт доставки напоминания конкретному пользователю (для дедупликации и истории).
+model ReminderDelivery {
+  id         String   @id @default(cuid())
+  reminderId String
+  userId     BigInt
+  deliveredAt DateTime @default(now())
+
+  reminder EventReminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([reminderId, userId])
+  @@index([userId])
+  @@map("reminder_deliveries")
+}
+
+// Общий тумблер: получает ли пользователь напоминания из календаря этого чата.
+model ChatCalendarSetting {
+  chatId            String
+  userId            BigInt
+  remindersEnabled  Boolean @default(true)
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@id([chatId, userId])
+  @@index([userId])
+  @@map("chat_calendar_settings")
 }

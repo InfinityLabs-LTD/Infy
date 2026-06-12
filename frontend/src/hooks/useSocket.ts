@@ -3,6 +3,7 @@ import { Socket } from 'socket.io-client'
 import { getSocket, disconnectSocket } from '@/lib/socket'
 import { useAuthStore } from '@/store/auth'
 import { useChatStore } from '@/store/chat'
+import { useReminderStore, type DueReminder } from '@/store/reminders'
 import type { Message } from '@/store/chat'
 
 export function useSocket(): Socket | null {
@@ -43,6 +44,18 @@ export function useSocket(): Socket | null {
     const onMessagesRead = ({ chatId, messageId }: { chatId: string; userId: string; messageId: string }) => {
       updatePartnerRead(chatId, messageId)
     }
+    const onReminderDue = (r: Omit<DueReminder, 'receivedAt'>) => {
+      if (!r?.reminderId) return
+      useReminderStore.getState().pushReminder(r)
+      // System notification when tab is not focused
+      if (document.hidden && Notification.permission === 'granted') {
+        new Notification(`📅 ${r.title}`, {
+          body: `${r.categoryName}${r.notes ? ` — ${r.notes}` : ''}`,
+          icon: '/icon.svg',
+          tag: `reminder:${r.reminderId}`,
+        })
+      }
+    }
 
     socket.on('message_new', onMessageNew)
     socket.on('message_edited', onMessageEdited)
@@ -53,6 +66,7 @@ export function useSocket(): Socket | null {
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
     socket.on('messages_read', onMessagesRead)
+    socket.on('reminder_due', onReminderDue)
 
     if (socket.connected) setSocketReady(true)
 
@@ -66,6 +80,7 @@ export function useSocket(): Socket | null {
       socket.off('connect', onConnect)
       socket.off('disconnect', onDisconnect)
       socket.off('messages_read', onMessagesRead)
+      socket.off('reminder_due', onReminderDue)
       setSocketReady(false)
     }
   }, [accessToken])

@@ -120,6 +120,32 @@ export function createSocketServer(
     },
   )
 
+  // ── Subscribe to calendar events from core ────────────────
+  const unsubCalendar = subscribeToChannel(
+    pubClient.duplicate(),
+    'chat:calendar',
+    (payload) => {
+      const p = payload as { event: string; data: { chatId?: string } }
+      if (p.data?.chatId) {
+        io.to(`chat:${p.data.chatId}`).emit(p.event, p.data)
+      }
+    },
+  )
+
+  // ── Subscribe to due reminders from scheduler ─────────────
+  // Доставляем в персональную комнату каждого адресата (по userIds).
+  const unsubReminder = subscribeToChannel(
+    pubClient.duplicate(),
+    'calendar:reminder',
+    (payload) => {
+      const p = payload as { userIds?: string[]; data?: unknown }
+      if (!Array.isArray(p.userIds)) return
+      for (const uid of p.userIds) {
+        io.to(`user:${uid}`).emit('reminder_due', p.data)
+      }
+    },
+  )
+
   // ── Connection handler ────────────────────────────────────
   io.on('connection', async (socket) => {
     const s = socket as AuthSocket

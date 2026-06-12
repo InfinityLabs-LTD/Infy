@@ -45,7 +45,10 @@
       "Bash(nslookup app.infinity-cloud.ru)",
       "Bash(nslookup mqx7q0951p.cdn.twcstorage.ru)",
       "Bash(ssh -i ~/.ssh/id_ed25519 root@144.31.101.68 \"docker run --rm infy-frontend sh -c 'grep -ro \\\\\"infinity-cloud\\\\\\\\.ru/api\\\\\" /usr/share/nginx/html/assets/*.js | wc -l'\")",
-      "Bash(xargs grep -l \"manifest\\\\|serviceWorker\")"
+      "Bash(xargs grep -l \"manifest\\\\|serviceWorker\")",
+      "Bash(\"C:\\\\Program Files\\\\PuTTY\\\\plink.exe\" -ssh -pw \"oDnVKb2o4vZtOrxjeJDAvCIMls18yNI4\" -hostkey \"SHA256:ms/UwYRJKS6SY993LzqiqkLh3mZeD6002e8O0fYdaFw\" root@144.31.101.68 \"cd /opt/infy && cat .env | grep -E 'DOMAIN|CDN|CORS|ORIGIN|VITE' 2>&1\")",
+      "Bash(ssh -o StrictHostKeyChecking=no root@83.142.30.22 'free -h && echo \"---\" && cat /proc/meminfo | grep -E \"MemTotal|MemFree|MemAvailable|SwapTotal\" && echo \"---\" && docker info 2>/dev/null | grep -i memory && echo \"---\" && docker stats --no-stream --format \"table {{.Name}}\\\\t{{.MemUsage}}\\\\t{{.MemPerc}}\" 2>/dev/null')",
+      "Bash(\"C:\\\\Program Files\\\\PuTTY\\\\plink.exe\" -ssh root@83.142.30.22 -pw \"ZHOLbGpz727vEW8vMq8ORh7g2wMF4P5d\" -batch -hostkey \"SHA256:C/n1v5he3LS4rBxHgkxB3bljtewMF2/nYT5eMmQ9q9Q\" \"docker ps -a | grep -i remna && echo '===' && docker logs remnanode --tail 50 2>&1\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\danya\\.claude\\projects\\c--Repositories-Infy\\memory"

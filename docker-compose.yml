@@ -138,6 +138,13 @@ services:
     ports:
       - "3003:3003"
 
+  # Фоновый воркер: доставка напоминаний календаря (push + realtime).
+  # REST-портов не слушает.
+  scheduler:
+    <<: *backend-base
+    environment:
+      SERVICE_ROLE: scheduler
+
   # ── Frontend ─────────────────────────────────────────────────
 
   frontend:

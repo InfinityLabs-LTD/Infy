@@ -9,6 +9,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator'
 import { Spinner } from '@/components/ui/Spinner'
 import { NewChatModal } from '@/components/chat/NewChatModal'
+import { ReminderToasts } from '@/components/chat/ReminderToasts'
 
 function formatTime(iso: string): string {
   const d = new Date(iso)
@@ -317,6 +318,8 @@ export function MessengerLayout() {
       </div>
 
       {showNewChat && <NewChatModal onClose={() => setShowNewChat(false)} />}
+
+      <ReminderToasts />
     </div>
   )
 }
