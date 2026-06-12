@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { motion } from 'framer-motion'
 import { Message } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { chatApi } from '@/api/chat'
@@ -97,14 +98,30 @@ const EMOJI_CATEGORIES: { label: string; icon: string; emojis: string[] }[] = [
   },
 ]
 
+export type GroupPos = 'single' | 'first' | 'middle' | 'last'
+
 interface Props {
   message: Message
   showSenderName?: boolean
+  groupPos?: GroupPos
   partnerLastReadMessageId?: string | null
   partnerReadAt?: string | null
 }
 
-export function MessageBubble({ message, showSenderName, partnerLastReadMessageId, partnerReadAt }: Props) {
+// Каскадные радиусы группы: внешние углы 20px, примыкающие и «хвост» — 6px.
+// У своих сообщений (справа) нижний правый угол всегда 6, у чужих — нижний левый.
+function bubbleRadius(isOwn: boolean, pos: GroupPos): string {
+  const R = '20px'
+  const r = '6px'
+  if (isOwn) {
+    const tr = pos === 'middle' || pos === 'last' ? r : R
+    return `${R} ${tr} ${r} ${R}`
+  }
+  const tl = pos === 'middle' || pos === 'last' ? r : R
+  return `${tl} ${R} ${R} ${r}`
+}
+
+export function MessageBubble({ message, showSenderName, groupPos = 'single', partnerLastReadMessageId, partnerReadAt }: Props) {
   const myId = useAuthStore((s) => s.user?.id)
   const isOwn = message.sender.id === myId
   const { updateMessage, removeMessage } = useChatStore()
@@ -119,7 +136,9 @@ export function MessageBubble({ message, showSenderName, partnerLastReadMessageI
   const isCircle = message.type === 'CIRCLE_VIDEO'
   const reactions = message.reactions ?? []
   const isRead = !!(partnerLastReadMessageId && message.id <= partnerLastReadMessageId)
-  const tickColor = isRead ? '#FFFFFF' : 'rgba(255,255,255,0.45)'
+  // Галочки теперь снаружи пузыря, на тёмном фоне: прочитано — фиолетовый акцент
+  const tickColor = isRead ? '#A855F7' : 'rgba(255,255,255,0.35)'
+  const isEndOfGroup = groupPos === 'last' || groupPos === 'single'
 
   function openMenu() { setShowMenu(true) }
 
@@ -159,20 +178,55 @@ export function MessageBubble({ message, showSenderName, partnerLastReadMessageI
     } catch {}
   }
 
+  // Мета — время, «изм.» и галочки — живёт снаружи пузыря.
+  // Видна у последнего сообщения группы, у остальных проявляется на hover.
+  const meta = (
+    <span className={`flex items-center gap-1 pb-0.5 shrink-0 select-none ${isEndOfGroup ? '' : 'opacity-0 group-hover:opacity-100 transition-opacity duration-150'}`}>
+      {message.editedAt && (
+        <span className="text-[10px] italic" style={{ color: 'var(--text-low)' }}>изм.</span>
+      )}
+      <span className="text-[11px]" style={{ color: 'var(--text-low)' }}>{time}</span>
+      {isOwn && (
+        <svg width="16" height="9" viewBox="0 0 18 10" fill="none">
+          <path d="M1 5l3 3L11 1" stroke={tickColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M5 5l3 3L15 1" stroke={tickColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      )}
+    </span>
+  )
+
+  const reactBtn = (
+    <button
+      onClick={openMenu}
+      title="Реакция"
+      className="hidden md:flex w-7 h-7 mb-0.5 rounded-full items-center justify-center shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-150 hover:bg-white/10 active:scale-90"
+      style={{ color: 'rgba(255,255,255,0.45)' }}
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+        <line x1="9" y1="9" x2="9.01" y2="9"/>
+        <line x1="15" y1="9" x2="15.01" y2="9"/>
+      </svg>
+    </button>
+  )
+
   const bubbleContent = isCircle && att ? (
-    <div className="flex flex-col items-end gap-0.5">
+    <div className="flex flex-col gap-0.5" style={{ alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
       <CircleVideoMessage
         url={mediaUrl(att.publicUrl, att.storageKey)}
         thumbnailUrl={att.thumbnailKey ? mediaUrl(null, att.thumbnailKey) : null}
         durationMs={att.durationMs}
       />
       {reactions.length > 0 && <ReactionBar reactions={reactions} myId={myId} onReact={handleReact} />}
-      <span className="text-[11px] px-1" style={{ color: 'var(--text-low)' }}>{time}</span>
     </div>
   ) : (
-    <div className="flex flex-col items-end gap-0.5" style={{ maxWidth: '78%' }}>
-      <div className={`text-sm overflow-hidden w-full ${isMediaOnly ? '' : 'px-3 py-2'} ${isOwn ? 'bubble-own' : 'bubble-other'}`}>
-        {showSenderName && !isOwn && (
+    <div className="flex flex-col gap-0.5 min-w-0" style={{ maxWidth: '78%', alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
+      <div
+        className={`text-sm overflow-hidden w-full ${isMediaOnly ? '' : 'px-3 py-2'} ${isOwn ? 'bubble-own' : 'bubble-other'}`}
+        style={{ borderRadius: bubbleRadius(isOwn, groupPos) }}
+      >
+        {showSenderName && !isOwn && (groupPos === 'first' || groupPos === 'single') && (
           <p className="text-xs font-semibold mb-0.5 px-3 pt-2" style={{ color: '#C084FC' }}>
             {message.sender.nickname}
           </p>
@@ -204,18 +258,6 @@ export function MessageBubble({ message, showSenderName, partnerLastReadMessageI
             {message.content}
           </p>
         )}
-        <div className={`flex items-center justify-end gap-1 mt-0.5 ${isMediaOnly ? 'px-3 pb-2' : ''}`}>
-          {message.editedAt && (
-            <span className="text-[10px] italic" style={{ color: isOwn ? 'rgba(255,255,255,0.5)' : 'var(--text-low)' }}>изм.</span>
-          )}
-          <span className="text-[11px]" style={{ color: isOwn ? 'rgba(255,255,255,0.55)' : 'var(--text-low)' }}>{time}</span>
-          {isOwn && (
-            <svg width="18" height="10" viewBox="0 0 18 10" fill="none">
-              <path d="M1 5l3 3L11 1" stroke={tickColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M5 5l3 3L15 1" stroke={tickColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          )}
-        </div>
       </div>
       {reactions.length > 0 && <ReactionBar reactions={reactions} myId={myId} onReact={handleReact} />}
     </div>
@@ -225,13 +267,15 @@ export function MessageBubble({ message, showSenderName, partnerLastReadMessageI
     <>
       <div
         ref={bubbleRef}
-        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-0.5 msg-appear`}
+        className={`group flex items-end gap-1.5 ${isOwn ? 'justify-end' : 'justify-start'} ${groupPos === 'first' || groupPos === 'single' ? 'mt-3' : 'mt-0.5'} msg-appear`}
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onContextMenu={onContextMenu}
       >
+        {isOwn && <>{reactBtn}{meta}</>}
         {bubbleContent}
+        {!isOwn && <>{meta}{reactBtn}</>}
       </div>
 
       {showMenu && createPortal(
@@ -302,22 +346,29 @@ function MessageContextMenu({
 
   return (
     <>
-      <div
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.15 }}
         className="fixed inset-0 z-40"
         style={{ background: 'rgba(8,11,22,0.55)', backdropFilter: 'blur(4px)' }}
         onClick={onClose}
       />
 
       {/* Emoji bar + expand button */}
-      <div
+      <motion.div
+        initial={{ opacity: 0, scale: 0.85, y: 6 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 480, damping: 30 }}
         className="glass-pop fixed z-50 flex items-center gap-0.5 px-2 py-1.5 rounded-2xl"
-        style={{ left: menuLeft, top: menuTop }}
+        style={{ left: menuLeft, top: menuTop, transformOrigin: isOwn ? 'top right' : 'top left' }}
       >
-        {QUICK_EMOJIS.map(emoji => (
+        {QUICK_EMOJIS.map((emoji, i) => (
           <button
             key={emoji}
             onPointerDown={e => { e.stopPropagation(); onReact(emoji) }}
-            className="text-2xl leading-none w-9 h-9 flex items-center justify-center rounded-xl transition-all hover:bg-white/10 active:scale-90"
+            className="pop-in text-2xl leading-none w-9 h-9 flex items-center justify-center rounded-xl transition-colors hover:bg-white/10 active:scale-90"
+            style={{ animationDelay: `${i * 30}ms` }}
           >
             {emoji}
           </button>
@@ -336,13 +387,16 @@ function MessageContextMenu({
             <line x1="15" y1="9" x2="15.01" y2="9"/>
           </svg>
         </button>
-      </div>
+      </motion.div>
 
       {/* Action list */}
       {(itemCount > 0 || readLabel) && (
-        <div
+        <motion.div
+          initial={{ opacity: 0, y: -6, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 480, damping: 32, delay: 0.04 }}
           className="glass-pop fixed z-50 rounded-2xl overflow-hidden"
-          style={{ left: menuLeft, top: menuTop + EMOJI_H + 4, width: MENU_W }}
+          style={{ left: menuLeft, top: menuTop + EMOJI_H + 4, width: MENU_W, transformOrigin: 'top center' }}
         >
           {readLabel && (
             <div className="px-4 py-2 text-xs" style={{ color: 'var(--text-low)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
@@ -355,7 +409,7 @@ function MessageContextMenu({
           {onDelete && (
             <CtxItem icon="🗑" label="Удалить" onPointerDown={e => { e.stopPropagation(); onDelete() }} danger />
           )}
-        </div>
+        </motion.div>
       )}
     </>
   )
@@ -395,7 +449,10 @@ function FullEmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => v
       <div className="absolute inset-0" onClick={onClose} />
 
       {/* Panel — макс 480px на десктопе, полная ширина на мобильном */}
-      <div
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
         className="glass-pop relative shrink-0 rounded-t-3xl flex flex-col w-full"
         style={{ maxHeight: '60vh', height: '60vh', maxWidth: 480 }}
       >
@@ -461,7 +518,7 @@ function FullEmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => v
             </>
           )}
         </div>
-      </div>
+      </motion.div>
     </div>
   )
 }

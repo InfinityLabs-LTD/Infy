@@ -131,6 +131,14 @@
   animation: msgAppear 0.2s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.4); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.pop-in {
+  animation: popIn 0.18s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
 @keyframes typingBounce {
   0%, 60%, 100% { transform: translateY(0); }
   30% { transform: translateY(-4px); }
@@ -147,7 +155,7 @@
 .online-ping { animation: onlinePing 2.2s ease-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .msg-appear, .typing-dot, .online-ping { animation: none; }
+  .msg-appear, .pop-in, .typing-dot, .online-ping { animation: none; }
 }
 
 @layer utilities {

@@ -16,6 +16,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { useMediaRecorder } from '@/hooks/useMediaRecorder'
 
 const TYPING_DEBOUNCE_MS = 1500
+const GROUP_WINDOW_MS = 60_000
 const ALLOWED_IMAGE = 'image/jpeg,image/png,image/gif,image/webp'
 const ALLOWED_VIDEO = 'video/mp4,video/webm,video/quicktime'
 const ALLOWED_FILE = '*/*'
@@ -509,7 +510,7 @@ export function ChatPage() {
         {resolving ? (
           <div className="flex justify-center py-12"><Spinner size={28} /></div>
         ) : (
-          <>
+          <div className="mx-auto w-full max-w-[880px]">
             {cursor && (
               <div className="flex justify-center mb-2">
                 <button onClick={loadMore} disabled={loadingMore}
@@ -540,8 +541,22 @@ export function ChatPage() {
             ) : (
               chatMessages.map((msg, idx) => {
                 const prev = chatMessages[idx - 1]
+                const next = chatMessages[idx + 1]
                 const showDate = !prev || new Date(msg.createdAt).toDateString() !== new Date(prev.createdAt).toDateString()
                 const isHighlighted = highlightedMsgId === msg.id
+
+                // Группировка: тот же автор, тот же день, разрыв ≤ 60 сек
+                const groupWithPrev = !!prev && !showDate &&
+                  prev.sender.id === msg.sender.id &&
+                  new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() < GROUP_WINDOW_MS
+                const groupWithNext = !!next &&
+                  new Date(next.createdAt).toDateString() === new Date(msg.createdAt).toDateString() &&
+                  next.sender.id === msg.sender.id &&
+                  new Date(next.createdAt).getTime() - new Date(msg.createdAt).getTime() < GROUP_WINDOW_MS
+                const groupPos = groupWithPrev
+                  ? (groupWithNext ? 'middle' : 'last')
+                  : (groupWithNext ? 'first' : 'single')
+
                 return (
                   <Fragment key={msg.id}>
                     {showDate && <DateSeparator label={formatDateLabel(msg.createdAt)} />}
@@ -550,7 +565,11 @@ export function ChatPage() {
                       className="transition-all duration-300 rounded-xl"
                       style={isHighlighted ? { background: 'rgba(168,85,247,0.18)' } : {}}
                     >
-                      <MessageBubble message={msg} partnerLastReadMessageId={chat?.partnerLastReadMessageId} />
+                      <MessageBubble
+                        message={msg}
+                        groupPos={groupPos}
+                        partnerLastReadMessageId={chat?.partnerLastReadMessageId}
+                      />
                     </div>
                   </Fragment>
                 )
@@ -558,7 +577,7 @@ export function ChatPage() {
             )}
             <TypingIndicator names={typingNames} />
             <div ref={bottomRef} />
-          </>
+          </div>
         )}
       </div>
 
@@ -576,6 +595,7 @@ export function ChatPage() {
         WebkitBackdropFilter: 'blur(24px) saturate(140%)',
         borderTop: '1px solid rgba(255,255,255,0.06)',
       }}>
+       <div className="mx-auto w-full max-w-[880px]">
         {/* Запись голосового — индикатор (не зафиксировано) */}
         {isRecording && !recordLocked && (
           <div className="flex items-center gap-2 px-3 py-1.5 mb-2 rounded-xl"
@@ -792,6 +812,7 @@ export function ChatPage() {
             </button>
           )}
         </div>
+       </div>
       </div>
 
       <input ref={imageInputRef} type="file" accept={ALLOWED_IMAGE} className="hidden"
