@@ -36,23 +36,28 @@ export function ContactsPage() {
     })
 
   return (
-    <div className="flex flex-col flex-1 min-h-0" style={{ background: '#0e1621' }}>
-      <div className="shrink-0 px-4 py-3 flex items-center" style={{ background: '#17212b', borderBottom: '1px solid rgba(0,0,0,0.3)' }}>
+    <div className="flex flex-col flex-1 min-h-0" style={{ background: 'var(--bg-deep)' }}>
+      <div className="shrink-0 px-4 py-3 flex items-center" style={{
+        background: 'rgba(255,255,255,0.04)',
+        backdropFilter: 'blur(24px) saturate(140%)',
+        WebkitBackdropFilter: 'blur(24px) saturate(140%)',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+      }}>
         <h1 className="text-base font-semibold text-white">Контакты</h1>
-        <span className="ml-2 text-sm" style={{ color: '#6c8998' }}>{contacts.length}</span>
+        <span className="ml-2 text-sm" style={{ color: 'var(--text-low)' }}>{contacts.length}</span>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {contacts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
             <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
-              style={{ background: 'rgba(42,171,238,0.12)' }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="1.5">
+              style={{ background: 'rgba(124,58,237,0.15)' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="1.5">
                 <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
                 <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
               </svg>
             </div>
-            <p className="text-sm" style={{ color: '#6c8998' }}>Нет контактов</p>
+            <p className="text-sm" style={{ color: 'var(--text-low)' }}>Нет контактов</p>
           </div>
         ) : (
           contacts.map(contact => (
@@ -72,7 +77,7 @@ export function ContactsPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-white truncate">{contact.nickname}</p>
-                <p className="text-xs truncate mt-0.5" style={{ color: contact.isOnline ? '#2aabee' : '#6c8998' }}>
+                <p className="text-xs truncate mt-0.5" style={{ color: contact.isOnline ? '#22C55E' : 'var(--text-low)' }}>
                   {contact.isOnline ? 'в сети' : formatLastSeen(contact.lastSeenAt)}
                 </p>
               </div>

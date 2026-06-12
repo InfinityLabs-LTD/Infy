@@ -75,7 +75,7 @@ export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
       <button
         onClick={toggle}
         className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors"
-        style={{ background: isOwn ? 'rgba(255,255,255,0.2)' : 'rgba(42,171,238,0.15)', color: isOwn ? 'white' : '#2aabee' }}
+        style={{ background: isOwn ? 'rgba(255,255,255,0.2)' : 'rgba(168,85,247,0.18)', color: isOwn ? 'white' : '#A855F7' }}
       >
         {playing ? (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -100,8 +100,8 @@ export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
                 height: `${Math.max(4, amp * 28)}px`,
                 flex: '0 0 auto',
                 background: i < activeBars
-                  ? (isOwn ? 'white' : '#2aabee')
-                  : (isOwn ? 'rgba(255,255,255,0.35)' : 'rgba(42,171,238,0.3)'),
+                  ? (isOwn ? 'white' : '#A855F7')
+                  : (isOwn ? 'rgba(255,255,255,0.35)' : 'rgba(168,85,247,0.3)'),
               }}
             />
           ))}
@@ -109,7 +109,7 @@ export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
 
         {/* Duration + speed */}
         <div className="flex items-center justify-between">
-          <span className="text-xs" style={{ color: isOwn ? 'rgba(255,255,255,0.65)' : '#6c8998' }}>
+          <span className="text-xs" style={{ color: isOwn ? 'rgba(255,255,255,0.65)' : 'var(--text-low)' }}>
             {playing || elapsed > 0
               ? `${formatSec(elapsed)} / ${formatSec(totalSec)}`
               : formatSec(totalSec)}
@@ -119,8 +119,8 @@ export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
               onClick={cycleSpeed}
               className="text-xs font-semibold px-1.5 py-0.5 rounded-md transition-colors"
               style={{
-                color: isOwn ? 'rgba(255,255,255,0.9)' : '#2aabee',
-                background: isOwn ? 'rgba(255,255,255,0.15)' : 'rgba(42,171,238,0.12)',
+                color: isOwn ? 'rgba(255,255,255,0.9)' : '#A855F7',
+                background: isOwn ? 'rgba(255,255,255,0.15)' : 'rgba(168,85,247,0.15)',
               }}
             >
               {speed}x

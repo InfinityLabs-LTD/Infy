@@ -7,13 +7,13 @@ export function TypingIndicator({ names }: { names: string[] }) {
       : `${names.slice(0, 2).join(', ')} печатают`
 
   return (
-    <div className="flex items-center gap-2 px-4 py-1 text-xs" style={{ color: '#6c8998' }}>
+    <div className="flex items-center gap-2 px-4 py-1 text-xs" style={{ color: 'var(--text-low)' }}>
       <span className="flex gap-0.5">
         {[0, 1, 2].map((i) => (
           <span
             key={i}
             className="w-1.5 h-1.5 rounded-full typing-dot"
-            style={{ background: '#6c8998', animationDelay: `${i * 150}ms` }}
+            style={{ background: '#A855F7', animationDelay: `${i * 150}ms` }}
           />
         ))}
       </span>

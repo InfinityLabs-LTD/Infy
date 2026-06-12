@@ -34,12 +34,12 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex" style={{ background: '#0e1621' }}>
-      <div className="hidden lg:flex flex-1 flex-col items-center justify-center p-12 text-white"
-        style={{ background: '#17212b', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+    <div className="min-h-screen flex" style={{ background: 'var(--bg-deep)' }}>
+      <div className="chat-bg hidden lg:flex flex-1 flex-col items-center justify-center p-12 text-white"
+        style={{ borderRight: '1px solid rgba(255,255,255,0.05)' }}>
         <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-6"
-          style={{ background: 'rgba(42,171,238,0.15)', border: '1px solid rgba(42,171,238,0.2)' }}>
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="1.5">
+          style={{ background: 'rgba(124,58,237,0.18)', border: '1px solid rgba(168,85,247,0.3)' }}>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="1.5">
             <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
           </svg>
         </div>
@@ -49,11 +49,11 @@ export function RegisterPage() {
         </p>
       </div>
 
-      <div className="w-full lg:w-[460px] flex items-center justify-center p-6 overflow-y-auto" style={{ background: '#0e1621' }}>
+      <div className="w-full lg:w-[460px] flex items-center justify-center p-6 overflow-y-auto" style={{ background: 'var(--bg-deep)' }}>
         <div className="w-full max-w-sm py-8">
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-white">Создать аккаунт</h2>
-            <p className="mt-1" style={{ color: '#6c8998' }}>Заполните информацию ниже</p>
+            <p className="mt-1" style={{ color: 'var(--text-low)' }}>Заполните информацию ниже</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -65,7 +65,7 @@ export function RegisterPage() {
                 <input className="input" type="text" placeholder="username" autoComplete="username"
                   value={form.username} onChange={set('username')}
                   pattern="[a-z0-9_]+" minLength={3} maxLength={32} required />
-                <p className="text-xs mt-1" style={{ color: '#6c8998' }}>3–32 символа, a-z, 0-9, _</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--text-low)' }}>3–32 символа, a-z, 0-9, _</p>
               </div>
               <div>
                 <label className="label">Отображаемое имя</label>
@@ -75,13 +75,13 @@ export function RegisterPage() {
             </div>
 
             <div>
-              <label className="label">Email <span className="font-normal" style={{ color: '#6c8998' }}>(необязательно)</span></label>
+              <label className="label">Email <span className="font-normal" style={{ color: 'var(--text-low)' }}>(необязательно)</span></label>
               <input className="input" type="email" placeholder="you@example.com"
                 autoComplete="email" value={form.email} onChange={set('email')} />
             </div>
 
             <div>
-              <label className="label">Дата рождения <span className="font-normal" style={{ color: '#6c8998' }}>(необязательно)</span></label>
+              <label className="label">Дата рождения <span className="font-normal" style={{ color: 'var(--text-low)' }}>(необязательно)</span></label>
               <input className="input" type="date" value={form.birthdate} onChange={set('birthdate')} />
             </div>
 
@@ -104,9 +104,9 @@ export function RegisterPage() {
             </button>
           </form>
 
-          <p className="text-center text-sm mt-6" style={{ color: '#6c8998' }}>
+          <p className="text-center text-sm mt-6" style={{ color: 'var(--text-low)' }}>
             Уже есть аккаунт?{' '}
-            <Link to="/login" className="font-semibold" style={{ color: '#2aabee' }}>Войти</Link>
+            <Link to="/login" className="font-semibold" style={{ color: '#C084FC' }}>Войти</Link>
           </p>
         </div>
       </div>

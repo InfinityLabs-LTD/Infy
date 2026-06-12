@@ -62,7 +62,7 @@ export function CircleRecorderModal({ onSend, onClose, autoSend, locked }: Props
             </button>
             <button onClick={() => start()}
               className="px-5 py-2 rounded-xl text-white text-sm transition-colors"
-              style={{ background: '#2aabee' }}>
+              style={{ background: 'var(--grad-own)' }}>
               Повторить
             </button>
           </div>
@@ -72,12 +72,12 @@ export function CircleRecorderModal({ onSend, onClose, autoSend, locked }: Props
           {/* Lock indicator */}
           {locked && (
             <div className="flex items-center gap-2 px-4 py-2 rounded-full"
-              style={{ background: 'rgba(42,171,238,0.15)', border: '1px solid rgba(42,171,238,0.3)' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="2.5">
+              style={{ background: 'rgba(168,85,247,0.18)', border: '1px solid rgba(168,85,247,0.35)' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C084FC" strokeWidth="2.5">
                 <rect x="3" y="11" width="18" height="11" rx="2"/>
                 <path d="M7 11V7a5 5 0 0110 0v4"/>
               </svg>
-              <span className="text-xs font-medium" style={{ color: '#2aabee' }}>Зафиксировано</span>
+              <span className="text-xs font-medium" style={{ color: '#C084FC' }}>Зафиксировано</span>
             </div>
           )}
 
@@ -168,8 +168,8 @@ export function CircleRecorderModal({ onSend, onClose, autoSend, locked }: Props
 
             <button onClick={handleSend}
               disabled={state !== 'recording' || duration < 1}
-              className="w-16 h-16 rounded-full text-white flex items-center justify-center disabled:opacity-30 hover:scale-105 active:scale-95 transition-all shadow-lg"
-              style={{ background: '#2aabee' }}>
+              className="w-16 h-16 rounded-full text-white flex items-center justify-center disabled:opacity-30 hover:scale-105 active:scale-95 transition-all"
+              style={{ background: 'var(--grad-own)', boxShadow: 'var(--glow-primary)' }}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
                 style={{ transform: 'rotate(45deg)', marginLeft: '3px' }}>
                 <line x1="22" y1="2" x2="11" y2="13"/>

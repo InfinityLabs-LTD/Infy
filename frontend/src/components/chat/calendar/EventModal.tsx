@@ -142,12 +142,17 @@ export function EventModal({
       <div className="absolute inset-0 bg-black/60" />
       <div
         className="relative w-full md:w-[440px] max-h-[90vh] overflow-y-auto rounded-t-3xl md:rounded-3xl shadow-2xl modal-up"
-        style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.08)' }}
+        style={{
+          background: 'rgba(13,17,35,0.92)',
+          backdropFilter: 'blur(40px) saturate(150%)',
+          WebkitBackdropFilter: 'blur(40px) saturate(150%)',
+          border: '1px solid rgba(255,255,255,0.08)',
+        }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-3"
-          style={{ background: '#17212b', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          style={{ background: 'rgba(13,17,35,0.92)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <span className="text-[15px] font-semibold text-white flex-1">
             {editing ? 'Событие' : 'Новое событие'}
           </span>
@@ -170,13 +175,13 @@ export function EventModal({
               maxLength={120}
               placeholder="Название события"
               className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white outline-none placeholder-white/30"
-              style={{ background: '#242f3d', caretColor: '#2aabee' }}
+              style={{ background: 'var(--glass-2)', caretColor: '#A855F7' }}
             />
           </div>
 
           {/* Category */}
           <div>
-            <label className="block text-xs font-medium mb-2" style={{ color: '#6c8998' }}>Категория</label>
+            <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-low)' }}>Категория</label>
             <div className="flex flex-wrap gap-2">
               {presets.map(p => {
                 const sel = categorySel === `preset:${p.key}`
@@ -185,7 +190,7 @@ export function EventModal({
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
                     style={{
                       background: sel ? p.color : 'rgba(255,255,255,0.06)',
-                      color: sel ? '#fff' : '#9bb0bf',
+                      color: sel ? '#fff' : 'var(--text-mid)',
                     }}>
                     <CategoryIcon icon={p.icon} size={13} color={sel ? '#fff' : p.color} />
                     {p.name}
@@ -199,7 +204,7 @@ export function EventModal({
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
                     style={{
                       background: sel ? c.color : 'rgba(255,255,255,0.06)',
-                      color: sel ? '#fff' : '#9bb0bf',
+                      color: sel ? '#fff' : 'var(--text-mid)',
                     }}>
                     <span className="w-2.5 h-2.5 rounded-full" style={{ background: sel ? '#fff' : c.color }} />
                     {c.name}
@@ -212,12 +217,12 @@ export function EventModal({
           {/* Date + all-day */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-medium" style={{ color: '#6c8998' }}>Дата и время</label>
+              <label className="text-xs font-medium" style={{ color: 'var(--text-low)' }}>Дата и время</label>
               <button onClick={() => setAllDay(v => !v)}
                 className="flex items-center gap-1.5 text-xs"
-                style={{ color: allDay ? '#2aabee' : '#6c8998' }}>
+                style={{ color: allDay ? '#A855F7' : 'var(--text-low)' }}>
                 <span className="w-8 h-4 rounded-full relative transition-colors"
-                  style={{ background: allDay ? '#2aabee' : 'rgba(255,255,255,0.15)' }}>
+                  style={{ background: allDay ? '#A855F7' : 'rgba(255,255,255,0.15)' }}>
                   <span className="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all"
                     style={{ left: allDay ? '18px' : '2px' }} />
                 </span>
@@ -232,7 +237,7 @@ export function EventModal({
                 setDateValue(allDay ? `${v}T00:00` : v)
               }}
               className="w-full rounded-xl px-3.5 py-2.5 text-sm text-white outline-none"
-              style={{ background: '#242f3d', caretColor: '#2aabee', colorScheme: 'dark' }}
+              style={{ background: 'var(--glass-2)', caretColor: '#A855F7', colorScheme: 'dark' }}
             />
           </div>
 
@@ -245,23 +250,23 @@ export function EventModal({
               rows={2}
               placeholder="Заметка (необязательно)"
               className="w-full resize-none rounded-xl px-3.5 py-2.5 text-sm text-white outline-none placeholder-white/30"
-              style={{ background: '#242f3d', caretColor: '#2aabee' }}
+              style={{ background: 'var(--glass-2)', caretColor: '#A855F7' }}
             />
           </div>
 
           {/* Reminders */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-medium" style={{ color: '#6c8998' }}>Напоминания</label>
+              <label className="text-xs font-medium" style={{ color: 'var(--text-low)' }}>Напоминания</label>
               {reminders.length < 5 && (
-                <button onClick={addReminder} className="text-xs" style={{ color: '#2aabee' }}>
+                <button onClick={addReminder} className="text-xs" style={{ color: '#A855F7' }}>
                   + Добавить
                 </button>
               )}
             </div>
             <div className="space-y-2">
               {reminders.length === 0 && (
-                <p className="text-xs" style={{ color: '#6c8998' }}>Без напоминаний</p>
+                <p className="text-xs" style={{ color: 'var(--text-low)' }}>Без напоминаний</p>
               )}
               {reminders.map((r, i) => (
                 <div key={i} className="rounded-xl p-2.5 space-y-2"
@@ -271,7 +276,7 @@ export function EventModal({
                       value={r.offsetMin}
                       onChange={e => updateReminder(i, { offsetMin: Number(e.target.value) })}
                       className="flex-1 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none"
-                      style={{ background: '#242f3d', colorScheme: 'dark' }}>
+                      style={{ background: 'var(--glass-2)', colorScheme: 'dark' }}>
                       {OFFSET_OPTIONS.map(o => (
                         <option key={o.value} value={o.value}>{o.label}</option>
                       ))}
@@ -289,7 +294,7 @@ export function EventModal({
                       value={r.target}
                       onChange={e => updateReminder(i, { target: e.target.value as ReminderTarget })}
                       className="flex-1 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none"
-                      style={{ background: '#242f3d', colorScheme: 'dark' }}>
+                      style={{ background: 'var(--glass-2)', colorScheme: 'dark' }}>
                       {(['SELF', 'PARTNER', 'BOTH'] as ReminderTarget[]).map(t => (
                         <option key={t} value={t}>
                           {t === 'PARTNER' ? partnerNickname : TARGET_LABELS[t]}
@@ -302,8 +307,8 @@ export function EventModal({
                       title={r.notify ? 'Уведомление включено' : 'Уведомление выключено'}
                       className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-colors shrink-0"
                       style={{
-                        background: r.notify ? 'rgba(42,171,238,0.15)' : 'rgba(255,255,255,0.05)',
-                        color: r.notify ? '#2aabee' : '#6c8998',
+                        background: r.notify ? 'rgba(168,85,247,0.18)' : 'rgba(255,255,255,0.05)',
+                        color: r.notify ? '#A855F7' : 'var(--text-low)',
                       }}>
                       {r.notify ? (
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -333,13 +338,13 @@ export function EventModal({
             {editing && (
               <button onClick={remove} disabled={deleting}
                 className="px-4 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
-                style={{ background: 'rgba(239,68,68,0.12)', color: '#fc8181' }}>
+                style={{ background: 'rgba(239,68,68,0.12)', color: '#EF4444' }}>
                 {deleting ? <Spinner size={13} /> : 'Удалить'}
               </button>
             )}
             <button onClick={save} disabled={saving}
               className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center"
-              style={{ background: '#2aabee' }}>
+              style={{ background: 'var(--grad-own)', boxShadow: 'var(--glow-primary)' }}>
               {saving ? <Spinner size={14} /> : editing ? 'Сохранить' : 'Создать'}
             </button>
           </div>

@@ -55,8 +55,7 @@ export function NewChatModal({ onClose }: Props) {
       style={{ background: 'rgba(0,0,0,0.7)' }}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div className="w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl"
-        style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.08)' }}>
+      <div className="glass-pop w-full max-w-sm rounded-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4"
           style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
@@ -102,23 +101,23 @@ export function NewChatModal({ onClose }: Props) {
                 <Avatar url={user.avatarUrl} nickname={user.nickname} size={44} />
                 <div className="flex-1 text-left">
                   <p className="font-semibold text-white text-sm">{user.nickname}</p>
-                  <p className="text-xs" style={{ color: '#6c8998' }}>@{user.username}</p>
+                  <p className="text-xs" style={{ color: 'var(--text-low)' }}>@{user.username}</p>
                 </div>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="2">
                   <path d="M5 12h14M12 5l7 7-7 7"/>
                 </svg>
               </button>
             )}
             {notFound && (
-              <p className="text-center text-sm py-4" style={{ color: '#6c8998' }}>
+              <p className="text-center text-sm py-4" style={{ color: 'var(--text-low)' }}>
                 Пользователь <span className="text-white/60">@{query.replace(/^@/, '')}</span> не найден
               </p>
             )}
             {!user && !notFound && !searching && query.length >= 3 && (
-              <p className="text-center text-sm py-4" style={{ color: '#6c8998' }}>Введите имя пользователя</p>
+              <p className="text-center text-sm py-4" style={{ color: 'var(--text-low)' }}>Введите имя пользователя</p>
             )}
             {!user && !notFound && !searching && query.length < 3 && (
-              <p className="text-center text-sm py-4" style={{ color: '#6c8998' }}>Введите минимум 3 символа</p>
+              <p className="text-center text-sm py-4" style={{ color: 'var(--text-low)' }}>Введите минимум 3 символа</p>
             )}
           </div>
         </div>

@@ -13,8 +13,8 @@ export function OnlineIndicator({ userId, lastSeenAt, showLabel = false }: Props
   if (isOnline) {
     return (
       <span className="flex items-center gap-1">
-        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: '#4ade80', boxShadow: '0 0 0 2px #17212b' }} />
-        {showLabel && <span className="text-xs" style={{ color: '#4ade80' }}>в сети</span>}
+        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: '#22C55E', boxShadow: '0 0 0 2px #0B1020' }} />
+        {showLabel && <span className="text-xs" style={{ color: '#22C55E' }}>в сети</span>}
       </span>
     )
   }
@@ -25,7 +25,7 @@ export function OnlineIndicator({ userId, lastSeenAt, showLabel = false }: Props
   return (
     <span className="flex items-center gap-1">
       {showLabel
-        ? label && <span className="text-xs" style={{ color: '#6c8998' }}>{label}</span>
+        ? label && <span className="text-xs" style={{ color: 'var(--text-low)' }}>{label}</span>
         : null
       }
     </span>

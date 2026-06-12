@@ -47,9 +47,14 @@ export function SessionsPage() {
   const otherCount = sessions.filter((s) => !s.isCurrent).length
 
   return (
-    <div className="min-h-screen" style={{ background: '#0e1621' }}>
+    <div className="min-h-screen" style={{ background: 'var(--bg-deep)' }}>
       <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-3"
-        style={{ background: '#17212b', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        style={{
+          background: 'rgba(8,11,22,0.7)',
+          backdropFilter: 'blur(24px) saturate(140%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(140%)',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+        }}>
         <button onClick={() => navigate(-1)}
           className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors -ml-1"
           style={{ color: 'rgba(255,255,255,0.5)' }}
@@ -71,10 +76,10 @@ export function SessionsPage() {
           <>
             {sessions.map((session) => (
               <div key={session.id} className="flex items-start justify-between gap-4 rounded-2xl p-4"
-                style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
+                style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c8998" strokeWidth="2" className="shrink-0">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2" className="shrink-0">
                       <rect x="2" y="3" width="20" height="14" rx="2"/>
                       <path d="M8 21h8M12 17v4"/>
                     </svg>
@@ -83,15 +88,15 @@ export function SessionsPage() {
                     </span>
                     {session.isCurrent && (
                       <span className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0"
-                        style={{ background: 'rgba(74,222,128,0.15)', color: '#4ade80' }}>
+                        style={{ background: 'rgba(34,197,94,0.15)', color: '#22C55E' }}>
                         Текущий
                       </span>
                     )}
                   </div>
                   {session.userAgent && (
-                    <p className="text-xs truncate mb-0.5" style={{ color: '#6c8998' }}>{session.userAgent}</p>
+                    <p className="text-xs truncate mb-0.5" style={{ color: 'var(--text-low)' }}>{session.userAgent}</p>
                   )}
-                  <p className="text-xs" style={{ color: '#6c8998' }}>
+                  <p className="text-xs" style={{ color: 'var(--text-low)' }}>
                     {session.ip && `${session.ip} · `}
                     Активность {new Date(session.lastActiveAt).toLocaleDateString('ru-RU')}
                   </p>
@@ -100,9 +105,9 @@ export function SessionsPage() {
                   onClick={() => revoke(session.id, session.isCurrent)}
                   disabled={revoking === session.id}
                   className="shrink-0 text-xs font-medium disabled:opacity-50 transition-colors"
-                  style={{ color: '#fc8181' }}
+                  style={{ color: '#EF4444' }}
                   onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
-                  onMouseLeave={e => (e.currentTarget.style.color = '#fc8181')}>
+                  onMouseLeave={e => (e.currentTarget.style.color = '#EF4444')}>
                   {revoking === session.id ? <Spinner size={14} /> : 'Завершить'}
                 </button>
               </div>
@@ -110,7 +115,7 @@ export function SessionsPage() {
 
             {otherCount > 0 && (
               <button onClick={revokeAll} className="w-full py-3 rounded-2xl text-sm font-medium transition-colors"
-                style={{ color: '#fc8181', border: '1px solid rgba(239,68,68,0.2)' }}
+                style={{ color: '#EF4444', border: '1px solid rgba(239,68,68,0.2)' }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.08)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                 Выйти со всех других устройств ({otherCount})
@@ -118,7 +123,7 @@ export function SessionsPage() {
             )}
 
             {sessions.length === 0 && (
-              <p className="text-center py-8" style={{ color: '#6c8998' }}>Нет активных сессий</p>
+              <p className="text-center py-8" style={{ color: 'var(--text-low)' }}>Нет активных сессий</p>
             )}
           </>
         )}

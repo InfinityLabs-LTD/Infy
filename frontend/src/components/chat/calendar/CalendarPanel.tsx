@@ -30,8 +30,8 @@ function dayKey(d: Date): string {
 // Цвет события: своя категория > пресет > дефолт.
 function eventColor(e: CalendarEvent, presets: CategoryPreset[]): string {
   if (e.category) return e.category.color
-  if (e.presetKey) return presets.find(p => p.key === e.presetKey)?.color ?? '#2aabee'
-  return '#2aabee'
+  if (e.presetKey) return presets.find(p => p.key === e.presetKey)?.color ?? '#A855F7'
+  return '#A855F7'
 }
 
 function eventCategoryLabel(e: CalendarEvent, presets: CategoryPreset[]): string {
@@ -171,7 +171,12 @@ export function CalendarPanel({ chatId, partnerNickname, onClose }: Props) {
       <div className="fixed inset-0 z-20 bg-black/50" onClick={onClose} />
       <div
         className="fixed right-0 top-0 bottom-0 z-30 flex flex-col w-96 max-w-full overflow-hidden panel-slide-in"
-        style={{ background: '#17212b', borderLeft: '1px solid rgba(255,255,255,0.07)' }}
+        style={{
+          background: 'rgba(13,17,35,0.85)',
+          backdropFilter: 'blur(40px) saturate(150%)',
+          WebkitBackdropFilter: 'blur(40px) saturate(150%)',
+          borderLeft: '1px solid rgba(255,255,255,0.07)',
+        }}
       >
         {/* Header */}
         <div className="shrink-0 flex items-center gap-2 px-3 py-3"
@@ -186,7 +191,7 @@ export function CalendarPanel({ chatId, partnerNickname, onClose }: Props) {
           <span className="text-sm font-semibold text-white flex-1">Календарь</span>
           <button onClick={openCreate}
             className="w-8 h-8 flex items-center justify-center rounded-full transition-colors shrink-0"
-            style={{ background: 'rgba(42,171,238,0.15)', color: '#2aabee' }}
+            style={{ background: 'rgba(124,58,237,0.18)', color: '#C084FC' }}
             title="Новое событие">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -203,20 +208,20 @@ export function CalendarPanel({ chatId, partnerNickname, onClose }: Props) {
               className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors"
               style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-                style={{ background: 'rgba(42,171,238,0.12)' }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="2">
+                style={{ background: 'rgba(124,58,237,0.18)' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="2">
                   <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
                   <path d="M13.73 21a2 2 0 01-3.46 0"/>
                 </svg>
               </div>
               <div className="flex-1 text-left">
                 <p className="text-sm text-white">Напоминания из этого чата</p>
-                <p className="text-xs" style={{ color: '#6c8998' }}>
+                <p className="text-xs" style={{ color: 'var(--text-low)' }}>
                   {remindersEnabled ? 'Включены' : 'Выключены'}
                 </p>
               </div>
               <span className="w-10 h-5 rounded-full relative transition-colors shrink-0"
-                style={{ background: remindersEnabled ? '#2aabee' : 'rgba(255,255,255,0.15)' }}>
+                style={{ background: remindersEnabled ? '#7C3AED' : 'rgba(255,255,255,0.15)' }}>
                 <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
                   style={{ left: remindersEnabled ? '22px' : '2px' }} />
               </span>
@@ -243,7 +248,7 @@ export function CalendarPanel({ chatId, partnerNickname, onClose }: Props) {
               {/* Weekday header */}
               <div className="grid grid-cols-7 mb-1">
                 {WEEKDAYS.map(w => (
-                  <div key={w} className="text-center text-[11px] font-medium py-1" style={{ color: '#6c8998' }}>{w}</div>
+                  <div key={w} className="text-center text-[11px] font-medium py-1" style={{ color: 'var(--text-low)' }}>{w}</div>
                 ))}
               </div>
 
@@ -260,11 +265,12 @@ export function CalendarPanel({ chatId, partnerNickname, onClose }: Props) {
                     <button key={i} onClick={() => setSelectedDay(d)}
                       className="aspect-square flex flex-col items-center justify-center rounded-lg relative transition-colors"
                       style={{
-                        background: isSelected ? '#2b5278' : 'transparent',
+                        background: isSelected ? 'rgba(168,85,247,0.28)' : 'transparent',
+                        boxShadow: isSelected ? 'inset 0 0 0 1px rgba(168,85,247,0.5)' : 'none',
                       }}>
                       <span className="text-[13px]"
                         style={{
-                          color: isSelected ? '#fff' : isToday ? '#2aabee' : 'rgba(255,255,255,0.8)',
+                          color: isSelected ? '#fff' : isToday ? '#C084FC' : 'rgba(255,255,255,0.8)',
                           fontWeight: isToday || isSelected ? 600 : 400,
                         }}>
                         {d.getDate()}
@@ -284,11 +290,11 @@ export function CalendarPanel({ chatId, partnerNickname, onClose }: Props) {
 
             {/* События выбранного дня */}
             <div className="px-4 pt-4 pb-2">
-              <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#6c8998' }}>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-low)' }}>
                 {selectedDay.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}
               </p>
               {selectedDayEvents.length === 0 ? (
-                <p className="text-sm py-3 text-center" style={{ color: '#6c8998' }}>Нет событий</p>
+                <p className="text-sm py-3 text-center" style={{ color: 'var(--text-low)' }}>Нет событий</p>
               ) : (
                 <div className="space-y-1.5">
                   {selectedDayEvents.map(e => {
@@ -304,14 +310,14 @@ export function CalendarPanel({ chatId, partnerNickname, onClose }: Props) {
                         <span className="w-1 rounded-full shrink-0" style={{ background: color }} />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-white truncate">{e.title}</p>
-                          <p className="text-xs mt-0.5" style={{ color: '#9bb0bf' }}>
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--text-mid)' }}>
                             {time}{catLabel && ` · ${catLabel}`}
                           </p>
                           {e.notes && (
-                            <p className="text-xs mt-0.5 truncate" style={{ color: '#6c8998' }}>{e.notes}</p>
+                            <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-low)' }}>{e.notes}</p>
                           )}
                           {e.reminders.length > 0 && (
-                            <span className="inline-flex items-center gap-1 mt-1 text-[11px]" style={{ color: '#6c8998' }}>
+                            <span className="inline-flex items-center gap-1 mt-1 text-[11px]" style={{ color: 'var(--text-low)' }}>
                               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/>
                               </svg>
@@ -329,8 +335,8 @@ export function CalendarPanel({ chatId, partnerNickname, onClose }: Props) {
             {/* Управление категориями */}
             <div className="px-4 pb-6 pt-2">
               <button onClick={() => setShowCategoryMgr(v => !v)}
-                className="flex items-center gap-1.5 text-xs" style={{ color: '#6c8998' }}>
-                <CategoryIcon icon="bookmark" size={13} color="#6c8998" />
+                className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-low)' }}>
+                <CategoryIcon icon="bookmark" size={13} color="#64748B" />
                 Свои категории {showCategoryMgr ? '▴' : '▾'}
               </button>
               {showCategoryMgr && (
@@ -376,7 +382,7 @@ function startOfSelected(day: Date): Date {
   return d
 }
 
-const SWATCHES = ['#2aabee', '#f59e0b', '#ec4899', '#34d399', '#a78bfa', '#ef4444', '#06b6d4', '#eab308']
+const SWATCHES = ['#A855F7', '#f59e0b', '#ec4899', '#34d399', '#7C3AED', '#ef4444', '#06b6d4', '#eab308']
 
 function CategoryManager({
   chatId, categories, onCreated, onDeleted,
@@ -430,7 +436,7 @@ function CategoryManager({
           maxLength={40}
           placeholder="Название категории"
           className="w-full rounded-lg px-2.5 py-1.5 text-sm text-white outline-none placeholder-white/30"
-          style={{ background: '#242f3d', caretColor: '#2aabee' }}
+          style={{ background: 'var(--glass-2)', border: '1px solid var(--glass-stroke)', caretColor: '#A855F7' }}
           onKeyDown={e => { if (e.key === 'Enter') create() }}
         />
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -441,7 +447,7 @@ function CategoryManager({
           ))}
           <button onClick={create} disabled={busy || !name.trim()}
             className="ml-auto px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-40"
-            style={{ background: '#2aabee' }}>
+            style={{ background: 'var(--grad-own)' }}>
             {busy ? <Spinner size={11} /> : 'Добавить'}
           </button>
         </div>

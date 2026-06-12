@@ -58,10 +58,15 @@ export function ProfilePage() {
   const age = user.birthdate ? calcAge(user.birthdate) : null
 
   return (
-    <div className="min-h-screen" style={{ background: '#0e1621' }}>
+    <div className="min-h-screen" style={{ background: 'var(--bg-deep)' }}>
       {/* Header */}
       <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-3"
-        style={{ background: '#17212b', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        style={{
+          background: 'rgba(8,11,22,0.7)',
+          backdropFilter: 'blur(24px) saturate(140%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(140%)',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+        }}>
         <button onClick={() => navigate(-1)}
           className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors -ml-1"
           style={{ color: 'rgba(255,255,255,0.5)' }}
@@ -73,7 +78,7 @@ export function ProfilePage() {
         </button>
         <h1 className="text-base font-semibold text-white flex-1">Профиль</h1>
         <button onClick={logout} className="text-sm font-medium px-3 py-1.5 rounded-xl transition-colors"
-          style={{ color: '#fc8181' }}
+          style={{ color: '#EF4444' }}
           onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.1)')}
           onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
           Выйти
@@ -82,13 +87,13 @@ export function ProfilePage() {
 
       <div className="max-w-lg mx-auto px-4 py-5 space-y-3">
         {/* Avatar + Cover card */}
-        <div className="rounded-2xl overflow-hidden" style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
           {/* Cover */}
           <div className="relative h-28 overflow-hidden">
             {user.coverUrl ? (
               <img src={user.coverUrl} alt="cover" className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2b5278 100%)' }} />
+              <div className="w-full h-full" style={{ background: 'linear-gradient(135deg, #4C1D95 0%, #7C3AED 55%, #A855F7 100%)' }} />
             )}
             <button onClick={() => coverRef.current?.click()} disabled={uploadingCover}
               className="absolute bottom-2 right-2 flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-xl transition-colors disabled:opacity-50"
@@ -107,17 +112,17 @@ export function ProfilePage() {
             <div className="relative w-20 h-20 mb-3">
               {uploadingAvatar ? (
                 <div className="w-20 h-20 rounded-2xl flex items-center justify-center"
-                  style={{ background: '#242f3d', border: '3px solid #17212b' }}>
+                  style={{ background: 'var(--glass-2)', border: '3px solid #0B1020' }}>
                   <Spinner size={24} />
                 </div>
               ) : (
-                <div className="w-20 h-20 rounded-2xl overflow-hidden" style={{ border: '3px solid #17212b' }}>
+                <div className="w-20 h-20 rounded-2xl overflow-hidden" style={{ border: '3px solid #0B1020' }}>
                   <Avatar url={user.avatarUrl} nickname={user.nickname} size={80} rounded="2xl" />
                 </div>
               )}
               <button onClick={() => avatarRef.current?.click()} disabled={uploadingAvatar}
                 className="absolute -bottom-1 -right-1 w-7 h-7 rounded-xl flex items-center justify-center shadow transition-colors"
-                style={{ background: '#2aabee', border: '2px solid #17212b' }}
+                style={{ background: 'var(--grad-own)', border: '2px solid #0B1020' }}
                 title="Изменить аватар">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
                   <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
@@ -129,10 +134,10 @@ export function ProfilePage() {
             <input ref={coverRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" className="hidden" onChange={handleCoverChange} />
             {error !== null && <ErrorMessage error={error} />}
             <p className="text-xl font-bold text-white">{user.nickname}</p>
-            <p className="text-sm" style={{ color: '#6c8998' }}>@{user.username}</p>
+            <p className="text-sm" style={{ color: 'var(--text-low)' }}>@{user.username}</p>
             {user.role === 'ADMIN' && (
               <span className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
-                style={{ background: 'rgba(42,171,238,0.15)', color: '#2aabee' }}>
+                style={{ background: 'rgba(168,85,247,0.18)', color: '#C084FC' }}>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                 </svg>
@@ -144,15 +149,15 @@ export function ProfilePage() {
 
         {/* Bio */}
         {user.bio && (
-          <div className="rounded-2xl p-5" style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6c8998' }}>О себе</h2>
+          <div className="rounded-2xl p-5" style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
+            <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-low)' }}>О себе</h2>
             <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.85)', whiteSpace: 'pre-wrap' }}>{user.bio}</p>
           </div>
         )}
 
         {/* Info */}
-        <div className="rounded-2xl p-5 space-y-3" style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#6c8998' }}>Аккаунт</h2>
+        <div className="rounded-2xl p-5 space-y-3" style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
+          <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-low)' }}>Аккаунт</h2>
           <InfoRow icon="👤" label="Роль" value={roleLabel[user.role] ?? user.role} />
           {user.email && <InfoRow icon="✉️" label="Email" value={user.email} />}
           {birthdateFormatted && age !== null && (
@@ -162,7 +167,7 @@ export function ProfilePage() {
         </div>
 
         {/* Actions */}
-        <div className="rounded-2xl p-1.5" style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="rounded-2xl p-1.5" style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
           <ActionLink to="/profile/edit" icon={
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
@@ -192,7 +197,7 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
   return (
     <div className="flex items-center gap-3 text-sm" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '12px' }}>
       <span className="text-base w-5 text-center">{icon}</span>
-      <span className="flex-1" style={{ color: '#6c8998' }}>{label}</span>
+      <span className="flex-1" style={{ color: 'var(--text-low)' }}>{label}</span>
       <span className="font-medium text-white text-right" style={{ maxWidth: '60%', wordBreak: 'break-word' }}>{value}</span>
     </div>
   )
@@ -201,10 +206,10 @@ function InfoRow({ icon, label, value }: { icon: string; label: string; value: s
 function ActionLink({ to, icon, label, accent }: { to: string; icon: React.ReactNode; label: string; accent?: boolean }) {
   return (
     <Link to={to} className="flex items-center gap-3 px-3 py-3 rounded-xl transition-colors"
-      style={{ color: accent ? '#2aabee' : 'rgba(255,255,255,0.75)' }}
+      style={{ color: accent ? '#C084FC' : 'rgba(255,255,255,0.75)' }}
       onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-      <span style={{ color: accent ? '#2aabee' : '#6c8998' }}>{icon}</span>
+      <span style={{ color: accent ? '#C084FC' : 'var(--text-low)' }}>{icon}</span>
       <span className="font-medium text-sm flex-1">{label}</span>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
         style={{ color: 'rgba(255,255,255,0.2)' }}>

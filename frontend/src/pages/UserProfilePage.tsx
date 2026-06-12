@@ -55,10 +55,15 @@ export function UserProfilePage() {
   const isMe = myUser?.username === username
 
   return (
-    <div className="min-h-screen" style={{ background: '#0e1621' }}>
+    <div className="min-h-screen" style={{ background: 'var(--bg-deep)' }}>
       {/* Header */}
       <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-3"
-        style={{ background: '#17212b', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        style={{
+          background: 'rgba(8,11,22,0.7)',
+          backdropFilter: 'blur(24px) saturate(140%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(140%)',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+        }}>
         <button onClick={() => navigate(-1)}
           className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors -ml-1"
           style={{ color: 'rgba(255,255,255,0.5)' }}
@@ -74,8 +79,8 @@ export function UserProfilePage() {
         {isMe && (
           <Link to="/profile/edit"
             className="text-sm font-medium px-3 py-1.5 rounded-xl transition-colors"
-            style={{ color: '#2aabee' }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(42,171,238,0.1)')}
+            style={{ color: '#C084FC' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(168,85,247,0.12)')}
             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
             Изменить
           </Link>
@@ -94,30 +99,30 @@ export function UserProfilePage() {
             </svg>
           </div>
           <p className="text-base font-semibold text-white mb-1">Пользователь не найден</p>
-          <p className="text-sm" style={{ color: '#6c8998' }}>@{username}</p>
+          <p className="text-sm" style={{ color: 'var(--text-low)' }}>@{username}</p>
         </div>
       ) : user ? (
         <div className="max-w-lg mx-auto px-4 py-5 space-y-3">
           {/* Avatar card */}
-          <div className="rounded-2xl overflow-hidden" style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
             <div className="h-28 overflow-hidden">
               {user.coverUrl ? (
                 <img src={user.coverUrl} alt="cover" className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #2b5278 100%)' }} />
+                <div className="w-full h-full" style={{ background: 'linear-gradient(135deg, #4C1D95 0%, #7C3AED 55%, #A855F7 100%)' }} />
               )}
             </div>
             <div className="px-6 pb-6 -mt-10">
               <div className="w-20 h-20 mb-3 rounded-2xl overflow-hidden"
-                style={{ border: '3px solid #17212b' }}>
+                style={{ border: '3px solid #0B1020' }}>
                 <Avatar url={user.avatarUrl} nickname={user.nickname} size={80} rounded="2xl" />
               </div>
               <p className="text-xl font-bold text-white">{user.nickname}</p>
-              <p className="text-sm mb-2" style={{ color: '#6c8998' }}>@{user.username}</p>
+              <p className="text-sm mb-2" style={{ color: 'var(--text-low)' }}>@{user.username}</p>
               <OnlineIndicator userId={user.id} lastSeenAt={user.lastSeenAt} showLabel />
               {user.role === 'ADMIN' && (
                 <span className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full"
-                  style={{ background: 'rgba(42,171,238,0.15)', color: '#2aabee' }}>
+                  style={{ background: 'rgba(168,85,247,0.18)', color: '#C084FC' }}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                   </svg>
@@ -129,16 +134,16 @@ export function UserProfilePage() {
 
           {/* Bio */}
           {user.bio && (
-            <div className="rounded-2xl p-5" style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#6c8998' }}>О себе</h2>
+            <div className="rounded-2xl p-5" style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
+              <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-low)' }}>О себе</h2>
               <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.85)', whiteSpace: 'pre-wrap' }}>{user.bio}</p>
             </div>
           )}
 
           {/* Info */}
           <div className="rounded-2xl p-5 space-y-3"
-            style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#6c8998' }}>Аккаунт</h2>
+            style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
+            <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-low)' }}>Аккаунт</h2>
             {user.email && (
               <InfoRow icon="✉️" label="Email" value={user.email} />
             )}
@@ -155,13 +160,13 @@ export function UserProfilePage() {
           {/* Actions */}
           {!isMe && (
             <div className="rounded-2xl p-1.5"
-              style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
+              style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
               <button onClick={openChat} disabled={openingChat}
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors disabled:opacity-50"
-                style={{ color: '#2aabee' }}
+                style={{ color: '#C084FC' }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                <span style={{ color: '#2aabee' }}>
+                <span style={{ color: '#C084FC' }}>
                   {openingChat ? <Spinner size={18} /> : (
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
@@ -179,13 +184,13 @@ export function UserProfilePage() {
 
           {isMe && (
             <div className="rounded-2xl p-1.5"
-              style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
+              style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
               <Link to="/profile"
                 className="flex items-center gap-3 px-3 py-3 rounded-xl transition-colors"
                 style={{ color: 'rgba(255,255,255,0.75)' }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                <span style={{ color: '#6c8998' }}>
+                <span style={{ color: 'var(--text-low)' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
                     <circle cx="12" cy="7" r="4"/>
@@ -209,7 +214,7 @@ function InfoRow({ icon, label, value }: { icon?: string; label: string; value: 
   return (
     <div className="flex items-center gap-3 text-sm" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', paddingBottom: '12px' }}>
       {icon && <span className="text-base w-5 text-center">{icon}</span>}
-      <span className="flex-1" style={{ color: '#6c8998' }}>{label}</span>
+      <span className="flex-1" style={{ color: 'var(--text-low)' }}>{label}</span>
       <span className="font-medium text-white text-right" style={{ maxWidth: '60%', wordBreak: 'break-word' }}>{value}</span>
     </div>
   )

@@ -1,75 +1,126 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/manrope';
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --bg-deep: #080B16;
+    --bg-base: #0B1020;
+    --glass-1: rgba(255, 255, 255, 0.04);
+    --glass-2: rgba(255, 255, 255, 0.08);
+    --glass-3: rgba(255, 255, 255, 0.12);
+    --glass-stroke: rgba(255, 255, 255, 0.08);
+    --primary: #7C3AED;
+    --accent: #A855F7;
+    --highlight: #C084FC;
+    --text-hi: #FFFFFF;
+    --text-mid: #CBD5E1;
+    --text-low: #64748B;
+    --grad-own: linear-gradient(135deg, #7C3AED 0%, #A855F7 60%, #C084FC 130%);
+    --shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.25);
+    --shadow-float: 0 12px 40px rgba(0, 0, 0, 0.45);
+    --glow-primary: 0 0 24px rgba(124, 58, 237, 0.35);
+    --ease-fluid: cubic-bezier(0.32, 0.72, 0, 1);
+  }
   html { -webkit-tap-highlight-color: transparent; }
   body {
     @apply antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
-    background: #0e1621;
-    color: #fff;
+    font-family: 'Inter Variable', 'Inter', system-ui, sans-serif;
+    background: var(--bg-deep);
+    color: var(--text-hi);
   }
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(42,171,238,0.18) transparent;
+    scrollbar-color: rgba(168, 85, 247, 0.22) transparent;
   }
   *::-webkit-scrollbar { width: 3px; height: 3px; }
   *::-webkit-scrollbar-track { background: transparent; }
-  *::-webkit-scrollbar-thumb { background: rgba(42,171,238,0.18); border-radius: 2px; }
+  *::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.22); border-radius: 2px; }
 }
 
 @layer components {
+  /* === Стекло: три слоя глубины === */
+  .glass {
+    background: var(--glass-2);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    border: 1px solid var(--glass-stroke);
+    box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  .glass-panel {
+    background: var(--glass-1);
+    backdrop-filter: blur(24px) saturate(140%);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .glass-pop {
+    background: rgba(16, 20, 38, 0.85);
+    backdrop-filter: blur(40px) saturate(150%);
+    -webkit-backdrop-filter: blur(40px) saturate(150%);
+    border: 1px solid var(--glass-stroke);
+    box-shadow: var(--shadow-float), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium
            transition-all duration-150 focus:outline-none
            disabled:opacity-50 disabled:cursor-not-allowed active:scale-95;
   }
   .btn-primary {
-    @apply btn text-white shadow-sm;
-    background: #2aabee;
+    @apply btn text-white;
+    background: var(--grad-own);
+    box-shadow: var(--glow-primary);
   }
-  .btn-primary:hover { background: #34b5f6; }
+  .btn-primary:hover { filter: brightness(1.1); }
   .btn-ghost {
     @apply btn text-white/60 hover:bg-white/10 hover:text-white;
   }
   .input {
     @apply block w-full rounded-xl px-3.5 py-2.5 text-sm text-white
            placeholder-white/30 focus:outline-none transition-all duration-150;
-    background: #242f3d;
-    border: 1px solid rgba(255,255,255,0.08);
+    background: var(--glass-2);
+    border: 1px solid var(--glass-stroke);
   }
   .input:focus {
-    border-color: rgba(42,171,238,0.5);
-    box-shadow: 0 0 0 2px rgba(42,171,238,0.1);
+    border-color: rgba(168, 85, 247, 0.5);
+    box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15);
   }
   .input-dark { @apply input; }
   .card {
-    @apply rounded-2xl p-6;
-    background: #17212b;
-    border: 1px solid rgba(255,255,255,0.06);
+    @apply rounded-2xl p-6 glass;
   }
   .label {
     @apply block text-sm font-medium mb-1.5;
-    color: rgba(255,255,255,0.55);
+    color: var(--text-mid);
   }
 
-  /* Telegram-style bubbles */
+  /* === Пузыри сообщений === */
   .bubble-own {
-    background: #2b5278;
+    background: var(--grad-own);
     color: #fff;
-    border-radius: 18px 18px 4px 18px;
+    border-radius: 20px 20px 6px 20px;
+    box-shadow: 0 4px 16px rgba(124, 58, 237, 0.25);
   }
   .bubble-other {
-    background: #182533;
+    background: var(--glass-2);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    border: 1px solid var(--glass-stroke);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
     color: #fff;
-    border-radius: 18px 18px 18px 4px;
+    border-radius: 20px 20px 20px 6px;
   }
 
-  /* Chat background */
-  .chat-bg { background: #0e1621; }
+  /* Фон области чата: глубокое пространство + aurora-свечение */
+  .chat-bg {
+    background:
+      radial-gradient(1200px 800px at 80% -10%, rgba(124, 58, 237, 0.14), transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, rgba(168, 85, 247, 0.08), transparent 50%),
+      var(--bg-base);
+  }
 }
 
 @keyframes msgAppear {
@@ -77,7 +128,7 @@
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 .msg-appear {
-  animation: msgAppear 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: msgAppear 0.2s cubic-bezier(0.32, 0.72, 0, 1) both;
 }
 
 @keyframes typingBounce {
@@ -95,8 +146,18 @@
 }
 .online-ping { animation: onlinePing 2.2s ease-out infinite; }
 
+@media (prefers-reduced-motion: reduce) {
+  .msg-appear, .typing-dot, .online-ping { animation: none; }
+}
+
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   .bg-white\/8 { background-color: rgba(255,255,255,0.08); }
+  .text-grad {
+    background: var(--grad-own);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 }

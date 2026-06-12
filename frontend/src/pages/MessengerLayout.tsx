@@ -53,7 +53,7 @@ function MenuBtn({ label, onClick, danger, icon }: { label: string; onClick: () 
       onClick={onClick}
       className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm transition-colors"
       style={{
-        color: danger ? '#fc8181' : 'rgba(255,255,255,0.75)',
+        color: danger ? '#EF4444' : 'rgba(255,255,255,0.75)',
         background: hov ? 'rgba(255,255,255,0.07)' : 'transparent',
       }}
       onMouseEnter={() => setHov(true)}
@@ -70,8 +70,11 @@ function ChatRow({ chat, active }: { chat: Chat; active: boolean }) {
   return (
     <Link
       to={`/chat/${chat.partner?.id ?? chat.id}`}
-      className="flex items-center gap-3 px-3 py-2 transition-none"
-      style={{ background: active ? '#2b5278' : hov ? '#202e3e' : 'transparent' }}
+      className="flex items-center gap-3 px-3 py-2 transition-colors duration-150"
+      style={{
+        background: active ? 'var(--glass-3)' : hov ? 'rgba(255,255,255,0.06)' : 'transparent',
+        boxShadow: active ? 'inset 3px 0 0 var(--accent)' : 'none',
+      }}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
     >
@@ -90,21 +93,21 @@ function ChatRow({ chat, active }: { chat: Chat; active: boolean }) {
           </p>
           <div className="flex items-center gap-1.5 shrink-0">
             {chat.lastMessage && (
-              <span className="text-[11px]" style={{ color: active ? 'rgba(255,255,255,0.65)' : '#6c8998' }}>
+              <span className="text-[11px]" style={{ color: active ? 'rgba(255,255,255,0.65)' : 'var(--text-low)' }}>
                 {formatTime(chat.lastMessage.createdAt)}
               </span>
             )}
             {!active && chat.unreadCount > 0 && (
               <span
                 className="min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-semibold text-white flex items-center justify-center"
-                style={{ background: '#2aabee' }}
+                style={{ background: 'var(--grad-own)' }}
               >
                 {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
               </span>
             )}
           </div>
         </div>
-        <p className="text-[13px] truncate leading-snug" style={{ color: active ? 'rgba(255,255,255,0.6)' : '#6c8998' }}>
+        <p className="text-[13px] truncate leading-snug" style={{ color: active ? 'rgba(255,255,255,0.6)' : 'var(--text-low)' }}>
           {chat.lastMessage
             ? (chat.lastMessage.type === 'TEXT'
                 ? (chat.lastMessage.isOwn ? `Вы: ${chat.lastMessage.content}` : chat.lastMessage.content)
@@ -159,11 +162,11 @@ export function MessengerLayout() {
   })
 
   return (
-    <div className="flex overflow-hidden" style={{ height: '100dvh', background: '#0e1621' }}>
+    <div className="flex overflow-hidden" style={{ height: '100dvh', background: 'var(--bg-deep)' }}>
       {/* ── Sidebar ── */}
       <aside
         className={`flex flex-col w-full md:w-[320px] md:shrink-0 ${activeChatId ? 'hidden md:flex' : 'flex'}`}
-        style={{ background: '#17212b', borderRight: '1px solid #0e1621' }}
+        style={{ background: 'rgba(255,255,255,0.03)', borderRight: '1px solid rgba(255,255,255,0.06)' }}
       >
 
         {/* Top bar */}
@@ -186,8 +189,7 @@ export function MessengerLayout() {
 
             {menuOpen && (
               <div
-                className="absolute top-12 left-0 z-50 w-56 rounded-2xl shadow-2xl overflow-hidden"
-                style={{ background: '#1e2c3a', border: '1px solid rgba(255,255,255,0.08)' }}
+                className="glass-pop absolute top-12 left-0 z-50 w-56 rounded-2xl overflow-hidden"
               >
                 <button
                   onClick={() => { navigate('/profile'); setMenuOpen(false) }}
@@ -197,25 +199,25 @@ export function MessengerLayout() {
                   <Avatar url={user?.avatarUrl ?? null} nickname={user?.nickname ?? '?'} size={36} />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-white truncate">{user?.nickname}</p>
-                    <p className="text-xs truncate" style={{ color: '#6c8998' }}>@{user?.username}</p>
+                    <p className="text-xs truncate" style={{ color: 'var(--text-low)' }}>@{user?.username}</p>
                   </div>
                 </button>
                 <MenuBtn
                   label="Мой профиль"
                   onClick={() => { navigate('/profile'); setMenuOpen(false) }}
-                  icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c8998" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
+                  icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
                 />
                 <MenuBtn
                   label="Устройства"
                   onClick={() => { navigate('/sessions'); setMenuOpen(false) }}
-                  icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c8998" strokeWidth="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>}
+                  icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>}
                 />
                 <div style={{ height: '1px', background: 'rgba(255,255,255,0.07)', margin: '4px 0' }} />
                 <MenuBtn
                   label="Выйти"
                   onClick={logout}
                   danger
-                  icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fc8181" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>}
+                  icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>}
                 />
               </div>
             )}
@@ -230,7 +232,7 @@ export function MessengerLayout() {
             </span>
             <input
               className="w-full rounded-full pl-9 pr-3 py-2 text-sm outline-none"
-              style={{ background: '#1c2b3a', color: 'rgba(255,255,255,0.85)', caretColor: '#2aabee' }}
+              style={{ background: 'var(--glass-2)', border: '1px solid var(--glass-stroke)', color: 'rgba(255,255,255,0.85)', caretColor: '#A855F7' }}
               placeholder="Поиск"
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -239,7 +241,7 @@ export function MessengerLayout() {
 
           {/* Compose */}
           <HoverBtn onClick={() => setShowNewChat(true)} title="Новый диалог">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="2">
               <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
               <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
             </svg>
@@ -256,7 +258,7 @@ export function MessengerLayout() {
                 {search ? 'Не найдено' : 'Нет диалогов'}
               </p>
               {!search && (
-                <button onClick={() => setShowNewChat(true)} className="mt-1.5 text-sm" style={{ color: '#2aabee' }}>
+                <button onClick={() => setShowNewChat(true)} className="mt-1.5 text-sm" style={{ color: '#A855F7' }}>
                   Начать диалог
                 </button>
               )}
@@ -271,7 +273,9 @@ export function MessengerLayout() {
         {/* Нижняя навигация — только мобильный */}
         <div className="md:hidden shrink-0 flex items-center justify-around px-2 pt-2"
           style={{
-            background: '#17212b',
+            background: 'rgba(11,16,32,0.85)',
+            backdropFilter: 'blur(24px) saturate(140%)',
+            WebkitBackdropFilter: 'blur(24px) saturate(140%)',
             borderTop: '1px solid rgba(255,255,255,0.07)',
             paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
           }}>
@@ -312,7 +316,7 @@ export function MessengerLayout() {
       {/* ── Main ── */}
       <div
         className={`flex-1 min-w-0 min-h-0 flex-col overflow-hidden ${activeChatId || isContactsTab ? 'flex' : 'hidden md:flex'}`}
-        style={{ background: '#0e1621' }}
+        style={{ background: 'var(--bg-deep)' }}
       >
         <Outlet />
       </div>
@@ -331,7 +335,7 @@ function MobileNavBtn({ label, active, onClick, icon }: {
     <button
       onClick={onClick}
       className="flex flex-col items-center gap-1 px-4 py-1 rounded-xl transition-colors"
-      style={{ color: active ? '#2aabee' : 'rgba(255,255,255,0.35)' }}
+      style={{ color: active ? '#A855F7' : 'rgba(255,255,255,0.35)' }}
     >
       {icon}
       <span className="text-[10px] font-medium">{label}</span>

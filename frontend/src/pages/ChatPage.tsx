@@ -36,7 +36,7 @@ function DateSeparator({ label }: { label: string }) {
   return (
     <div className="flex items-center justify-center my-3">
       <span className="px-3 py-1 rounded-full text-xs font-medium"
-        style={{ background: 'rgba(23,33,43,0.85)', color: '#6c8998' }}>
+        style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.06)', color: 'var(--text-mid)' }}>
         {label}
       </span>
     </div>
@@ -398,9 +398,14 @@ export function ChatPage() {
   const partner = chat?.partner
 
   return (
-    <div className="flex flex-col flex-1 min-h-0" style={{ background: '#0e1621' }}>
+    <div className="flex flex-col flex-1 min-h-0" style={{ background: 'var(--bg-base)' }}>
       {/* ── Header ── */}
-      <div className="shrink-0 z-10" style={{ background: '#17212b', borderBottom: '1px solid rgba(0,0,0,0.3)' }}>
+      <div className="shrink-0 z-10" style={{
+        background: 'rgba(255,255,255,0.04)',
+        backdropFilter: 'blur(24px) saturate(140%)',
+        WebkitBackdropFilter: 'blur(24px) saturate(140%)',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+      }}>
         {searchMode ? (
           /* Режим поиска */
           <div className="flex items-center gap-2 px-2 py-2">
@@ -479,7 +484,7 @@ export function ChatPage() {
         {searchMode && searchQuery.trim().length > 1 && (
           <div className="border-t border-white/5 overflow-y-auto" style={{ maxHeight: 240 }}>
             {searchResults.length === 0 ? (
-              <p className="text-xs text-center py-3" style={{ color: '#6c8998' }}>Ничего не найдено</p>
+              <p className="text-xs text-center py-3" style={{ color: 'var(--text-low)' }}>Ничего не найдено</p>
             ) : (
               searchResults.map(msg => (
                 <button
@@ -489,7 +494,7 @@ export function ChatPage() {
                   onClick={() => { setSearchMode(false); setSearchQuery(''); scrollToMessage(msg.id) }}
                 >
                   <p className="text-white truncate">{msg.content}</p>
-                  <p className="text-xs mt-0.5" style={{ color: '#6c8998' }}>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-low)' }}>
                     {new Date(msg.createdAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </button>
@@ -509,7 +514,7 @@ export function ChatPage() {
               <div className="flex justify-center mb-2">
                 <button onClick={loadMore} disabled={loadingMore}
                   className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs transition-colors"
-                  style={{ background: 'rgba(23,33,43,0.8)', color: '#2aabee' }}>
+                  style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(8px)', color: '#C084FC' }}>
                   {loadingMore ? <Spinner size={11} /> : (
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <polyline points="18 15 12 9 6 15"/>
@@ -525,12 +530,12 @@ export function ChatPage() {
             ) : chatMessages.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16">
                 <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
-                  style={{ background: 'rgba(42,171,238,0.12)' }}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="1.5">
+                  style={{ background: 'rgba(124,58,237,0.15)' }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="1.5">
                     <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
                   </svg>
                 </div>
-                <p className="text-sm" style={{ color: '#6c8998' }}>Нет сообщений. Начните общение!</p>
+                <p className="text-sm" style={{ color: 'var(--text-low)' }}>Нет сообщений. Начните общение!</p>
               </div>
             ) : (
               chatMessages.map((msg, idx) => {
@@ -543,7 +548,7 @@ export function ChatPage() {
                     <div
                       id={`msg-${msg.id}`}
                       className="transition-all duration-300 rounded-xl"
-                      style={isHighlighted ? { background: 'rgba(42,171,238,0.15)' } : {}}
+                      style={isHighlighted ? { background: 'rgba(168,85,247,0.18)' } : {}}
                     >
                       <MessageBubble message={msg} partnerLastReadMessageId={chat?.partnerLastReadMessageId} />
                     </div>
@@ -559,14 +564,18 @@ export function ChatPage() {
 
       {/* Тост: запись слишком короткая */}
       {shortRecordToast && (
-        <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm text-white shadow-xl"
-          style={{ background: 'rgba(30,44,58,0.97)', border: '1px solid rgba(255,255,255,0.1)' }}>
+        <div className="glass-pop fixed bottom-28 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm text-white">
           Минимальная длина записи — 2 секунды
         </div>
       )}
 
       {/* ── Input bar ── */}
-      <div className="shrink-0 px-2 pt-2 pb-[max(8px,env(safe-area-inset-bottom))]" style={{ background: '#17212b' }}>
+      <div className="shrink-0 px-2 pt-2 pb-[max(8px,env(safe-area-inset-bottom))]" style={{
+        background: 'rgba(255,255,255,0.04)',
+        backdropFilter: 'blur(24px) saturate(140%)',
+        WebkitBackdropFilter: 'blur(24px) saturate(140%)',
+        borderTop: '1px solid rgba(255,255,255,0.06)',
+      }}>
         {/* Запись голосового — индикатор (не зафиксировано) */}
         {isRecording && !recordLocked && (
           <div className="flex items-center gap-2 px-3 py-1.5 mb-2 rounded-xl"
@@ -601,7 +610,7 @@ export function ChatPage() {
             <span className="text-xs text-red-300 flex-1">
               Запись · {Math.floor(voiceRecorder.duration / 60)}:{String(voiceRecorder.duration % 60).padStart(2, '0')}
             </span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="2.5">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="2.5">
               <rect x="3" y="11" width="18" height="11" rx="2"/>
               <path d="M7 11V7a5 5 0 0110 0v4"/>
             </svg>
@@ -610,7 +619,7 @@ export function ChatPage() {
               onClick={sendVoiceBlob}
               disabled={sending}
               className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all disabled:opacity-40 active:scale-95 ml-1"
-              style={{ background: '#2aabee' }}
+              style={{ background: 'var(--grad-own)', boxShadow: 'var(--glow-primary)' }}
             >
               {sending ? <Spinner size={12} /> : (
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"
@@ -631,7 +640,7 @@ export function ChatPage() {
                 onClick={() => setShowAttachMenu(v => !v)}
                 disabled={sending}
                 title="Вложение"
-                color={showAttachMenu ? '#2aabee' : 'rgba(255,255,255,0.4)'}
+                color={showAttachMenu ? '#A855F7' : 'rgba(255,255,255,0.4)'}
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.41 17.41a2 2 0 01-2.83-2.83l8.49-8.48"/>
@@ -643,15 +652,15 @@ export function ChatPage() {
                 <>
                   {/* Затемнение для закрытия по клику вне */}
                   <div className="fixed inset-0 z-10" onClick={() => setShowAttachMenu(false)} />
-                  <div className="absolute bottom-12 left-0 z-20 rounded-2xl overflow-hidden shadow-2xl"
-                    style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.08)', minWidth: 200 }}>
+                  <div className="glass-pop absolute bottom-12 left-0 z-20 rounded-2xl overflow-hidden"
+                    style={{ minWidth: 200 }}>
                     <button
                       className="flex items-center gap-3 w-full px-4 py-3 text-sm text-white hover:bg-white/5 transition-colors"
                       onClick={() => { setShowAttachMenu(false); imageInputRef.current?.click() }}
                     >
                       <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-                        style={{ background: 'rgba(42,171,238,0.15)' }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="2">
+                        style={{ background: 'rgba(124,58,237,0.18)' }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="2">
                           <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
                           <polyline points="21 15 16 10 5 21"/>
                         </svg>
@@ -707,7 +716,7 @@ export function ChatPage() {
               ref={inputRef}
               rows={1}
               className="flex-1 resize-none rounded-2xl px-4 py-2.5 text-sm text-white placeholder-white/30 outline-none leading-relaxed max-h-32 transition-none"
-              style={{ background: '#242f3d', caretColor: '#2aabee' }}
+              style={{ background: 'var(--glass-2)', border: '1px solid var(--glass-stroke)', caretColor: '#A855F7' }}
               placeholder="Сообщение…"
               value={text}
               onChange={e => {
@@ -727,7 +736,7 @@ export function ChatPage() {
               onClick={sendText}
               disabled={sending}
               className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-all disabled:opacity-40 active:scale-95"
-              style={{ background: '#2aabee' }}
+              style={{ background: 'var(--grad-own)', boxShadow: 'var(--glow-primary)' }}
             >
               {sending ? <Spinner size={14} /> : (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"
@@ -745,7 +754,7 @@ export function ChatPage() {
               onClick={sendVoiceBlob}
               disabled={sending}
               className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-all disabled:opacity-40 active:scale-95"
-              style={{ background: '#2aabee' }}
+              style={{ background: 'var(--grad-own)', boxShadow: 'var(--glow-primary)' }}
             >
               {sending ? <Spinner size={14} /> : (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"
@@ -762,7 +771,8 @@ export function ChatPage() {
               title={recordMode === 'voice' ? 'Голосовое (удержать)' : 'Кружок (удержать)'}
               className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-all disabled:opacity-40 select-none touch-none"
               style={{
-                background: isRecording ? '#ef4444' : '#2aabee',
+                background: isRecording ? '#EF4444' : 'var(--grad-own)',
+                boxShadow: isRecording ? '0 0 24px rgba(239,68,68,0.4)' : 'var(--glow-primary)',
                 cursor: 'pointer',
               }}
             >

@@ -119,7 +119,7 @@ export function MessageBubble({ message, showSenderName, partnerLastReadMessageI
   const isCircle = message.type === 'CIRCLE_VIDEO'
   const reactions = message.reactions ?? []
   const isRead = !!(partnerLastReadMessageId && message.id <= partnerLastReadMessageId)
-  const tickColor = isRead ? '#2aabee' : 'rgba(255,255,255,0.55)'
+  const tickColor = isRead ? '#FFFFFF' : 'rgba(255,255,255,0.45)'
 
   function openMenu() { setShowMenu(true) }
 
@@ -167,13 +167,13 @@ export function MessageBubble({ message, showSenderName, partnerLastReadMessageI
         durationMs={att.durationMs}
       />
       {reactions.length > 0 && <ReactionBar reactions={reactions} myId={myId} onReact={handleReact} />}
-      <span className="text-[11px] px-1" style={{ color: '#6c8998' }}>{time}</span>
+      <span className="text-[11px] px-1" style={{ color: 'var(--text-low)' }}>{time}</span>
     </div>
   ) : (
     <div className="flex flex-col items-end gap-0.5" style={{ maxWidth: '78%' }}>
       <div className={`text-sm overflow-hidden w-full ${isMediaOnly ? '' : 'px-3 py-2'} ${isOwn ? 'bubble-own' : 'bubble-other'}`}>
         {showSenderName && !isOwn && (
-          <p className="text-xs font-semibold mb-0.5 px-3 pt-2" style={{ color: '#2aabee' }}>
+          <p className="text-xs font-semibold mb-0.5 px-3 pt-2" style={{ color: '#C084FC' }}>
             {message.sender.nickname}
           </p>
         )}
@@ -206,9 +206,9 @@ export function MessageBubble({ message, showSenderName, partnerLastReadMessageI
         )}
         <div className={`flex items-center justify-end gap-1 mt-0.5 ${isMediaOnly ? 'px-3 pb-2' : ''}`}>
           {message.editedAt && (
-            <span className="text-[10px] italic" style={{ color: isOwn ? 'rgba(255,255,255,0.5)' : '#6c8998' }}>изм.</span>
+            <span className="text-[10px] italic" style={{ color: isOwn ? 'rgba(255,255,255,0.5)' : 'var(--text-low)' }}>изм.</span>
           )}
-          <span className="text-[11px]" style={{ color: isOwn ? 'rgba(255,255,255,0.55)' : '#6c8998' }}>{time}</span>
+          <span className="text-[11px]" style={{ color: isOwn ? 'rgba(255,255,255,0.55)' : 'var(--text-low)' }}>{time}</span>
           {isOwn && (
             <svg width="18" height="10" viewBox="0 0 18 10" fill="none">
               <path d="M1 5l3 3L11 1" stroke={tickColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -304,19 +304,14 @@ function MessageContextMenu({
     <>
       <div
         className="fixed inset-0 z-40"
-        style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)' }}
+        style={{ background: 'rgba(8,11,22,0.55)', backdropFilter: 'blur(4px)' }}
         onClick={onClose}
       />
 
       {/* Emoji bar + expand button */}
       <div
-        className="fixed z-50 flex items-center gap-0.5 px-2 py-1.5 rounded-2xl shadow-2xl"
-        style={{
-          left: menuLeft,
-          top: menuTop,
-          background: '#1e2c3a',
-          border: '1px solid rgba(255,255,255,0.1)',
-        }}
+        className="glass-pop fixed z-50 flex items-center gap-0.5 px-2 py-1.5 rounded-2xl"
+        style={{ left: menuLeft, top: menuTop }}
       >
         {QUICK_EMOJIS.map(emoji => (
           <button
@@ -346,17 +341,11 @@ function MessageContextMenu({
       {/* Action list */}
       {(itemCount > 0 || readLabel) && (
         <div
-          className="fixed z-50 rounded-2xl overflow-hidden shadow-2xl"
-          style={{
-            left: menuLeft,
-            top: menuTop + EMOJI_H + 4,
-            width: MENU_W,
-            background: '#1e2c3a',
-            border: '1px solid rgba(255,255,255,0.1)',
-          }}
+          className="glass-pop fixed z-50 rounded-2xl overflow-hidden"
+          style={{ left: menuLeft, top: menuTop + EMOJI_H + 4, width: MENU_W }}
         >
           {readLabel && (
-            <div className="px-4 py-2 text-xs" style={{ color: '#6c8998', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+            <div className="px-4 py-2 text-xs" style={{ color: 'var(--text-low)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
               {readLabel}
             </div>
           )}
@@ -382,7 +371,7 @@ function CtxItem({ icon, label, onPointerDown, danger }: {
     <button
       onPointerDown={onPointerDown}
       className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left active:bg-white/10"
-      style={{ color: danger ? '#fc8181' : 'rgba(255,255,255,0.85)' }}
+      style={{ color: danger ? '#EF4444' : 'rgba(255,255,255,0.85)' }}
     >
       <span>{icon}</span>
       {label}
@@ -407,8 +396,8 @@ function FullEmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => v
 
       {/* Panel — макс 480px на десктопе, полная ширина на мобильном */}
       <div
-        className="relative shrink-0 rounded-t-3xl flex flex-col w-full"
-        style={{ background: '#17212b', maxHeight: '60vh', height: '60vh', maxWidth: 480 }}
+        className="glass-pop relative shrink-0 rounded-t-3xl flex flex-col w-full"
+        style={{ maxHeight: '60vh', height: '60vh', maxWidth: 480 }}
       >
         {/* Handle */}
         <div className="flex justify-center pt-2.5 pb-1">
@@ -423,7 +412,7 @@ function FullEmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => v
             onChange={e => setSearch(e.target.value)}
             placeholder="Поиск эмодзи…"
             className="w-full rounded-xl px-3 py-1.5 text-sm text-white outline-none placeholder-white/30"
-            style={{ background: '#242f3d' }}
+            style={{ background: 'var(--glass-2)', border: '1px solid var(--glass-stroke)' }}
           />
         </div>
 
@@ -435,7 +424,7 @@ function FullEmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => v
                 key={i}
                 onClick={() => setActiveCategory(i)}
                 className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-lg transition-all"
-                style={{ background: activeCategory === i ? 'rgba(42,171,238,0.2)' : 'transparent' }}
+                style={{ background: activeCategory === i ? 'rgba(168,85,247,0.25)' : 'transparent' }}
               >
                 {cat.icon}
               </button>
@@ -447,7 +436,7 @@ function FullEmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => v
         <div className="flex-1 overflow-y-auto px-2 pb-3">
           {search.trim() ? (
             <>
-              <p className="text-xs px-1 py-1" style={{ color: '#6c8998' }}>Результаты поиска</p>
+              <p className="text-xs px-1 py-1" style={{ color: 'var(--text-low)' }}>Результаты поиска</p>
               <div className="grid" style={{ gridTemplateColumns: 'repeat(9, 1fr)', gap: 2 }}>
                 {EMOJI_CATEGORIES.flatMap(c => c.emojis)
                   .filter((e, i, arr) => arr.indexOf(e) === i)
@@ -456,12 +445,12 @@ function FullEmojiPicker({ onSelect, onClose }: { onSelect: (emoji: string) => v
                   ))}
               </div>
               {filteredEmojis?.length === 0 && (
-                <p className="text-center text-sm py-8" style={{ color: '#6c8998' }}>Ничего не найдено</p>
+                <p className="text-center text-sm py-8" style={{ color: 'var(--text-low)' }}>Ничего не найдено</p>
               )}
             </>
           ) : (
             <>
-              <p className="text-xs px-1 py-1 font-medium" style={{ color: '#6c8998' }}>
+              <p className="text-xs px-1 py-1 font-medium" style={{ color: 'var(--text-low)' }}>
                 {EMOJI_CATEGORIES[activeCategory].label}
               </p>
               <div className="grid" style={{ gridTemplateColumns: 'repeat(9, 1fr)', gap: 2 }}>
@@ -506,13 +495,13 @@ function ReactionBar({ reactions, myId, onReact }: {
             onClick={() => onReact(r.emoji)}
             className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-all active:scale-95"
             style={{
-              background: reacted ? 'rgba(42,171,238,0.2)' : 'rgba(255,255,255,0.08)',
-              border: reacted ? '1px solid rgba(42,171,238,0.5)' : '1px solid rgba(255,255,255,0.1)',
+              background: reacted ? 'rgba(168,85,247,0.25)' : 'rgba(255,255,255,0.08)',
+              border: reacted ? '1px solid rgba(168,85,247,0.55)' : '1px solid rgba(255,255,255,0.1)',
               color: 'white',
             }}
           >
             <span>{r.emoji}</span>
-            <span style={{ color: reacted ? '#2aabee' : 'rgba(255,255,255,0.6)' }}>{r.count}</span>
+            <span style={{ color: reacted ? '#C084FC' : 'rgba(255,255,255,0.6)' }}>{r.count}</span>
           </button>
         )
       })}

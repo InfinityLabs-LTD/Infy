@@ -97,7 +97,12 @@ export function PartnerInfoPanel({ chatId, partner, onClose }: Props) {
       {/* Panel */}
       <div
         className="fixed right-0 top-0 bottom-0 z-30 flex flex-col w-80 max-w-full overflow-hidden panel-slide-in"
-        style={{ background: '#17212b', borderLeft: '1px solid rgba(255,255,255,0.07)' }}
+        style={{
+          background: 'rgba(13,17,35,0.85)',
+          backdropFilter: 'blur(40px) saturate(150%)',
+          WebkitBackdropFilter: 'blur(40px) saturate(150%)',
+          borderLeft: '1px solid rgba(255,255,255,0.07)',
+        }}
       >
         {/* Header */}
         <div className="shrink-0 flex items-center gap-2 px-3 py-3"
@@ -125,7 +130,7 @@ export function PartnerInfoPanel({ chatId, partner, onClose }: Props) {
               className="text-[17px] font-bold text-white hover:underline leading-tight mb-1">
               {partner.nickname}
             </Link>
-            <p className="text-sm mb-2" style={{ color: '#6c8998' }}>@{partner.username}</p>
+            <p className="text-sm mb-2" style={{ color: 'var(--text-low)' }}>@{partner.username}</p>
             <OnlineIndicator userId={partner.id} lastSeenAt={partner.lastSeenAt} showLabel />
           </div>
 
@@ -135,8 +140,8 @@ export function PartnerInfoPanel({ chatId, partner, onClose }: Props) {
               <button key={t} onClick={() => setTab(t)}
                 className="flex-1 py-3 text-xs font-semibold uppercase tracking-wider transition-colors"
                 style={{
-                  color: tab === t ? '#2aabee' : '#6c8998',
-                  borderBottom: tab === t ? '2px solid #2aabee' : '2px solid transparent',
+                  color: tab === t ? '#C084FC' : 'var(--text-low)',
+                  borderBottom: tab === t ? '2px solid #A855F7' : '2px solid transparent',
                 }}>
                 {t === 'media' ? 'Медиа' : 'Аудио'}
               </button>
@@ -250,14 +255,14 @@ function AudioTab({
           <div key={msg.id} className="flex items-center gap-3 px-4 py-2.5"
             style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
             <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-              style={{ background: 'rgba(42,171,238,0.15)' }}>
+              style={{ background: 'rgba(124,58,237,0.18)' }}>
               {isCircle ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="1.8">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="1.8">
                   <circle cx="12" cy="12" r="10"/>
-                  <polygon points="10,8 16,12 10,16" fill="#2aabee" stroke="none"/>
+                  <polygon points="10,8 16,12 10,16" fill="#A855F7" stroke="none"/>
                 </svg>
               ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="1.8">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="1.8">
                   <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
                   <path d="M19 10v2a7 7 0 01-14 0v-2"/>
                   <line x1="12" y1="19" x2="12" y2="23"/>
@@ -268,7 +273,7 @@ function AudioTab({
               <p className="text-sm font-medium text-white truncate">
                 {isCircle ? 'Кружок' : 'Голосовое'}
               </p>
-              <p className="text-xs" style={{ color: '#6c8998' }}>
+              <p className="text-xs" style={{ color: 'var(--text-low)' }}>
                 {formatDuration(att.durationMs)} · {msg.sender.nickname} · {date}
               </p>
             </div>
@@ -288,7 +293,7 @@ function LoadMoreButton({ nextCursor, onLoadMore, loading }: {
     <div className="flex justify-center py-3">
       <button onClick={onLoadMore} disabled={loading}
         className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs transition-colors"
-        style={{ background: 'rgba(42,171,238,0.1)', color: '#2aabee' }}>
+        style={{ background: 'rgba(168,85,247,0.12)', color: '#C084FC' }}>
         {loading ? <Spinner size={10} /> : 'Загрузить ещё'}
       </button>
     </div>
@@ -299,14 +304,14 @@ function EmptyState({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-12 px-4">
       <div className="w-12 h-12 rounded-full flex items-center justify-center mb-3"
-        style={{ background: 'rgba(42,171,238,0.1)' }}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="1.5">
+        style={{ background: 'rgba(124,58,237,0.15)' }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="1.5">
           <rect x="3" y="3" width="18" height="18" rx="2"/>
           <circle cx="8.5" cy="8.5" r="1.5"/>
           <polyline points="21 15 16 10 5 21"/>
         </svg>
       </div>
-      <p className="text-sm text-center" style={{ color: '#6c8998' }}>{label}</p>
+      <p className="text-sm text-center" style={{ color: 'var(--text-low)' }}>{label}</p>
     </div>
   )
 }

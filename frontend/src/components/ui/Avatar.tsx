@@ -1,5 +1,10 @@
 const COLORS = [
-  '#2b5278', '#1e6fa6', '#1a6b4e', '#5a3e8f', '#8c4a2f', '#2d6b6b',
+  'linear-gradient(135deg,#7C3AED,#A855F7)',
+  'linear-gradient(135deg,#6D28D9,#C084FC)',
+  'linear-gradient(135deg,#4F46E5,#A855F7)',
+  'linear-gradient(135deg,#9333EA,#E879F9)',
+  'linear-gradient(135deg,#5B21B6,#8B5CF6)',
+  'linear-gradient(135deg,#7C3AED,#EC4899)',
 ]
 
 function colorFor(name: string) {

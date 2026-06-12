@@ -52,9 +52,14 @@ export function EditProfilePage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: '#0e1621' }}>
+    <div className="min-h-screen" style={{ background: 'var(--bg-deep)' }}>
       <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-3"
-        style={{ background: '#17212b', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        style={{
+          background: 'rgba(8,11,22,0.7)',
+          backdropFilter: 'blur(24px) saturate(140%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(140%)',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+        }}>
         <button onClick={() => navigate(-1)}
           className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors -ml-1"
           style={{ color: 'rgba(255,255,255,0.5)' }}
@@ -68,7 +73,7 @@ export function EditProfilePage() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-5">
-        <div className="rounded-2xl p-5" style={{ background: '#17212b', border: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="rounded-2xl p-5" style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error !== null && <ErrorMessage error={error} />}
 
@@ -82,16 +87,16 @@ export function EditProfilePage() {
               <label className="label">Имя пользователя</label>
               <input className="input" type="text" value={form.username}
                 onChange={set('username')} pattern="[a-z0-9_]+" minLength={3} maxLength={32} required />
-              <p className="text-xs mt-1" style={{ color: '#6c8998' }}>3–32 символа, строчные буквы, цифры, _</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-low)' }}>3–32 символа, строчные буквы, цифры, _</p>
             </div>
 
             <div>
-              <label className="label">Дата рождения <span className="font-normal" style={{ color: '#6c8998' }}>(необязательно)</span></label>
+              <label className="label">Дата рождения <span className="font-normal" style={{ color: 'var(--text-low)' }}>(необязательно)</span></label>
               <input className="input" type="date" value={form.birthdate} onChange={set('birthdate')} />
             </div>
 
             <div>
-              <label className="label">О себе <span className="font-normal" style={{ color: '#6c8998' }}>(необязательно)</span></label>
+              <label className="label">О себе <span className="font-normal" style={{ color: 'var(--text-low)' }}>(необязательно)</span></label>
               <textarea
                 className="input resize-none"
                 rows={4}
@@ -101,7 +106,7 @@ export function EditProfilePage() {
                 placeholder="Расскажите немного о себе..."
                 style={{ height: 'auto' }}
               />
-              <p className="text-xs mt-1 text-right" style={{ color: '#6c8998' }}>{form.bio.length}/500</p>
+              <p className="text-xs mt-1 text-right" style={{ color: 'var(--text-low)' }}>{form.bio.length}/500</p>
             </div>
 
             <div className="flex gap-3 pt-2">

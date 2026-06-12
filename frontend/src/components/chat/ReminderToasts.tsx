@@ -35,8 +35,7 @@ export function ReminderToasts() {
         return (
           <div
             key={t.reminderId}
-            className="relative rounded-2xl shadow-2xl overflow-hidden reminder-toast-in"
-            style={{ background: '#1e2c3a', border: '1px solid rgba(255,255,255,0.1)' }}
+            className="glass-pop relative rounded-2xl overflow-hidden reminder-toast-in"
           >
             <button
               onClick={() => { openChat(t.chatId); dismiss(t.reminderId) }}
@@ -44,8 +43,8 @@ export function ReminderToasts() {
             >
               <div className="flex items-start gap-3">
                 <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5"
-                  style={{ background: 'rgba(42,171,238,0.15)' }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2aabee" strokeWidth="2">
+                  style={{ background: 'rgba(124,58,237,0.18)' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="2">
                     <rect x="3" y="4" width="18" height="18" rx="2"/>
                     <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
                     <line x1="3" y1="10" x2="21" y2="10"/>
@@ -53,13 +52,13 @@ export function ReminderToasts() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-semibold text-white truncate">{t.title}</p>
-                  <p className="text-[12px] mt-0.5" style={{ color: '#2aabee' }}>
+                  <p className="text-[12px] mt-0.5" style={{ color: '#C084FC' }}>
                     {t.categoryName} · {when}
                   </p>
                   {t.notes && (
-                    <p className="text-[12px] mt-0.5 truncate" style={{ color: '#9bb0bf' }}>{t.notes}</p>
+                    <p className="text-[12px] mt-0.5 truncate" style={{ color: 'var(--text-mid)' }}>{t.notes}</p>
                   )}
-                  <p className="text-[11px] mt-1" style={{ color: '#6c8998' }}>
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--text-low)' }}>
                     Напоминание от {t.from.nickname}
                   </p>
                 </div>
