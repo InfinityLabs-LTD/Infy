@@ -5,10 +5,10 @@ import { Spinner } from '@/components/ui/Spinner'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 
 const STATE_COLOR: Record<string, string> = {
-  running: 'bg-green-100 text-green-700',
-  exited:  'bg-gray-100 text-gray-500',
-  paused:  'bg-yellow-100 text-yellow-700',
-  created: 'bg-blue-100 text-blue-700',
+  running: 'bg-ok/15 text-ok',
+  exited:  'bg-white/10 text-ink-low',
+  paused:  'bg-warn/15 text-warn',
+  created: 'bg-accent/20 text-highlight',
 }
 
 const STATE_LABEL: Record<string, string> = {
@@ -71,10 +71,10 @@ export function AdminContainersPage() {
 
       {error !== null && <div className="mb-4"><ErrorMessage error={error} /></div>}
 
-      <div className="bg-white rounded-2xl border overflow-hidden">
+      <div className="glass rounded-2xl overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+            <tr className="border-b border-white/5 bg-white/[0.03] text-ink-low text-xs uppercase tracking-wide">
               <th className="px-4 py-3 text-left">Имя</th>
               <th className="px-4 py-3 text-left">Образ</th>
               <th className="px-4 py-3 text-left">Статус</th>
@@ -82,30 +82,30 @@ export function AdminContainersPage() {
               <th className="px-4 py-3 text-left">Действия</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y divide-white/5">
             {loading && containers.length === 0 ? (
               <tr><td colSpan={5} className="px-4 py-10 text-center"><Spinner size={24} /></td></tr>
             ) : containers.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">Контейнеры не найдены</td></tr>
+              <tr><td colSpan={5} className="px-4 py-10 text-center text-ink-low">Контейнеры не найдены</td></tr>
             ) : containers.map(c => (
-              <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+              <tr key={c.id} className="hover:bg-white/5 transition-colors">
                 <td className="px-4 py-3 font-medium">{c.names[0] ?? c.id.slice(0, 12)}</td>
-                <td className="px-4 py-3 text-gray-500 text-xs font-mono max-w-[200px] truncate">
+                <td className="px-4 py-3 text-ink-low text-xs font-mono max-w-[200px] truncate">
                   {c.image}
                 </td>
                 <td className="px-4 py-3">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                    STATE_COLOR[c.state] ?? 'bg-gray-100 text-gray-600'
+                    STATE_COLOR[c.state] ?? 'bg-white/10 text-ink-mid'
                   }`}>
                     {STATE_LABEL[c.state] ?? c.state}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-gray-500 text-xs">{c.status}</td>
+                <td className="px-4 py-3 text-ink-low text-xs">{c.status}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1">
                     <button
                       onClick={() => openLogs(c)}
-                      className="btn-ghost py-1 px-2 text-xs text-gray-600"
+                      className="btn-ghost py-1 px-2 text-xs"
                       title="Просмотр логов"
                     >
                       Логи
@@ -113,7 +113,7 @@ export function AdminContainersPage() {
                     <button
                       onClick={() => restart(c.id)}
                       disabled={restarting === c.id}
-                      className="btn-ghost py-1 px-2 text-xs text-orange-600 hover:bg-orange-50 disabled:opacity-40"
+                      className="btn-ghost py-1 px-2 text-xs text-warn hover:bg-warn/10 disabled:opacity-40"
                       title="Перезапустить контейнер"
                     >
                       {restarting === c.id ? <Spinner size={12} /> : 'Перезапустить'}
@@ -210,10 +210,11 @@ function LogsDrawer({
     <div className="fixed inset-0 z-50 flex">
       <div className="flex-1 bg-black/50" onClick={onClose} />
 
-      <div className="w-full max-w-3xl bg-gray-950 flex flex-col shadow-2xl">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+      <div className="w-full max-w-3xl flex flex-col shadow-2xl"
+        style={{ background: 'rgba(5,7,15,0.97)', borderLeft: '1px solid rgba(255,255,255,0.08)' }}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
           <div className="flex items-center gap-2.5">
-            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
+            <span className={`w-2 h-2 rounded-full ${connected ? 'bg-ok animate-pulse' : 'bg-ink-low'}`} />
             <p className="text-white font-medium text-sm font-mono">{name}</p>
           </div>
           <div className="flex items-center gap-2">

@@ -52,7 +52,7 @@ export function AdminUsersPage() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold">Пользователи <span className="text-gray-400 font-normal text-base ml-2">{total} всего</span></h1>
+        <h1 className="text-xl font-bold">Пользователи <span className="text-ink-low font-normal text-base ml-2">{total} всего</span></h1>
       </div>
 
       {/* Search */}
@@ -71,10 +71,10 @@ export function AdminUsersPage() {
       {loading ? (
         <div className="flex justify-center py-16"><Spinner size={32} /></div>
       ) : (
-        <div className="bg-white rounded-2xl border overflow-hidden">
+        <div className="glass rounded-2xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+              <tr className="border-b border-white/5 bg-white/[0.03] text-ink-low text-xs uppercase tracking-wide">
                 <th className="px-4 py-3 text-left">Пользователь</th>
                 <th className="px-4 py-3 text-left">Email</th>
                 <th className="px-4 py-3 text-left">Роль</th>
@@ -83,19 +83,19 @@ export function AdminUsersPage() {
                 <th className="px-4 py-3 text-left">Действия</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-white/5">
               {users.map(u => (
-                <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={u.id} className="hover:bg-white/5 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <Avatar url={u.avatarUrl} nickname={u.nickname} size={32} />
                       <div>
                         <p className="font-medium">{u.nickname}</p>
-                        <p className="text-gray-400 text-xs">@{u.username}</p>
+                        <p className="text-ink-low text-xs">@{u.username}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-gray-500">{u.email ?? '—'}</td>
+                  <td className="px-4 py-3 text-ink-low">{u.email ?? '—'}</td>
                   <td className="px-4 py-3">
                     {editingId === u.id ? (
                       <div className="flex items-center gap-1.5">
@@ -118,14 +118,14 @@ export function AdminUsersPage() {
                       </div>
                     ) : (
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                        u.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
+                        u.role === 'ADMIN' ? 'bg-accent/20 text-highlight' : 'bg-white/10 text-ink-mid'
                       }`}>
                         {u.role}
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{new Date(u.createdAt).toLocaleDateString('ru-RU')}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{new Date(u.lastSeenAt).toLocaleDateString('ru-RU')}</td>
+                  <td className="px-4 py-3 text-ink-low text-xs">{new Date(u.createdAt).toLocaleDateString('ru-RU')}</td>
+                  <td className="px-4 py-3 text-ink-low text-xs">{new Date(u.lastSeenAt).toLocaleDateString('ru-RU')}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
                       <button
@@ -133,14 +133,14 @@ export function AdminUsersPage() {
                           setEditingId(u.id)
                           setEditRole(u.role as 'USER' | 'ADMIN')
                         }}
-                        className="btn-ghost py-1 px-2 text-xs text-gray-500"
+                        className="btn-ghost py-1 px-2 text-xs text-ink-low"
                         title="Изменить роль"
                       >
                         Роль
                       </button>
                       <button
                         onClick={() => navigate(`/admin/users/${u.id}/messages`)}
-                        className="btn-ghost py-1 px-2 text-xs text-gray-500"
+                        className="btn-ghost py-1 px-2 text-xs text-ink-low"
                         title="Просмотр сообщений"
                       >
                         Сообщения
@@ -154,8 +154,8 @@ export function AdminUsersPage() {
 
           {/* Pagination */}
           {pages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
-              <p className="text-xs text-gray-500">Страница {page} из {pages}</p>
+            <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
+              <p className="text-xs text-ink-low">Страница {page} из {pages}</p>
               <div className="flex gap-1">
                 <button
                   onClick={() => load(page - 1, search)}

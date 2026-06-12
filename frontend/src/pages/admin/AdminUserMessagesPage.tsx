@@ -55,10 +55,10 @@ export function AdminUserMessagesPage() {
         </button>
         <h1 className="text-xl font-bold">
           Сообщения{' '}
-          <span className="text-primary-600">
+          <span className="text-highlight">
             {user ? `@${user.username}` : `#${id}`}
           </span>
-          <span className="text-gray-400 font-normal text-base ml-2">{total} всего</span>
+          <span className="text-ink-low font-normal text-base ml-2">{total} всего</span>
         </h1>
       </div>
 
@@ -67,26 +67,26 @@ export function AdminUserMessagesPage() {
       {loading && messages.length === 0 ? (
         <div className="flex justify-center py-16"><Spinner size={32} /></div>
       ) : (
-        <div className="bg-white rounded-2xl border overflow-hidden">
+        <div className="glass rounded-2xl overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+              <tr className="border-b border-white/5 bg-white/[0.03] text-ink-low text-xs uppercase tracking-wide">
                 <th className="px-4 py-3 text-left w-8">Тип</th>
                 <th className="px-4 py-3 text-left">Текст</th>
                 <th className="px-4 py-3 text-left">Чат</th>
                 <th className="px-4 py-3 text-left">Отправлено</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-white/5">
               {messages.map(m => (
-                <tr key={m.id} className="hover:bg-gray-50">
+                <tr key={m.id} className="hover:bg-white/5 transition-colors">
                   <td className="px-4 py-3 text-lg">{TYPE_ICON[m.type] ?? '?'}</td>
                   <td className="px-4 py-3 max-w-xs">
-                    <p className="truncate text-gray-800">
+                    <p className="truncate text-white/90">
                       {m.content ?? (m.attachments.length > 0 ? `[${m.type.toLowerCase()}]` : '—')}
                     </p>
                     {m.attachments.length > 0 && (
-                      <p className="text-xs text-gray-400 mt-0.5">
+                      <p className="text-xs text-ink-low mt-0.5">
                         {m.attachments[0].mimeType}
                         {m.attachments[0].sizeBytes
                           ? ` · ${(m.attachments[0].sizeBytes / 1024).toFixed(0)} КБ`
@@ -94,23 +94,23 @@ export function AdminUserMessagesPage() {
                       </p>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-xs text-gray-400 font-mono">{m.chat.id.slice(0, 8)}…</td>
-                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                  <td className="px-4 py-3 text-xs text-ink-low font-mono">{m.chat.id.slice(0, 8)}…</td>
+                  <td className="px-4 py-3 text-xs text-ink-low whitespace-nowrap">
                     {new Date(m.createdAt).toLocaleString('ru-RU')}
                   </td>
                 </tr>
               ))}
               {messages.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-10 text-center text-gray-400">Нет сообщений</td>
+                  <td colSpan={4} className="px-4 py-10 text-center text-ink-low">Нет сообщений</td>
                 </tr>
               )}
             </tbody>
           </table>
 
           {pages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t bg-gray-50">
-              <p className="text-xs text-gray-500">Страница {page} из {pages}</p>
+            <div className="flex items-center justify-between px-4 py-3 border-t border-white/5">
+              <p className="text-xs text-ink-low">Страница {page} из {pages}</p>
               <div className="flex gap-1">
                 <button onClick={() => load(page - 1)} disabled={page <= 1}
                   className="btn-ghost py-1 px-2 text-xs disabled:opacity-40">← Назад</button>
