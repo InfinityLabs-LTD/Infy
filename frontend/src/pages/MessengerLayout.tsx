@@ -8,7 +8,7 @@ import { useNotifications } from '@/hooks/useNotifications'
 import { Avatar } from '@/components/ui/Avatar'
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator'
 import { Spinner } from '@/components/ui/Spinner'
-import { AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { NewChatModal } from '@/components/chat/NewChatModal'
 import { CommandPalette } from '@/components/chat/CommandPalette'
 import { ReminderToasts } from '@/components/chat/ReminderToasts'
@@ -292,46 +292,42 @@ export function MessengerLayout() {
           )}
         </nav>
 
-        {/* Нижняя навигация — только мобильный */}
-        <div className="md:hidden shrink-0 flex items-center justify-around px-2 pt-2"
-          style={{
-            background: 'rgba(11,16,32,0.85)',
-            backdropFilter: 'blur(24px) saturate(140%)',
-            WebkitBackdropFilter: 'blur(24px) saturate(140%)',
-            borderTop: '1px solid rgba(255,255,255,0.07)',
-            paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
-          }}>
-          <MobileNavBtn
-            label="Контакты"
-            active={isContactsTab}
-            onClick={() => navigate('/contacts')}
-            icon={
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
-                <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
-              </svg>
-            }
-          />
-          <MobileNavBtn
-            label="Чаты"
-            active={!isContactsTab}
-            onClick={() => navigate('/')}
-            icon={
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-              </svg>
-            }
-          />
-          <MobileNavBtn
-            label="Профиль"
-            active={false}
-            onClick={() => navigate('/profile')}
-            icon={
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
-              </svg>
-            }
-          />
+        {/* Нижняя навигация — плавающая стеклянная капсула (только мобильный) */}
+        <div className="md:hidden shrink-0 px-4"
+          style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))', paddingTop: 8 }}>
+          <div className="glass-pop flex items-center justify-around rounded-full px-2 py-1.5">
+            <MobileNavBtn
+              label="Чаты"
+              active={!isContactsTab}
+              onClick={() => navigate('/')}
+              icon={
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+                </svg>
+              }
+            />
+            <MobileNavBtn
+              label="Контакты"
+              active={isContactsTab}
+              onClick={() => navigate('/contacts')}
+              icon={
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+                </svg>
+              }
+            />
+            <MobileNavBtn
+              label="Профиль"
+              active={false}
+              onClick={() => navigate('/profile')}
+              icon={
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                </svg>
+              }
+            />
+          </div>
         </div>
       </aside>
 
@@ -360,11 +356,19 @@ function MobileNavBtn({ label, active, onClick, icon }: {
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center gap-1 px-4 py-1 rounded-xl transition-colors"
-      style={{ color: active ? '#A855F7' : 'rgba(255,255,255,0.35)' }}
+      className="relative flex flex-col items-center gap-1 px-5 py-2 rounded-full transition-colors active:scale-90"
+      style={{ color: active ? '#fff' : 'rgba(255,255,255,0.4)' }}
     >
-      {icon}
-      <span className="text-[10px] font-medium">{label}</span>
+      {active && (
+        <motion.span
+          layoutId="mobile-nav-active"
+          className="absolute inset-0 rounded-full"
+          style={{ background: 'var(--grad-own)', boxShadow: 'var(--glow-primary)' }}
+          transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+        />
+      )}
+      <span className="relative z-10">{icon}</span>
+      <span className="relative z-10 text-[10px] font-medium">{label}</span>
     </button>
   )
 }
