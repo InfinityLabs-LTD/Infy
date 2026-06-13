@@ -14,6 +14,7 @@ import { AdminLayout } from '@/pages/admin/AdminLayout'
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage'
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage'
 import { AdminUserProfilePage } from '@/pages/admin/AdminUserProfilePage'
+import { AdminAnalyticsPage } from '@/pages/admin/AdminAnalyticsPage'
 import { AdminContainersPage } from '@/pages/admin/AdminContainersPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -61,6 +62,7 @@ export default function App() {
           <Route index element={<AdminDashboardPage />} />
           <Route path="users" element={<AdminUsersPage />} />
           <Route path="users/:id" element={<AdminUserProfilePage />} />
+          <Route path="analytics" element={<AdminAnalyticsPage />} />
           <Route path="containers" element={<AdminContainersPage />} />
         </Route>
 

@@ -55,6 +55,13 @@ export interface AdminStats {
   byDay: Array<{ date: string; messages: number; users: number }>
 }
 
+export interface AdminAnalytics {
+  dauToday: number
+  mau30: number
+  byDay: Array<{ date: string; dau: number; registrations: number }>
+  cohorts: Array<{ week: string; size: number; retention: number[] }>
+}
+
 export const adminApi = {
   // Users
   listUsers: (params?: { page?: number; limit?: number; search?: string }) =>
@@ -74,6 +81,9 @@ export const adminApi = {
   // Stats
   getStats: () =>
     api.get<{ data: AdminStats }>('/admin/stats'),
+
+  getAnalytics: () =>
+    api.get<{ data: AdminAnalytics }>('/admin/stats/analytics'),
 
   // Containers
   listContainers: () =>

@@ -50,7 +50,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Инсайты',
     items: [
-      { label: 'Аналитика', icon: icon(<><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>) },
+      { to: '/admin/analytics', label: 'Аналитика', icon: icon(<><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>) },
       { label: 'AI Center', icon: icon(<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3zM19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/>) },
       { label: 'Платежи', icon: icon(<><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></>) },
     ],
