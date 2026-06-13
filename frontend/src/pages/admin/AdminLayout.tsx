@@ -36,7 +36,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: '/admin/users', label: 'Пользователи', icon: icon(<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></>) },
       { label: 'Чаты', icon: icon(<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>) },
-      { label: 'Модерация', icon: icon(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>) },
+      { to: '/admin/moderation', label: 'Модерация', icon: icon(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>) },
     ],
   },
   {
@@ -51,8 +51,8 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Инсайты',
     items: [
       { to: '/admin/analytics', label: 'Аналитика', icon: icon(<><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></>) },
-      { label: 'AI Center', icon: icon(<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3zM19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/>) },
-      { label: 'Платежи', icon: icon(<><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></>) },
+      { to: '/admin/ai', label: 'AI Center', icon: icon(<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3zM19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/>) },
+      { to: '/admin/payments', label: 'Платежи', icon: icon(<><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></>) },
     ],
   },
   {

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { adminApi, AdminMessage, AdminUserDetail } from '@/api/admin'
+import { IssueSanctionModal } from './AdminModerationPage'
 import { useAuthStore } from '@/store/auth'
 import { Avatar } from '@/components/ui/Avatar'
 import { Spinner } from '@/components/ui/Spinner'
@@ -20,6 +21,7 @@ export function AdminUserProfilePage() {
   const [user, setUser] = useState<AdminUserDetail | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [savingRole, setSavingRole] = useState(false)
+  const [showSanction, setShowSanction] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -111,11 +113,21 @@ export function AdminUserProfilePage() {
                 </p>
               </div>
               {!isMe && (
-                <button onClick={toggleRole} disabled={savingRole}
-                  className="btn-ghost text-xs shrink-0 disabled:opacity-50"
-                  style={{ color: isAdmin ? '#EF4444' : '#C084FC', border: '1px solid rgba(255,255,255,0.1)' }}>
-                  {savingRole ? <Spinner size={12} /> : isAdmin ? 'Снять права админа' : 'Назначить админом'}
-                </button>
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={() => setShowSanction(true)}
+                    className="btn-ghost text-xs"
+                    style={{ color: '#F59E0B', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                    Санкция
+                  </button>
+                  <button onClick={toggleRole} disabled={savingRole}
+                    className="btn-ghost text-xs disabled:opacity-50"
+                    style={{ color: isAdmin ? '#EF4444' : '#C084FC', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    {savingRole ? <Spinner size={12} /> : isAdmin ? 'Снять права админа' : 'Назначить админом'}
+                  </button>
+                </div>
               )}
             </div>
           </motion.div>
@@ -137,6 +149,16 @@ export function AdminUserProfilePage() {
           {tab === 'overview' ? <OverviewTab user={user} /> : <MessagesTab userId={user.id} />}
         </>
       )}
+
+      <AnimatePresence>
+        {showSanction && user && (
+          <IssueSanctionModal
+            presetUser={{ id: user.id, nickname: user.nickname, username: user.username, avatarUrl: user.avatarUrl }}
+            onClose={() => setShowSanction(false)}
+            onIssued={() => setShowSanction(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

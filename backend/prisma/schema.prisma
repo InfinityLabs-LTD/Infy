@@ -32,6 +32,13 @@ enum ReminderTarget {
   BOTH      // обоим
 }
 
+// Тип санкции модерации (Infy Shield)
+enum SanctionType {
+  WARN      // предупреждение
+  MUTE      // временный запрет писать
+  BAN       // блокировка аккаунта
+}
+
 model User {
   id              BigInt    @id @default(autoincrement())
   username        String    @unique @db.VarChar(32)
@@ -56,8 +63,29 @@ model User {
   createdEvents           CalendarEvent[]      @relation("EventCreator")
   createdCategories       CalendarCategory[]   @relation("CategoryCreator")
   reminderDeliveries      ReminderDelivery[]
+  sanctions               Sanction[]           @relation("SanctionTarget")
+  issuedSanctions         Sanction[]           @relation("SanctionIssuer")
 
   @@map("users")
+}
+
+// Санкция модерации (Infy Shield): бан / мут / предупреждение
+model Sanction {
+  id         String       @id @default(cuid())
+  userId     BigInt                                  // на кого наложена
+  issuedById BigInt                                  // какой админ выдал
+  type       SanctionType
+  reason     String       @db.VarChar(500)
+  createdAt  DateTime     @default(now())
+  expiresAt  DateTime?                               // null = бессрочно (для WARN всегда null)
+  revokedAt  DateTime?                               // снята вручную раньше срока
+
+  user     User @relation("SanctionTarget", fields: [userId],     references: [id], onDelete: Cascade)
+  issuedBy User @relation("SanctionIssuer", fields: [issuedById], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([type])
+  @@map("sanctions")
 }
 
 model DeviceSession {

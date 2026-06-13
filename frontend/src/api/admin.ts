@@ -62,6 +62,31 @@ export interface AdminAnalytics {
   cohorts: Array<{ week: string; size: number; retention: number[] }>
 }
 
+export type SanctionType = 'WARN' | 'MUTE' | 'BAN'
+
+export interface SanctionUser {
+  id: string
+  username: string
+  nickname: string
+  avatarUrl: string | null
+}
+
+export interface Sanction {
+  id: string
+  type: SanctionType
+  reason: string
+  createdAt: string
+  expiresAt: string | null
+  revokedAt: string | null
+  user: SanctionUser
+  issuedBy: SanctionUser
+}
+
+export interface SanctionsResponse {
+  sanctions: Sanction[]
+  activeByType: Record<SanctionType, number>
+}
+
 export const adminApi = {
   // Users
   listUsers: (params?: { page?: number; limit?: number; search?: string }) =>
@@ -84,6 +109,16 @@ export const adminApi = {
 
   getAnalytics: () =>
     api.get<{ data: AdminAnalytics }>('/admin/stats/analytics'),
+
+  // Moderation (Infy Shield)
+  listSanctions: (status: 'active' | 'all' = 'active') =>
+    api.get<{ data: SanctionsResponse }>('/admin/moderation/sanctions', { params: { status } }),
+
+  createSanction: (body: { userId: string; type: SanctionType; reason: string; durationHours?: number | null }) =>
+    api.post<{ data: Sanction }>('/admin/moderation/sanctions', body),
+
+  revokeSanction: (id: string) =>
+    api.delete<{ data: Sanction }>(`/admin/moderation/sanctions/${id}`),
 
   // Containers
   listContainers: () =>
