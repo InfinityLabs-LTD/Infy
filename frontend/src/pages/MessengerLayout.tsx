@@ -8,7 +8,9 @@ import { useNotifications } from '@/hooks/useNotifications'
 import { Avatar } from '@/components/ui/Avatar'
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator'
 import { Spinner } from '@/components/ui/Spinner'
+import { AnimatePresence } from 'framer-motion'
 import { NewChatModal } from '@/components/chat/NewChatModal'
+import { CommandPalette } from '@/components/chat/CommandPalette'
 import { ReminderToasts } from '@/components/chat/ReminderToasts'
 
 function formatTime(iso: string): string {
@@ -132,11 +134,24 @@ export function MessengerLayout() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [showNewChat, setShowNewChat] = useState(false)
+  const [showPalette, setShowPalette] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useSocket()
   useNotifications()
+
+  // Глобальный хоткей ⌘K / Ctrl+K — командная палитра
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setShowPalette(v => !v)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   useEffect(() => {
     chatApi.listChats()
@@ -231,12 +246,19 @@ export function MessengerLayout() {
               </svg>
             </span>
             <input
-              className="w-full rounded-full pl-9 pr-3 py-2 text-sm outline-none"
+              className="w-full rounded-full pl-9 pr-14 py-2 text-sm outline-none"
               style={{ background: 'var(--glass-2)', border: '1px solid var(--glass-stroke)', color: 'rgba(255,255,255,0.85)', caretColor: '#A855F7' }}
               placeholder="Поиск"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
+            <button
+              onClick={() => setShowPalette(true)}
+              title="Командная палитра"
+              className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded-md text-[10px] font-mono transition-colors hover:bg-white/10"
+              style={{ background: 'var(--glass-2)', border: '1px solid var(--glass-stroke)', color: 'var(--text-low)' }}>
+              ⌘K
+            </button>
           </div>
 
           {/* Compose */}
@@ -322,6 +344,10 @@ export function MessengerLayout() {
       </div>
 
       {showNewChat && <NewChatModal onClose={() => setShowNewChat(false)} />}
+
+      <AnimatePresence>
+        {showPalette && <CommandPalette onClose={() => setShowPalette(false)} />}
+      </AnimatePresence>
 
       <ReminderToasts />
     </div>
