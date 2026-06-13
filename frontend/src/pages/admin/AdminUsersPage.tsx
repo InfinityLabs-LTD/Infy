@@ -176,31 +176,34 @@ function UserRow({ user: u, index, isMe, onUpdated }: {
       transition={{ type: 'spring', stiffness: 380, damping: 32, delay: Math.min(index * 0.025, 0.3) }}
       className="relative glass rounded-2xl px-3.5 py-3 flex items-center gap-3 transition-colors hover:bg-white/[0.06]"
     >
-      {/* Аватар + онлайн-точка */}
-      <div className="relative shrink-0">
-        <Avatar url={u.avatarUrl} nickname={u.nickname} size={44} />
-        {isOnline && (
-          <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full"
-            style={{ background: '#22C55E', boxShadow: '0 0 0 2px #0B1020' }} />
-        )}
-      </div>
-
-      {/* Имя + ник + роль */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <p className="text-sm font-semibold text-white truncate">{u.nickname}</p>
-          {isAdmin && (
-            <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider"
-              style={{ background: 'rgba(168,85,247,0.18)', color: '#C084FC', border: '1px solid rgba(168,85,247,0.35)' }}>
-              Admin
-            </span>
-          )}
-          {isMe && (
-            <span className="shrink-0 text-[10px]" style={{ color: 'var(--text-low)' }}>(вы)</span>
+      {/* Аватар + имя + ник — клик ведёт на профиль */}
+      <button
+        onClick={() => navigate(`/admin/users/${u.id}`)}
+        className="flex items-center gap-3 flex-1 min-w-0 text-left"
+      >
+        <div className="relative shrink-0">
+          <Avatar url={u.avatarUrl} nickname={u.nickname} size={44} />
+          {isOnline && (
+            <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full"
+              style={{ background: '#22C55E', boxShadow: '0 0 0 2px #0B1020' }} />
           )}
         </div>
-        <p className="text-xs truncate" style={{ color: 'var(--text-low)' }}>@{u.username}</p>
-      </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <p className="text-sm font-semibold text-white truncate">{u.nickname}</p>
+            {isAdmin && (
+              <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider"
+                style={{ background: 'rgba(168,85,247,0.18)', color: '#C084FC', border: '1px solid rgba(168,85,247,0.35)' }}>
+                Admin
+              </span>
+            )}
+            {isMe && (
+              <span className="shrink-0 text-[10px]" style={{ color: 'var(--text-low)' }}>(вы)</span>
+            )}
+          </div>
+          <p className="text-xs truncate" style={{ color: 'var(--text-low)' }}>@{u.username}</p>
+        </div>
+      </button>
 
       {/* Статус */}
       <div className="hidden sm:block w-28 shrink-0 text-right sm:text-left">
@@ -257,8 +260,17 @@ function UserRow({ user: u, index, isMe, onUpdated }: {
               style={{ transformOrigin: 'top right' }}
             >
               <MenuItem
+                label="Открыть профиль"
+                onClick={() => { setMenuOpen(false); navigate(`/admin/users/${u.id}`) }}
+                icon={
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                  </svg>
+                }
+              />
+              <MenuItem
                 label="Сообщения"
-                onClick={() => { setMenuOpen(false); navigate(`/admin/users/${u.id}/messages`) }}
+                onClick={() => { setMenuOpen(false); navigate(`/admin/users/${u.id}?tab=messages`) }}
                 icon={
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>

@@ -44,6 +44,17 @@ export interface Paginated<T> {
   pages: number
 }
 
+export interface AdminStats {
+  totalUsers: number
+  onlineNow: number
+  newUsers7d: number
+  totalMessages: number
+  messages24h: number
+  totalChats: number
+  activeSessions: number
+  byDay: Array<{ date: string; messages: number; users: number }>
+}
+
 export const adminApi = {
   // Users
   listUsers: (params?: { page?: number; limit?: number; search?: string }) =>
@@ -59,6 +70,10 @@ export const adminApi = {
   getUserMessages: (id: string, params?: { page?: number; limit?: number }) =>
     api.get<{ data: { messages: AdminMessage[]; total: number; page: number; pages: number } }>(
       `/admin/users/${id}/messages`, { params }),
+
+  // Stats
+  getStats: () =>
+    api.get<{ data: AdminStats }>('/admin/stats'),
 
   // Containers
   listContainers: () =>

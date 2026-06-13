@@ -28,7 +28,7 @@ function icon(paths: React.ReactNode) {
 const NAV_SECTIONS: NavSection[] = [
   {
     items: [
-      { label: 'Dashboard', icon: icon(<><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></>) },
+      { to: '/admin', label: 'Dashboard', icon: icon(<><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></>) },
     ],
   },
   {
@@ -106,7 +106,7 @@ function SidebarContent({ variant, onNavigate }: {
             )}
             <div className="space-y-0.5">
               {section.items.map(item => item.to ? (
-                <NavLink key={item.label} to={item.to} onClick={onNavigate}
+                <NavLink key={item.label} to={item.to} end={item.to === '/admin'} onClick={onNavigate}
                   className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium ${rowJustify}`}>
                   {({ isActive }) => (
                     <>

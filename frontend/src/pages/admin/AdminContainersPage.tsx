@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import { adminApi, Container } from '@/api/admin'
 import { useAuthStore } from '@/store/auth'
 import { Spinner } from '@/components/ui/Spinner'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 
-const STATE_COLOR: Record<string, string> = {
-  running: 'bg-ok/15 text-ok',
-  exited:  'bg-white/10 text-ink-low',
-  paused:  'bg-warn/15 text-warn',
-  created: 'bg-accent/20 text-highlight',
+const STATE_DOT: Record<string, string> = {
+  running: '#22C55E',
+  paused:  '#F59E0B',
+  exited:  '#64748B',
+  created: '#A855F7',
 }
 
 const STATE_LABEL: Record<string, string> = {
@@ -54,11 +55,22 @@ export function AdminContainersPage() {
     setLogsName(c.names[0] ?? c.id.slice(0, 12))
   }
 
+  const runningCount = containers.filter(c => c.state === 'running').length
+
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold">Контейнеры</h1>
-        <button onClick={load} disabled={loading} className="btn-ghost text-sm gap-1.5">
+    <div className="p-4 md:p-6">
+      <div className="flex items-center gap-3 mb-5">
+        <h1 className="font-display text-xl font-bold text-white">Контейнеры</h1>
+        {containers.length > 0 && (
+          <span className="px-2 py-0.5 rounded-full text-xs font-semibold"
+            style={{
+              background: runningCount === containers.length ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)',
+              color: runningCount === containers.length ? '#22C55E' : '#F59E0B',
+            }}>
+            {runningCount}/{containers.length} активны
+          </span>
+        )}
+        <button onClick={load} disabled={loading} className="btn-ghost text-sm gap-1.5 ml-auto">
           {loading ? <Spinner size={14} /> : (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="23 4 23 10 17 10"/>
@@ -71,62 +83,72 @@ export function AdminContainersPage() {
 
       {error !== null && <div className="mb-4"><ErrorMessage error={error} /></div>}
 
-      <div className="glass rounded-2xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-white/5 bg-white/[0.03] text-ink-low text-xs uppercase tracking-wide">
-              <th className="px-4 py-3 text-left">Имя</th>
-              <th className="px-4 py-3 text-left">Образ</th>
-              <th className="px-4 py-3 text-left">Статус</th>
-              <th className="px-4 py-3 text-left">Состояние</th>
-              <th className="px-4 py-3 text-left">Действия</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {loading && containers.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center"><Spinner size={24} /></td></tr>
-            ) : containers.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-ink-low">Контейнеры не найдены</td></tr>
-            ) : containers.map(c => (
-              <tr key={c.id} className="hover:bg-white/5 transition-colors">
-                <td className="px-4 py-3 font-medium">{c.names[0] ?? c.id.slice(0, 12)}</td>
-                <td className="px-4 py-3 text-ink-low text-xs font-mono max-w-[200px] truncate">
-                  {c.image}
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                    STATE_COLOR[c.state] ?? 'bg-white/10 text-ink-mid'
-                  }`}>
-                    {STATE_LABEL[c.state] ?? c.state}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-ink-low text-xs">{c.status}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => openLogs(c)}
-                      className="btn-ghost py-1 px-2 text-xs"
-                      title="Просмотр логов"
-                    >
-                      Логи
-                    </button>
-                    <button
-                      onClick={() => restart(c.id)}
-                      disabled={restarting === c.id}
-                      className="btn-ghost py-1 px-2 text-xs text-warn hover:bg-warn/10 disabled:opacity-40"
-                      title="Перезапустить контейнер"
-                    >
-                      {restarting === c.id ? <Spinner size={12} /> : 'Перезапустить'}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {loading && containers.length === 0 ? (
+        <div className="space-y-2">
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className="glass rounded-2xl h-[64px] animate-pulse" style={{ opacity: 1 - i * 0.18 }} />
+          ))}
+        </div>
+      ) : containers.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
+            style={{ background: 'rgba(124,58,237,0.15)' }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="1.5">
+              <rect x="2" y="7" width="20" height="14" rx="2"/>
+              <path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/>
+            </svg>
+          </div>
+          <p className="text-sm" style={{ color: 'var(--text-low)' }}>Контейнеры не найдены</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {containers.map((c, i) => (
+            <motion.div
+              key={c.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 32, delay: Math.min(i * 0.03, 0.3) }}
+              className="glass rounded-2xl px-4 py-3 flex items-center gap-3.5 transition-colors hover:bg-white/[0.06]"
+            >
+              {/* Статус-точка */}
+              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${c.state === 'running' ? 'animate-pulse' : ''}`}
+                style={{ background: STATE_DOT[c.state] ?? '#64748B' }} />
 
-      {/* Log drawer */}
+              {/* Имя + образ */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white truncate font-mono">
+                  {c.names[0] ?? c.id.slice(0, 12)}
+                </p>
+                <p className="text-[11px] font-mono truncate" style={{ color: 'var(--text-low)' }}>
+                  {c.image}
+                </p>
+              </div>
+
+              {/* Состояние */}
+              <div className="hidden sm:block w-40 shrink-0">
+                <p className="text-xs font-medium" style={{ color: STATE_DOT[c.state] ?? 'var(--text-mid)' }}>
+                  {STATE_LABEL[c.state] ?? c.state}
+                </p>
+                <p className="text-[11px] truncate" style={{ color: 'var(--text-low)' }}>{c.status}</p>
+              </div>
+
+              {/* Действия */}
+              <div className="flex gap-1 shrink-0">
+                <button onClick={() => openLogs(c)} title="Просмотр логов"
+                  className="btn-ghost py-1.5 px-3 text-xs">
+                  Логи
+                </button>
+                <button onClick={() => restart(c.id)} disabled={restarting === c.id}
+                  title="Перезапустить контейнер"
+                  className="btn-ghost py-1.5 px-3 text-xs text-warn hover:bg-warn/10 disabled:opacity-40">
+                  {restarting === c.id ? <Spinner size={12} /> : 'Перезапуск'}
+                </button>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
       {logsId && accessToken && (
         <LogsDrawer
           containerId={logsId}
@@ -208,10 +230,22 @@ function LogsDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex">
-      <div className="flex-1 bg-black/50" onClick={onClose} />
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.18 }}
+        className="flex-1"
+        style={{ background: 'rgba(8,11,22,0.6)', backdropFilter: 'blur(4px)' }}
+        onClick={onClose}
+      />
 
-      <div className="w-full max-w-3xl flex flex-col shadow-2xl"
-        style={{ background: 'rgba(5,7,15,0.97)', borderLeft: '1px solid rgba(255,255,255,0.08)' }}>
+      <motion.div
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 32 }}
+        className="w-full max-w-3xl flex flex-col shadow-2xl"
+        style={{ background: 'rgba(5,7,15,0.97)', borderLeft: '1px solid rgba(255,255,255,0.08)' }}
+      >
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
           <div className="flex items-center gap-2.5">
             <span className={`w-2 h-2 rounded-full ${connected ? 'bg-ok animate-pulse' : 'bg-ink-low'}`} />
@@ -242,7 +276,7 @@ function LogsDrawer({
           ))}
           <div ref={bottomRef} />
         </div>
-      </div>
+      </motion.div>
     </div>
   )
 }

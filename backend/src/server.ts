@@ -22,6 +22,7 @@ import calendarRoutes from './modules/calendar/calendar.routes.js'
 import mediaRoutes from './modules/media/media.routes.js'
 import adminUsersRoutes from './modules/admin/admin.users.routes.js'
 import adminContainersRoutes from './modules/admin/admin.containers.routes.js'
+import adminStatsRoutes from './modules/admin/admin.stats.routes.js'
 import pushRoutes from './modules/push/push.routes.js'
 import { createSocketServer } from './modules/realtime/socket.server.js'
 
@@ -115,6 +116,7 @@ async function buildCoreServer() {
   await app.register(mediaRoutes, { prefix: '/media' })
   await app.register(adminUsersRoutes, { prefix: '/admin/users' })
   await app.register(adminContainersRoutes, { prefix: '/admin/containers' })
+  await app.register(adminStatsRoutes, { prefix: '/admin/stats' })
   await app.register(pushRoutes, { prefix: '/push' })
 
   return app

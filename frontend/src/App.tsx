@@ -11,8 +11,9 @@ import { ChatPage } from '@/pages/ChatPage'
 import { ContactsPage } from '@/pages/ContactsPage'
 import { UserProfilePage } from '@/pages/UserProfilePage'
 import { AdminLayout } from '@/pages/admin/AdminLayout'
+import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage'
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage'
-import { AdminUserMessagesPage } from '@/pages/admin/AdminUserMessagesPage'
+import { AdminUserProfilePage } from '@/pages/admin/AdminUserProfilePage'
 import { AdminContainersPage } from '@/pages/admin/AdminContainersPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -57,9 +58,9 @@ export default function App() {
 
         {/* Admin */}
         <Route path="/admin" element={<RequireAdmin><AdminLayout /></RequireAdmin>}>
-          <Route index element={<Navigate to="/admin/users" replace />} />
+          <Route index element={<AdminDashboardPage />} />
           <Route path="users" element={<AdminUsersPage />} />
-          <Route path="users/:id/messages" element={<AdminUserMessagesPage />} />
+          <Route path="users/:id" element={<AdminUserProfilePage />} />
           <Route path="containers" element={<AdminContainersPage />} />
         </Route>
 
