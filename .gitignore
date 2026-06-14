@@ -25,3 +25,6 @@ npm-debug.log*
 Thumbs.db
 
 
+
+# Local Claude Code config (содержит секреты — не коммитить)
+.claude/

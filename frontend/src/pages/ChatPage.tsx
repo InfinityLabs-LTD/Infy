@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { chatApi } from '@/api/chat'
 import { mediaApi } from '@/api/media'
@@ -12,6 +13,7 @@ import { MessageBubble } from '@/components/chat/MessageBubble'
 import { CircleRecorderModal } from '@/components/chat/CircleRecorderModal'
 import { PartnerInfoPanel } from '@/components/chat/PartnerInfoPanel'
 import { CalendarPanel } from '@/components/chat/calendar/CalendarPanel'
+import { AiPanel } from '@/components/chat/AiPanel'
 import { Spinner } from '@/components/ui/Spinner'
 import { useMediaRecorder } from '@/hooks/useMediaRecorder'
 
@@ -111,6 +113,7 @@ export function ChatPage() {
   const [showCircle, setShowCircle] = useState(false)
   const [showPanel, setShowPanel] = useState(false)
   const [showCalendar, setShowCalendar] = useState(false)
+  const [showAi, setShowAi] = useState(false)
   const [showAttachMenu, setShowAttachMenu] = useState(false)
   const [shortRecordToast, setShortRecordToast] = useState(false)
   const [searchMode, setSearchMode] = useState(false)
@@ -463,6 +466,11 @@ export function ChatPage() {
               <IconBtn onClick={() => setSearchMode(true)} color="rgba(255,255,255,0.5)">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+              </IconBtn>
+              <IconBtn onClick={() => chatId && setShowAi(true)} title="Infy Pulse — AI" color="#C084FC">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/>
                 </svg>
               </IconBtn>
               <IconBtn onClick={() => chatId && setShowCalendar(true)} title="Календарь" color="rgba(255,255,255,0.5)">
@@ -850,6 +858,16 @@ export function ChatPage() {
           onClose={() => setShowCalendar(false)}
         />
       )}
+
+      <AnimatePresence>
+        {showAi && chatId && (
+          <AiPanel
+            chatId={chatId}
+            onClose={() => setShowAi(false)}
+            onUseReply={(t) => { setText(t); inputRef.current?.focus() }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

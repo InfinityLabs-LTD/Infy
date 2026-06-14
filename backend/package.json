@@ -12,6 +12,7 @@
     "studio": "prisma studio"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.69.0",
     "@fastify/cors": "^9.0.1",
     "@socket.io/redis-adapter": "^8.3.0",
     "socket.io": "^4.8.1",

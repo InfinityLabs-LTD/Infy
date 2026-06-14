@@ -38,6 +38,10 @@ const schema = z.object({
   VAPID_PUBLIC_KEY: z.string().min(1),
   VAPID_PRIVATE_KEY: z.string().min(1),
   VAPID_SUBJECT: z.string().default('mailto:admin@example.com'),
+
+  // AI (Infy Pulse) — опционально: без ключа фича отключена, остальное работает
+  ANTHROPIC_API_KEY: z.string().optional(),
+  ANTHROPIC_MODEL: z.string().default('claude-opus-4-8'),
 })
 
 const parsed = schema.safeParse(process.env)
