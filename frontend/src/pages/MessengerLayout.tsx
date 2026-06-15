@@ -177,10 +177,12 @@ export function MessengerLayout() {
   })
 
   return (
-    <div className="flex overflow-hidden" style={{ height: '100dvh', background: 'var(--bg-deep)' }}>
+    <div className="flex flex-col overflow-hidden" style={{ height: '100dvh', background: 'var(--bg-deep)' }}>
+      {/* ── Основной контент ── */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
       {/* ── Sidebar ── */}
       <aside
-        className={`flex flex-col w-full md:w-[320px] md:shrink-0 ${activeChatId ? 'hidden md:flex' : 'flex'}`}
+        className={`flex flex-col md:w-[320px] md:shrink-0 ${activeChatId || isContactsTab ? 'hidden md:flex' : 'flex w-full'}`}
         style={{ background: 'rgba(255,255,255,0.03)', borderRight: '1px solid rgba(255,255,255,0.06)' }}
       >
 
@@ -292,43 +294,6 @@ export function MessengerLayout() {
           )}
         </nav>
 
-        {/* Нижняя навигация — плавающая стеклянная капсула (только мобильный) */}
-        <div className="md:hidden shrink-0 px-4"
-          style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))', paddingTop: 8 }}>
-          <div className="glass-pop flex items-center justify-around rounded-full px-2 py-1.5">
-            <MobileNavBtn
-              label="Чаты"
-              active={!isContactsTab}
-              onClick={() => navigate('/')}
-              icon={
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-                </svg>
-              }
-            />
-            <MobileNavBtn
-              label="Контакты"
-              active={isContactsTab}
-              onClick={() => navigate('/contacts')}
-              icon={
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
-                  <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
-                </svg>
-              }
-            />
-            <MobileNavBtn
-              label="Профиль"
-              active={false}
-              onClick={() => navigate('/profile')}
-              icon={
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
-                </svg>
-              }
-            />
-          </div>
-        </div>
       </aside>
 
       {/* ── Main ── */}
@@ -337,6 +302,45 @@ export function MessengerLayout() {
         style={{ background: 'var(--bg-deep)' }}
       >
         <Outlet />
+      </div>
+      </div>
+
+      {/* Нижняя навигация — плавающая стеклянная капсула (только мобильный, не в чате) */}
+      <div className={`md:hidden shrink-0 px-4 ${activeChatId ? 'hidden' : ''}`}
+        style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))', paddingTop: 8 }}>
+        <div className="glass-pop flex items-center justify-around rounded-full px-2 py-1.5">
+          <MobileNavBtn
+            label="Чаты"
+            active={!isContactsTab && !activeChatId}
+            onClick={() => navigate('/')}
+            icon={
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+              </svg>
+            }
+          />
+          <MobileNavBtn
+            label="Контакты"
+            active={isContactsTab}
+            onClick={() => navigate('/contacts')}
+            icon={
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+              </svg>
+            }
+          />
+          <MobileNavBtn
+            label="Профиль"
+            active={false}
+            onClick={() => navigate('/profile')}
+            icon={
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+              </svg>
+            }
+          />
+        </div>
       </div>
 
       {showNewChat && <NewChatModal onClose={() => setShowNewChat(false)} />}
