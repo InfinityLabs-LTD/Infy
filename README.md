@@ -1,157 +1,305 @@
+<div align="center">
+
 # Infy Messenger
 
-Fast, secure, mobile-first messenger. API-first architecture: REST + WebSocket backend, React web client, with native iOS/Android planned.
+**Быстрый, безопасный, mobile-first мессенджер нового поколения.**
 
-## Quick start (local dev)
+Архитектура API-first: REST + WebSocket бэкенд, React-клиент, premium liquid-glass
+интерфейс в фирменной фиолетовой палитре. Нативные приложения iOS/Android — в планах.
 
-### Prerequisites
+</div>
 
-- Docker Desktop (or Docker Engine + Compose plugin)
-- Node.js 20+ (for running backend/frontend outside Docker)
+---
 
-### 1. Clone and configure
+## ✨ Возможности
+
+### 💬 Сообщения
+- Личные чаты в реальном времени (Socket.IO)
+- Текст, **фото, видео, файлы**
+- **Голосовые сообщения** и **видео-кружки** (запись с удержанием, фиксация смахиванием)
+- **Ответы** на сообщения, **редактирование**, удаление, **закрепление**
+- **Реакции** эмодзи (до 3 от пользователя на сообщение)
+- Индикатор набора текста, статусы «онлайн / был(а) в сети»
+- Галочки прочтения, счётчик непрочитанных
+- Поиск по сообщениям внутри диалога
+- Группировка сообщений по автору и времени
+
+### 📞 Звонки (WebRTC)
+- **Личные аудио- и видеозвонки 1:1** — mesh P2P, шифрование DTLS/SRTP
+- Premium-экраны: исходящий / входящий / активный, liquid-glass
+- **Демонстрация экрана**, переключение устройств (микрофон / камера / динамики)
+- **Шумоподавление, эхоподавление, автоусиление** (getUserMedia constraints)
+- **Индикаторы качества связи** (🟢🟡🔴 — RTT, потери пакетов, битрейт)
+- Перетаскиваемое и масштабируемое локальное видео (картинка-в-картинке)
+- TURN-сервер (coturn) для соединения за NAT/файрволами
+- История звонков, системные записи в ленте чата
+- Уведомления: в активной вкладке, в свёрнутом браузере (web-push), рингтон
+- Подробности и план масштабирования (группы, SFU) — [docs/CALLS.md](docs/CALLS.md)
+
+### 📅 Календарь чата
+- Общие **события и напоминания** внутри диалога
+- Встроенные пресеты + пользовательские категории с цветами
+- Гибкие напоминания: за сколько минут, кому (себе / партнёру / обоим)
+- Фоновый воркер-планировщик доставляет напоминания (push + realtime)
+
+### 🤖 Infy Pulse (ИИ)
+- **Сводка диалога** одним нажатием
+- **Умные варианты ответа** в контексте переписки
+- На базе Claude (Anthropic). Опционально — без ключа мессенджер работает как обычно
+
+### 👤 Профиль и безопасность
+- Регистрация / вход, JWT (access 15 мин + refresh 30 дней), argon2id
+- Аватар и обложка профиля, био, никнейм, дата рождения
+- **Управление устройствами**: список активных сессий, отзыв, «выйти везде»
+- Ротация refresh-токенов, rate-limiting на чувствительных эндпоинтах
+
+### 🛡 Админ-панель (Infy Shield)
+- Управление пользователями, просмотр истории сообщений
+- **Модерация**: предупреждения, муты, баны (санкции)
+- **Аналитика** и статистика
+- Управление Docker-контейнерами (через защищённый socket-proxy): статус, логи, рестарт
+
+### 📲 PWA и уведомления
+- Push-уведомления (Web Push / VAPID)
+- Адаптивный интерфейс под мобильные (safe-area, iOS/Android), портрет и ландшафт
+
+---
+
+## 🚀 Быстрый старт (локальная разработка)
+
+### Требования
+- Docker Desktop (или Docker Engine + плагин Compose)
+- Node.js 20+ (для запуска бэкенда/фронтенда вне Docker)
+
+### 1. Клонировать и настроить
 
 ```bash
-git clone <repo>
-cd infy
+git clone https://github.com/InfinityLabs-LTD/Infy.git
+cd Infy
 cp .env.example .env
-# Edit .env — set strong secrets for production, defaults work for dev
+# Отредактируйте .env — для прода задайте надёжные секреты; для разработки подходят значения по умолчанию
 ```
 
-### 2. Start with Docker Compose
+### 2. Запуск через Docker Compose
 
 ```bash
 docker compose up -d
 ```
 
-Services started:
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost (nginx) |
-| API docs (Swagger) | http://localhost:3001/docs |
-| Core API | http://localhost:3001 |
-| Realtime | http://localhost:3002 |
-| Media | http://localhost:3003 |
-| MinIO console | http://localhost:9001 |
+Поднимаются сервисы:
 
-### 3. Run migrations
+| Сервис | URL |
+|--------|-----|
+| Фронтенд | http://localhost (nginx) |
+| API-документация (Swagger) | http://localhost:3001/docs |
+| Core API | http://localhost:3001 |
+| Realtime (Socket.IO) | http://localhost:3002 |
+| Media | http://localhost:3003 |
+| Консоль MinIO | http://localhost:9001 |
+
+### 3. Применить миграции БД
 
 ```bash
 docker compose exec core npx prisma migrate deploy
 ```
 
-### 4. Develop without Docker (faster iteration)
+### 4. Разработка без Docker (быстрая итерация)
 
-Start infrastructure only:
+Поднять только инфраструктуру:
+
 ```bash
 docker compose up -d postgres redis minio nginx
 ```
 
-Backend:
+Бэкенд:
+
 ```bash
 cd backend
 npm install
-cp ../.env .env        # or set env vars
-npm run migrate:dev    # first run only
-npm run dev            # hot-reload at :3001
+cp ../.env .env        # или задайте переменные окружения
+npm run migrate:dev    # только при первом запуске
+npm run dev            # hot-reload на :3001
 ```
 
-Frontend:
+Фронтенд:
+
 ```bash
 cd frontend
 npm install
-npm run dev            # Vite at :5173
+npm run dev            # Vite на :5173
 ```
 
-Vite proxies `/api/*` → `localhost:3001` automatically.
+Vite автоматически проксирует `/api/*` → `localhost:3001`.
 
-## Production deployment (Ubuntu VPS)
+> 💡 Для работы **звонков** нужен TURN-сервер. Локально звонки работают через
+> публичный STUN; за симметричным NAT поднимите `coturn` (`docker compose up -d coturn`)
+> и заполните `TURN_*` в `.env`. Подробнее — [docs/CALLS.md](docs/CALLS.md).
 
-### Prerequisites on server
-- Ubuntu 22.04 or 24.04
-- DNS A records pointing to server IP:
-  - `app.yourdomain.com`
-  - `api.yourdomain.com`
-  - `ws.yourdomain.com`
-  - `media.yourdomain.com`
+---
 
-### Deploy
+## 🌐 Деплой в продакшен (Ubuntu VPS)
+
+### Требования на сервере
+- Ubuntu 22.04 или 24.04
+- DNS A-записи на IP сервера:
+  - `app.вашдомен.com`
+  - `api.вашдомен.com`
+  - `ws.вашдомен.com`
+  - `media.вашдомен.com`
+
+### Установка
 
 ```bash
-git clone <repo> /opt/infy
+git clone https://github.com/InfinityLabs-LTD/Infy.git /opt/infy
 cd /opt/infy
 sudo bash install.sh
 ```
 
-The script will:
-1. Install Docker Engine
-2. Ask for domain, Let's Encrypt email, admin password
-3. Check DNS records
-4. Configure firewall (ufw)
-5. Generate secrets → `.env`
-6. Start all containers
-7. Issue TLS certs via certbot
-8. Run Prisma migrations
-9. Create first ADMIN account
+Скрипт `install.sh`:
+1. Установит Docker Engine
+2. Запросит домен, email для Let's Encrypt, пароль администратора
+3. Проверит DNS-записи
+4. Настроит файрвол (ufw)
+5. Сгенерирует секреты → `.env`
+6. Запустит все контейнеры
+7. Выпустит TLS-сертификаты через certbot
+8. Применит миграции Prisma
+9. Создаст первый аккаунт ADMIN
 
-## Project structure
+### Обновление
+
+На сервере доступна команда `infy-update` — тянет `main` и пересобирает только
+изменившиеся сервисы.
+
+> ⚠️ Для звонков в проде откройте в файрволе порты TURN: `3478/udp`, `3478/tcp`,
+> `5349/tcp` и диапазон `49152–65535/udp`; заполните `TURN_SECRET`, `TURN_REALM`,
+> `TURN_EXTERNAL_IP`, `TURN_URLS` в `.env`.
+
+---
+
+## 🏗 Архитектура
+
+Один кодстек бэкенда работает в нескольких ролях (`SERVICE_ROLE`):
+
+| Роль | Порт | Ответственность |
+|------|------|-----------------|
+| `core` | 3001 | REST API: авторизация, профиль, сообщения, медиа-метаданные, календарь, ИИ, админка |
+| `realtime` | 3002 | Socket.IO: сообщения в реальном времени, присутствие, **сигналинг звонков** |
+| `media` | 3003 | Загрузка файлов, транскодинг, интеграция с MinIO |
+| `scheduler` | — | Фоновый воркер: доставка напоминаний календаря |
 
 ```
-/backend        — Fastify API server (modular monolith)
-/frontend       — React 18 + Vite + Tailwind web client
-/mobile         — Reserved for native apps
-/nginx          — nginx configs (dev + prod)
-docker-compose.yml
-.env.example
-install.sh      — VPS deployment script
-SPEC.md         — Full feature specification
-CLAUDE.md       — Developer guide and conventions
+                          ┌────────── nginx ──────────┐
+                          │ app / api / ws / media     │
+                          └──┬─────┬──────┬──────┬─────┘
+                  ┌──────────┘     │      │      └──────────┐
+             ┌────▼────┐     ┌─────▼────┐ │           ┌─────▼────┐
+             │  core   │     │ realtime │ │           │  media   │
+             │ REST    │     │ Socket.IO│ │           │ upload/  │
+             │         │     │ + звонки │ │           │ transcode│
+             └────┬────┘     └─────┬────┘ │           └─────┬────┘
+                  │                │  ┌───▼────┐            │
+                  │                │  │scheduler│           │
+                  │                │  └───┬────┘            │
+             ┌────▼────────────────▼──────▼─────────────────▼────┐
+             │  PostgreSQL 16   ·   Redis 7   ·   MinIO (S3)      │
+             └────────────────────────────────────────────────────┘
+                                     │
+                          ┌──────────▼──────────┐
+                          │  coturn (TURN/STUN) │  ← медиа-ретрансляция звонков
+                          └─────────────────────┘
 ```
 
-## API
+Полная спецификация (модель данных, эндпоинты, безопасность, JWT, rate-limiting) —
+в [SPEC.md](SPEC.md). Система звонков — в [docs/CALLS.md](docs/CALLS.md).
 
-Swagger UI: `http://localhost:3001/docs`
+---
 
-Key endpoints (Phase 1):
+## 📂 Структура проекта
 
 ```
-POST   /auth/register          Register
-POST   /auth/login             Login
-POST   /auth/refresh           Rotate refresh token
-POST   /auth/logout            Logout
-
-GET    /profile/me             My profile
-PATCH  /profile/me             Update profile
-POST   /profile/me/avatar      Upload avatar
-GET    /profile/:username      Public profile
-
-GET    /sessions               List active devices
-DELETE /sessions/:id           Revoke session
-POST   /sessions/logout-all    Logout all devices
+/
+├── backend/              # API-сервер (модульный монолит, Fastify)
+│   ├── src/
+│   │   ├── modules/      # auth, profile, sessions, chat, media,
+│   │   │                 # calendar, calls, ai, push, admin, realtime, scheduler
+│   │   ├── plugins/      # fastify-плагины (prisma, redis, minio)
+│   │   ├── middleware/   # auth-guard, role-guard
+│   │   ├── lib/          # общие утилиты (jwt, turn, presence, webpush, …)
+│   │   └── server.ts     # точка входа
+│   └── prisma/           # schema.prisma + миграции
+├── frontend/             # React 18 + Vite + Tailwind
+│   └── src/
+│       ├── api/          # axios-клиент + типизированные эндпоинты
+│       ├── components/   # UI-компоненты (chat, call, ui, auth, …)
+│       ├── pages/        # страницы-маршруты
+│       ├── hooks/        # кастомные хуки
+│       ├── store/        # состояние (Zustand)
+│       └── lib/          # socket, webrtc, callController, …
+├── mobile/               # зарезервировано под нативные приложения
+├── nginx/                # конфиги nginx (dev + prod)
+├── coturn/               # конфиг TURN-сервера
+├── docs/                 # CALLS.md и др.
+├── docker-compose.yml
+├── install.sh            # деплой на Ubuntu VPS
+├── SPEC.md               # полная спецификация
+├── CLAUDE.md             # руководство разработчика и соглашения
+└── README.md             # этот файл
 ```
 
-## Environment variables
+---
 
-See [.env.example](.env.example) for full documentation.
+## 🔌 API
 
-## Architecture
+Swagger UI: `http://localhost:3001/docs` · OpenAPI JSON: `/docs/json`
 
-See [SPEC.md](SPEC.md) for the full specification including:
-- Service roles (core / realtime / media)
-- Data model
-- All API endpoints (phases 1–4)
-- Security considerations
-- Rate limiting strategy
+Группы эндпоинтов:
 
-## Tech stack
+| Префикс | Назначение |
+|---------|------------|
+| `/auth` | регистрация, вход, refresh, выход |
+| `/profile` | профиль, аватар, обложка, публичный профиль |
+| `/sessions` | устройства: список, отзыв, выйти везде |
+| `/chats` | чаты, сообщения, медиа, реакции, закрепление, поиск |
+| `/calendar` | события, категории, настройки напоминаний |
+| `/calls` | ICE-конфиг (STUN/TURN), история звонков |
+| `/media` | загрузка и раздача файлов |
+| `/ai` | Infy Pulse: статус, сводка диалога, варианты ответа |
+| `/push` | подписка на web-push (VAPID) |
+| `/admin/*` | пользователи, модерация, аналитика, контейнеры (только ADMIN) |
 
-| | |
-|--|--|
-| Backend | Node.js 20 + TypeScript + Fastify 4 |
+Полный список методов — в [SPEC.md](SPEC.md) и Swagger UI.
+
+---
+
+## 🛠 Технологии
+
+| Слой | Технология |
+|------|-----------|
+| Бэкенд | Node.js 20 + TypeScript + Fastify 4 |
 | ORM | Prisma 5 (PostgreSQL 16) |
-| Auth | JWT (access 15m + refresh 30d) + argon2id |
-| Real-time | Socket.IO 4 + Redis adapter |
-| Storage | MinIO (S3-compatible) |
-| Frontend | React 18 + Vite + Tailwind CSS |
-| Proxy | nginx + certbot (Let's Encrypt) |
-| Infra | Docker Compose |
+| Авторизация | JWT (access 15 мин + refresh 30 дней) + argon2id |
+| Реальное время | Socket.IO 4 + Redis-адаптер |
+| Звонки | WebRTC (mesh P2P), STUN/TURN (coturn), DTLS/SRTP |
+| Кэш / PubSub | Redis 7 |
+| Хранилище файлов | MinIO (S3-совместимое) |
+| ИИ | Claude (Anthropic SDK) |
+| Фронтенд | React 18 + Vite + Tailwind CSS + Zustand + Framer Motion |
+| Прокси | nginx + certbot (Let's Encrypt) |
+| Инфраструктура | Docker Compose |
+
+---
+
+## 📄 Документация
+
+- [SPEC.md](SPEC.md) — полная спецификация: модель данных, все эндпоинты, безопасность
+- [docs/CALLS.md](docs/CALLS.md) — система звонков: протокол сигналинга, безопасность, план SFU
+- [CLAUDE.md](CLAUDE.md) — руководство разработчика, команды, соглашения по коду
+
+---
+
+<div align="center">
+
+**Infinity Labs** · сделано с ❤️
+
+</div>

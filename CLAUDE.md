@@ -1,165 +1,185 @@
-# Infy Messenger — Developer Guide
+# Infy Messenger — Руководство разработчика
 
-## Stack
+## Технологический стек
 
-| Layer | Technology |
-|-------|-----------|
-| Backend runtime | Node.js 20 + TypeScript |
-| API framework | Fastify 4 |
+| Слой | Технология |
+|------|-----------|
+| Среда бэкенда | Node.js 20 + TypeScript |
+| API-фреймворк | Fastify 4 |
 | ORM | Prisma 5 |
-| Real-time | Socket.IO 4 |
-| Auth | JWT (access 15m + refresh 30d), argon2id |
-| Validation | Zod |
-| Database | PostgreSQL 16 |
-| Cache / PubSub | Redis 7 |
-| Object storage | MinIO (S3-compatible) |
-| Frontend | React 18 + Vite + Tailwind CSS |
-| Proxy | nginx + certbot (Let's Encrypt) |
-| Infra | Docker Compose |
+| Реальное время | Socket.IO 4 |
+| Звонки | WebRTC (mesh P2P), STUN/TURN (coturn), DTLS/SRTP |
+| Авторизация | JWT (access 15 мин + refresh 30 дней), argon2id |
+| Валидация | Zod |
+| База данных | PostgreSQL 16 |
+| Кэш / PubSub | Redis 7 |
+| Хранилище файлов | MinIO (S3-совместимое) |
+| ИИ | Claude (Anthropic SDK) |
+| Фронтенд | React 18 + Vite + Tailwind CSS + Zustand + Framer Motion |
+| Прокси | nginx + certbot (Let's Encrypt) |
+| Инфраструктура | Docker Compose |
 
-## Project Structure
+## Структура проекта
 
 ```
 /
-├── backend/              # API server (modular monolith)
+├── backend/              # API-сервер (модульный монолит)
 │   ├── src/
 │   │   ├── modules/
-│   │   │   ├── auth/     # register, login, refresh, logout
-│   │   │   ├── profile/  # profile CRUD, avatar upload
-│   │   │   ├── sessions/ # device session management
-│   │   │   ├── chat/     # messaging (Phase 2)
-│   │   │   └── media/    # file handling (Phase 3)
-│   │   ├── plugins/      # fastify plugins (prisma, redis, jwt, rate-limit)
-│   │   ├── middleware/   # auth guard, role guard
-│   │   ├── lib/          # shared utilities
-│   │   └── server.ts     # entry point
+│   │   │   ├── auth/      # регистрация, вход, refresh, выход
+│   │   │   ├── profile/   # профиль (CRUD), аватар, обложка
+│   │   │   ├── sessions/  # управление сессиями устройств
+│   │   │   ├── chat/      # сообщения, реакции, закрепление
+│   │   │   ├── calendar/  # события и напоминания в чате
+│   │   │   ├── calls/     # звонки: сервис, роуты, сигналинг
+│   │   │   ├── media/     # файлы, транскодинг
+│   │   │   ├── ai/        # Infy Pulse (сводка, варианты ответа)
+│   │   │   ├── push/      # web-push (VAPID)
+│   │   │   ├── admin/     # пользователи, модерация, статистика, контейнеры
+│   │   │   ├── realtime/  # Socket.IO-шлюз + сигналинг звонков
+│   │   │   └── scheduler/ # воркер доставки напоминаний
+│   │   ├── plugins/      # fastify-плагины (prisma, redis, minio, rate-limit)
+│   │   ├── middleware/   # auth-guard, role-guard
+│   │   ├── lib/          # общие утилиты (jwt, turn, presence, webpush, …)
+│   │   └── server.ts     # точка входа
 │   ├── prisma/
 │   │   ├── schema.prisma
 │   │   └── migrations/
 │   ├── Dockerfile
 │   └── package.json
-├── frontend/             # React web client
+├── frontend/             # React web-клиент
 │   ├── src/
-│   │   ├── api/          # Axios client + typed endpoints
-│   │   ├── components/   # shared UI components
-│   │   ├── pages/        # route-level components
-│   │   ├── hooks/        # custom React hooks
-│   │   ├── store/        # Zustand state
+│   │   ├── api/          # axios-клиент + типизированные эндпоинты
+│   │   ├── components/   # UI-компоненты (chat, call, ui, auth, …)
+│   │   ├── pages/        # страницы-маршруты
+│   │   ├── hooks/        # кастомные хуки
+│   │   ├── store/        # состояние (Zustand)
+│   │   ├── lib/          # socket, webrtc, callController, …
 │   │   └── main.tsx
 │   ├── Dockerfile
 │   └── package.json
-├── mobile/               # Reserved for native apps
+├── mobile/               # зарезервировано под нативные приложения
 ├── nginx/
-│   ├── dev.conf          # localhost, no TLS
-│   └── prod.conf         # domain + TLS
+│   ├── dev.conf          # localhost, без TLS
+│   └── prod.conf         # домен + TLS
+├── coturn/
+│   └── turnserver.conf   # конфиг TURN-сервера
+├── docs/
+│   └── CALLS.md          # система звонков
 ├── docker-compose.yml
 ├── .env.example
-├── install.sh            # Interactive Ubuntu VPS deploy
-├── SPEC.md               # Full feature specification
-├── CLAUDE.md             # This file
+├── install.sh            # интерактивный деплой на Ubuntu VPS
+├── SPEC.md               # полная спецификация
+├── CLAUDE.md             # этот файл
 └── README.md
 ```
 
-## Commands
+## Команды
 
-### Local Development
+### Локальная разработка
 
 ```bash
-# Start all infrastructure (postgres, redis, minio, nginx)
+# Запустить всю инфраструктуру (postgres, redis, minio, nginx)
 docker compose up -d postgres redis minio nginx
 
-# Backend dev server (hot reload)
+# (опционально) TURN-сервер для звонков за NAT
+docker compose up -d coturn
+
+# Бэкенд (hot reload)
 cd backend && npm run dev
 
-# Frontend dev server (hot reload)
+# Фронтенд (hot reload)
 cd frontend && npm run dev
 
-# Run all with Docker
+# Всё через Docker
 docker compose up -d
 ```
 
-### Database
+### База данных
 
 ```bash
-# Run migrations
+# Применить миграции
 cd backend && npx prisma migrate dev
 
-# Generate Prisma client
+# Сгенерировать Prisma-клиент
 cd backend && npx prisma generate
 
-# Open Prisma Studio
+# Открыть Prisma Studio
 cd backend && npx prisma studio
 
-# Reset DB (dev only)
+# Сбросить БД (только для разработки)
 cd backend && npx prisma migrate reset
 ```
 
 ### Docker
 
 ```bash
-# Build images
+# Сборка образов
 docker compose build
 
-# Start all services
+# Запуск всех сервисов
 docker compose up -d
 
-# View logs
-docker compose logs -f [service]
+# Логи
+docker compose logs -f [сервис]
 
-# Stop all
+# Остановка
 docker compose down
 
-# Stop + remove volumes (DESTRUCTIVE)
+# Остановка + удаление томов (РАЗРУШИТЕЛЬНО)
 docker compose down -v
 ```
 
-## Service Roles
+## Роли сервисов
 
-The backend image runs in one of three roles, set by `SERVICE_ROLE` env var:
+Образ бэкенда работает в одной из ролей, задаваемой переменной `SERVICE_ROLE`:
 
-| Role | Port | Responsibility |
-|------|------|---------------|
-| `core` | 3001 | REST API: auth, profile, messages storage |
-| `realtime` | 3002 | Socket.IO gateway, presence, pub/sub |
-| `media` | 3003 | File upload, transcoding, MinIO integration |
+| Роль | Порт | Ответственность |
+|------|------|-----------------|
+| `core` | 3001 | REST API: авторизация, профиль, сообщения, медиа-метаданные, календарь, ИИ, админка |
+| `realtime` | 3002 | Socket.IO-шлюз, присутствие, pub/sub, **сигналинг звонков** |
+| `media` | 3003 | Загрузка файлов, транскодинг, интеграция с MinIO |
+| `scheduler` | — | Фоновый воркер: доставка напоминаний календаря (push + realtime) |
 
-## Conventions
+## Соглашения
 
 ### TypeScript
 
-- Strict mode enabled
-- No `any` — use `unknown` and narrow
-- Zod schemas for all request/response validation
-- Prisma types for DB models; never expose raw DB rows via API
+- Включён strict mode
+- Никакого `any` — использовать `unknown` и сужать тип
+- Zod-схемы для валидации запросов/ответов
+- Типы Prisma для моделей БД; никогда не отдавать сырые строки БД через API
 
-### API Design
+### Дизайн API
 
-- REST: noun-based URLs, standard HTTP methods
-- All responses: `{ data: T }` on success, `{ error: { code, message } }` on failure
-- Pagination: cursor-based with `{ data: T[], nextCursor: string | null }`
-- HTTP status codes: 200 OK, 201 Created, 204 No Content, 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, 409 Conflict, 429 Too Many Requests, 500 Internal Server Error
+- REST: URL по существительным, стандартные HTTP-методы
+- Все ответы: `{ data: T }` при успехе, `{ error: { code, message } }` при ошибке
+- Пагинация: курсорная — `{ data: T[], nextCursor: string | null }`
+- HTTP-коды: 200 OK, 201 Created, 204 No Content, 400 Bad Request, 401 Unauthorized,
+  403 Forbidden, 404 Not Found, 409 Conflict, 429 Too Many Requests, 500 Internal Server Error
 
-### Auth Flow
+### Поток авторизации
 
 ```
-Register → POST /auth/register → { accessToken, refreshToken, user }
-Login    → POST /auth/login    → { accessToken, refreshToken, user }
-Refresh  → POST /auth/refresh  (body: { refreshToken }) → { accessToken, refreshToken }
-Logout   → POST /auth/logout   (bearer) → 204
+Регистрация → POST /auth/register → { accessToken, refreshToken, user }
+Вход         → POST /auth/login    → { accessToken, refreshToken, user }
+Refresh      → POST /auth/refresh  (body: { refreshToken }) → { accessToken, refreshToken }
+Выход        → POST /auth/logout   (bearer) → 204
 ```
 
-Access token in `Authorization: Bearer <token>` header.
-Refresh token in request body (not cookie) — for mobile client compatibility.
+Access-токен в заголовке `Authorization: Bearer <token>`.
+Refresh-токен в теле запроса (не в cookie) — для совместимости с мобильными клиентами.
 
 ### Git
 
-- Branch: `main` (production), `dev` (integration), `feature/*`
-- Commit messages: imperative mood, `type: description` (feat, fix, chore, docs)
-- No direct commits to `main`
+- Ветки: `main` (продакшен), `dev` (интеграция), `feature/*`
+- Сообщения коммитов: повелительное наклонение, `тип: описание`
+  (feat, fix, chore, docs), **на русском языке**
+- Коммит создаётся **до** деплоя
 
-### Error Codes
+### Коды ошибок
 
-Custom error codes in responses for client-side i18n:
+Кастомные коды для клиентской i18n:
 
 ```
 AUTH_USER_NOT_FOUND
@@ -170,24 +190,33 @@ AUTH_TOKEN_EXPIRED
 AUTH_TOKEN_INVALID
 AUTH_SESSION_REVOKED
 PROFILE_USERNAME_INVALID
+CHAT_NOT_MEMBER
+MESSAGE_NOT_FOUND
+REACTION_LIMIT
+CALL_ALREADY_ACTIVE
+CALL_GROUP_UNSUPPORTED
 RATE_LIMIT_EXCEEDED
 ```
 
-## Ports (local dev)
+## Порты (локальная разработка)
 
-| Service | Port |
-|---------|------|
+| Сервис | Порт |
+|--------|------|
 | nginx | 80 |
-| core (backend) | 3001 |
+| core (бэкенд) | 3001 |
 | realtime | 3002 |
 | media | 3003 |
 | PostgreSQL | 5432 |
 | Redis | 6379 |
 | MinIO API | 9000 |
-| MinIO Console | 9001 |
-| Frontend (Vite) | 5173 |
+| Консоль MinIO | 9001 |
+| Фронтенд (Vite) | 5173 |
+| coturn (TURN/STUN) | 3478, 5349, 49152–65535/udp |
 
-## API Documentation
+## Документация API
 
-Swagger UI available at `http://localhost:3001/docs` when running core service.
-OpenAPI JSON at `http://localhost:3001/docs/json`.
+Swagger UI: `http://localhost:3001/docs` (при запущенном core).
+OpenAPI JSON: `http://localhost:3001/docs/json`.
+
+Система звонков (протокол сигналинга, безопасность, план масштабирования):
+[docs/CALLS.md](docs/CALLS.md).

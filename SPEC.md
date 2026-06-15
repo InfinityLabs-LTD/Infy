@@ -1,317 +1,296 @@
-# Infy Messenger — Full Specification
+# Infy Messenger — Полная спецификация
 
-## Architecture Overview
+Документ описывает архитектуру, модель данных, API и принципы безопасности
+проекта в его текущем состоянии. Терминология и эндпоинты соответствуют коду.
 
-### Service Roles (single codebase, three runtime roles)
+---
+
+## Обзор архитектуры
+
+### Роли сервисов (единый кодстек, несколько runtime-ролей)
+
+Роль выбирается переменной окружения `SERVICE_ROLE`.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        nginx                                │
-│  app.DOMAIN → frontend static / Vite dev proxy             │
-│  api.DOMAIN → core (REST API, port 3001)                   │
-│  ws.DOMAIN  → realtime (Socket.IO, port 3002)              │
-│  media.DOMAIN → media service (port 3003)                  │
-└────────┬────────────┬──────────────┬───────────────────────┘
-         │            │              │
-    ┌────▼────┐  ┌────▼──────┐  ┌───▼──────┐
-    │  core   │  │ realtime  │  │  media   │
-    │ REST API│  │ Socket.IO │  │ upload/  │
-    │ auth    │  │ gateway   │  │ transcode│
-    │ profile │  │ presence  │  │          │
-    │ messages│  │ pub/sub   │  │          │
-    └────┬────┘  └────┬──────┘  └───┬──────┘
-         │            │              │
-    ┌────▼────────────▼──────────────▼──────┐
-    │            PostgreSQL 16              │
-    └───────────────────────────────────────┘
-         │            │
-    ┌────▼────────────▼──────────────────────┐
-    │     Redis (adapter + presence + RL)    │
-    └────────────────────────────────────────┘
-         │
-    ┌────▼──────────┐
-    │    MinIO      │
-    │ (S3-compat)   │
-    └───────────────┘
+│                          nginx                                │
+│  app.DOMAIN   → статика фронтенда / Vite dev-proxy            │
+│  api.DOMAIN   → core     (REST API,    порт 3001)             │
+│  ws.DOMAIN    → realtime (Socket.IO,   порт 3002)             │
+│  media.DOMAIN → media    (файлы,       порт 3003)             │
+└────────┬───────────┬──────────────┬───────────────┬──────────┘
+         │           │              │               │
+    ┌────▼────┐ ┌────▼──────┐ ┌─────▼─────┐    ┌────▼──────┐
+    │  core   │ │ realtime  │ │   media   │    │ scheduler │
+    │ REST    │ │ Socket.IO │ │ upload/   │    │ воркер    │
+    │ auth    │ │ presence  │ │ transcode │    │ напомина- │
+    │ profile │ │ сигналинг │ │           │    │ ний       │
+    │ messages│ │ звонков   │ │           │    │           │
+    └────┬────┘ └────┬──────┘ └─────┬─────┘    └────┬──────┘
+         │           │              │               │
+    ┌────▼───────────▼──────────────▼───────────────▼────┐
+    │                  PostgreSQL 16                       │
+    └──────────────────────────────────────────────────────┘
+         │           │
+    ┌────▼───────────▼──────────────────────────────────────┐
+    │        Redis 7 (адаптер + присутствие + rate-limit)    │
+    └──────────────────────────────────────────────────────┘
+         │                              │
+    ┌────▼──────────┐          ┌────────▼────────┐
+    │     MinIO     │          │     coturn      │
+    │ (S3-совмест.) │          │  TURN / STUN    │
+    └───────────────┘          └─────────────────┘
 ```
 
-### Inter-service Communication
+### Межсервисное взаимодействие
 
-- **core ↔ realtime**: Redis pub/sub channels (`chat:message`, `user:presence`, `typing:status`)
-- **core ↔ media**: REST internal API calls (media registers upload URL, core saves metadata)
-- **all → postgres**: shared Prisma client (separate connection pools per role)
-- **all → redis**: shared Redis client (separate DB indexes: 0=sessions, 1=presence, 2=rate-limit)
-- **media → minio**: S3 SDK direct upload/download
+- **core ↔ realtime**: каналы Redis pub/sub (`chat:message`, `chat:calendar`, `calendar:reminder`)
+- **realtime (звонки)**: состояние звонка в Redis (`call:state:*`, `call:user:*`),
+  общее для всех realtime-инстансов через `@socket.io/redis-adapter`
+- **media → minio**: прямая загрузка/скачивание через S3 SDK
+- **все → postgres**: общий клиент Prisma (отдельные пулы соединений на роль)
+- **все → redis**: общий клиент Redis (адаптер сокетов, присутствие, rate-limit)
 
 ---
 
-## Data Model
+## Модель данных
 
-### User
+Ниже — основные сущности. Полное и каноничное определение — в
+[`backend/prisma/schema.prisma`](backend/prisma/schema.prisma).
 
-```sql
-CREATE TABLE "User" (
-  id             BIGINT GENERATED ALWAYS AS IDENTITY (START WITH 1) PRIMARY KEY,
-  username       VARCHAR(32) UNIQUE NOT NULL,  -- lowercase, a-z0-9_
-  nickname       VARCHAR(64) NOT NULL,
-  birthdate      DATE,
-  avatar_url     TEXT,
-  password_hash  TEXT NOT NULL,
-  email          VARCHAR(255) UNIQUE,          -- nullable
-  email_verified_at TIMESTAMPTZ,              -- nullable
-  role           TEXT NOT NULL DEFAULT 'USER', -- USER | ADMIN
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  last_seen_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-```
+### Пользователи и доступ
 
-External-facing identifier: `username`. Internal joins use `id`.
+- **User** — `id` (BigInt, внутренний), `username` (уникальный, внешний идентификатор),
+  `nickname`, `birthdate`, `avatarUrl`, `coverUrl`, `bio`, `passwordHash` (argon2id),
+  `email`, `role` (`USER` | `ADMIN`), `createdAt`, `lastSeenAt`.
+- **DeviceSession** — устройство/сессия: `refreshTokenHash` (уникальный), `deviceName`,
+  `userAgent`, `ip`, `revokedAt`. Ротация refresh-токена при каждом `/auth/refresh`.
+- **EmailVerificationToken** — только схема; флоу подтверждения email пока не включён.
+- **Sanction** (Infy Shield) — модерация: `type` (`WARN` | `MUTE` | `BAN`), `reason`,
+  `expiresAt`, `revokedAt`, кто выдал (`issuedById`).
 
-### DeviceSession
+### Чаты и сообщения
 
-```sql
-CREATE TABLE "DeviceSession" (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id             BIGINT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
-  refresh_token_hash  TEXT NOT NULL UNIQUE,
-  device_name         VARCHAR(255),
-  user_agent          TEXT,
-  ip                  INET,
-  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  last_active_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  revoked_at          TIMESTAMPTZ          -- NULL = active
-);
-CREATE INDEX ON "DeviceSession"(user_id);
-CREATE INDEX ON "DeviceSession"(refresh_token_hash);
-```
+- **Chat** — `type` (`DIRECT` | `GROUP`), `createdAt`.
+- **ChatMember** — членство: `lastReadMessageId`, `lastReadAt` (для непрочитанных и галочек).
+- **Message** — `id` (ULID, упорядочен по времени), `chatId`, `senderId`, `content`,
+  `type` (`TEXT` | `IMAGE` | `VIDEO` | `AUDIO` | `CIRCLE_VIDEO` | `SYSTEM`),
+  `editedAt`, `deletedAt` (мягкое удаление), `pinnedAt`, `replyToId`.
+- **Attachment** — вложение: `storageKey` (MinIO), `mimeType`, `sizeBytes`, `width`,
+  `height`, `durationMs`, `thumbnailKey`, `waveform` (для аудио).
+- **MessageReaction** — реакции: `(messageId, userId, emoji)` уникальны.
 
-Refresh token rotation: on each `/auth/refresh` call, old hash is replaced, `last_active_at` updated.
+### Календарь
 
-### EmailVerificationToken (schema only — email flow not yet implemented)
+- **CalendarCategory** — пользовательская категория событий в чате (`name`, `color`).
+- **CalendarEvent** — событие: `title`, `notes`, `eventAt`, `allDay`,
+  категория = пресет (`presetKey`) либо пользовательская (`categoryId`).
+- **EventReminder** — напоминание: `offsetMin`, `target` (`SELF` | `PARTNER` | `BOTH`),
+  `notify`, `fireAt` (для выборки воркером), `sentAt`.
+- **ReminderDelivery** — факт доставки (дедупликация и история).
+- **ChatCalendarSetting** — тумблер получения напоминаний из календаря чата.
 
-```sql
-CREATE TABLE "EmailVerificationToken" (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     BIGINT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
-  token_hash  TEXT NOT NULL UNIQUE,
-  expires_at  TIMESTAMPTZ NOT NULL,
-  consumed_at TIMESTAMPTZ          -- NULL = unused
-);
-CREATE INDEX ON "EmailVerificationToken"(user_id);
-```
+### Звонки
 
-Future: when email verification is enabled, add policy gate in auth middleware checking `emailVerifiedAt IS NOT NULL`.
+- **CallSession** — звонок: `chatId`, `initiatorId`, `media` (`AUDIO` | `VIDEO`),
+  `status` (`RINGING` | `ACTIVE` | `ENDED` | `MISSED` | `DECLINED` | `CANCELLED` | `FAILED`),
+  `createdAt`, `answeredAt`, `endedAt`, `durationSec`.
+- **CallParticipant** — участник звонка: `joinedAt`, `leftAt`. Вынесен отдельно —
+  схема готова к групповым звонкам (не два FK, а массив участников).
 
-### Chat (Phase 2)
+### Push
 
-```sql
-CREATE TABLE "Chat" (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  type        TEXT NOT NULL,  -- DIRECT | GROUP
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE "ChatMember" (
-  chat_id   UUID NOT NULL REFERENCES "Chat"(id) ON DELETE CASCADE,
-  user_id   BIGINT NOT NULL REFERENCES "User"(id) ON DELETE CASCADE,
-  joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (chat_id, user_id)
-);
-```
-
-### Message (Phase 2)
-
-```sql
-CREATE TABLE "Message" (
-  id          UUID PRIMARY KEY,              -- UUID v7 (time-ordered)
-  chat_id     UUID NOT NULL REFERENCES "Chat"(id),
-  sender_id   BIGINT NOT NULL REFERENCES "User"(id),
-  content     TEXT,
-  type        TEXT NOT NULL DEFAULT 'TEXT',  -- TEXT | IMAGE | VIDEO | AUDIO | CIRCLE_VIDEO
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  edited_at   TIMESTAMPTZ,
-  deleted_at  TIMESTAMPTZ
-);
-CREATE INDEX ON "Message"(chat_id, id);     -- range scans for history pagination
-```
-
-UUID v7 chosen for: time-ordered (good B-tree locality), globally unique, no sequence contention across partitions.
-
-### Attachment (Phase 3)
-
-```sql
-CREATE TABLE "Attachment" (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  message_id  UUID NOT NULL REFERENCES "Message"(id) ON DELETE CASCADE,
-  storage_key TEXT NOT NULL,    -- MinIO object key
-  mime_type   TEXT NOT NULL,
-  size_bytes  BIGINT,
-  width       INT,
-  height      INT,
-  duration_ms INT,              -- for audio/video
-  thumbnail_key TEXT            -- MinIO key for generated thumbnail
-);
-```
+- **PushSubscription** — подписка web-push: `endpoint` (уникальный), `p256dh`, `auth`.
 
 ---
 
-## API Endpoints
+## API-эндпоинты
 
-### Phase 1 — Auth & Profile
+Все ответы: `{ data: T }` при успехе, `{ error: { code, message } }` при ошибке.
+Пагинация — курсорная: `{ data: T[], nextCursor: string | null }`.
+Авторизация — заголовок `Authorization: Bearer <accessToken>`.
 
-#### Auth
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/auth/register` | Register new user |
-| POST | `/auth/login` | Login, returns access+refresh tokens |
-| POST | `/auth/refresh` | Rotate refresh token |
-| POST | `/auth/logout` | Revoke current session |
+### Авторизация — `/auth`
+| Метод | Путь | Описание |
+|-------|------|----------|
+| POST | `/auth/register` | Регистрация |
+| POST | `/auth/login` | Вход (возвращает access + refresh) |
+| POST | `/auth/refresh` | Ротация refresh-токена |
+| POST | `/auth/logout` | Отзыв текущей сессии |
 
-#### Device Sessions
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/sessions` | List user's device sessions |
-| DELETE | `/sessions/:id` | Revoke specific session |
-| POST | `/sessions/logout-all` | Revoke all sessions (body: `{exceptCurrent?: boolean}`) |
+### Профиль — `/profile`
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/profile/me` | Свой профиль |
+| PATCH | `/profile/me` | Обновить профиль |
+| POST | `/profile/me/avatar` | Загрузить аватар |
+| POST | `/profile/me/cover` | Загрузить обложку |
+| GET | `/profile/:username` | Публичный профиль |
 
-#### Profile
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/profile/me` | Get own profile |
-| PATCH | `/profile/me` | Update profile (nickname, username, birthdate) |
-| POST | `/profile/me/avatar` | Upload avatar (multipart) |
-| GET | `/users/:username` | Get public profile by username |
+### Сессии устройств — `/sessions`
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/sessions` | Список устройств |
+| DELETE | `/sessions/:id` | Отозвать конкретную сессию |
+| POST | `/sessions/logout-all` | Выйти на всех устройствах |
 
-#### Health
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Service health check |
+### Чаты и сообщения — `/chats`
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/chats` | Список чатов |
+| POST | `/chats` | Создать/получить личный чат |
+| GET | `/chats/partner/:partnerId` | Чат с пользователем |
+| GET | `/chats/:id/messages` | История сообщений (курсор) |
+| POST | `/chats/:id/messages` | Отправить сообщение |
+| GET | `/chats/:id/media` | Медиа-вложения чата |
+| PATCH | `/chats/messages/:id` | Редактировать сообщение |
+| DELETE | `/chats/messages/:id` | Удалить (мягко) |
+| POST | `/chats/messages/:id/react` | Реакция |
+| POST | `/chats/messages/:id/pin` | Закрепить/открепить |
+| GET | `/chats/:id/pinned` | Закреплённое сообщение |
 
-### Phase 2 — Messaging
+### Календарь — `/calendar`
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/calendar/:chatId/events` | События чата |
+| POST | `/calendar/:chatId/events` | Создать событие |
+| PUT | `/calendar/events/:eventId` | Изменить событие |
+| DELETE | `/calendar/events/:eventId` | Удалить событие |
+| GET | `/calendar/:chatId/categories` | Категории |
+| POST | `/calendar/:chatId/categories` | Создать категорию |
+| DELETE | `/calendar/categories/:categoryId` | Удалить категорию |
+| GET | `/calendar/:chatId/settings` | Настройки напоминаний |
+| PATCH | `/calendar/:chatId/settings` | Обновить настройки |
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/chats` | List user's chats |
-| POST | `/chats` | Create direct chat |
-| GET | `/chats/:id/messages` | Paginated message history |
-| POST | `/chats/:id/messages` | Send message (text) |
-| PATCH | `/messages/:id` | Edit message |
-| DELETE | `/messages/:id` | Soft-delete message |
+### Звонки — `/calls`
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/calls/ice` | ICE-серверы (STUN + time-limited TURN) |
+| GET | `/calls/history` | История звонков (курсор) |
 
-#### Socket.IO Events (Phase 2)
-| Event (client→server) | Description |
-|------------------------|-------------|
-| `join_chat` | Subscribe to chat room |
-| `send_message` | Send message via WS |
-| `typing_start` | Start typing indicator |
-| `typing_stop` | Stop typing indicator |
+Сигналинг звонков идёт по Socket.IO — см. [docs/CALLS.md](docs/CALLS.md).
 
-| Event (server→client) | Description |
-|------------------------|-------------|
-| `message_new` | New message in subscribed chat |
-| `message_edited` | Message was edited |
-| `message_deleted` | Message soft-deleted |
-| `typing` | User typing status |
-| `user_online` | User came online |
-| `user_offline` | User went offline |
+### Медиа — `/media`
+| Метод | Путь | Описание |
+|-------|------|----------|
+| POST | `/media/upload` | Загрузка файла |
+| GET | `/media/avatars/*` | Раздача аватаров |
+| GET | `/media/:encodedKey` | Раздача/редирект на presigned-URL |
 
-### Phase 3 — Media
+### Infy Pulse (ИИ) — `/ai`
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/ai/status` | Включён ли ИИ (есть ли ключ) |
+| POST | `/ai/chats/:chatId/summary` | Сводка диалога |
+| POST | `/ai/chats/:chatId/replies` | Варианты ответа |
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/media/upload` | Upload file, returns presigned URL + attachment id |
-| GET | `/media/:key` | Serve/redirect to MinIO presigned download URL |
+### Push — `/push`
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/push/vapid-public-key` | Публичный VAPID-ключ |
+| POST | `/push/subscribe` | Сохранить подписку |
+| DELETE | `/push/subscribe` | Удалить подписку |
 
-### Phase 4 — Admin
+### Админка — `/admin/*` (только `role = ADMIN`)
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/admin/users` | Список пользователей |
+| GET | `/admin/users/:id` | Пользователь |
+| PATCH | `/admin/users/:id` | Изменить пользователя |
+| GET | `/admin/users/:id/messages` | История сообщений пользователя |
+| GET | `/admin/moderation/sanctions` | Список санкций |
+| POST | `/admin/moderation/sanctions` | Выдать санкцию |
+| DELETE | `/admin/moderation/sanctions/:id` | Снять санкцию |
+| GET | `/admin/stats` | Сводная статистика |
+| GET | `/admin/stats/analytics` | Аналитика |
+| GET | `/admin/containers` | Список контейнеров |
+| POST | `/admin/containers/:id/restart` | Перезапуск контейнера |
+| GET | `/admin/containers/:id/logs` | Логи контейнера |
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/admin/users` | List all users (paginated) |
-| PATCH | `/admin/users/:id` | Edit user (role, ban, etc.) |
-| GET | `/admin/users/:id/messages` | View user's message history |
-| GET | `/admin/containers` | List containers (via docker-socket-proxy) |
-| POST | `/admin/containers/:id/restart` | Restart container |
-| GET | `/admin/containers/:id/logs` | Stream container logs |
+### Health
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/health` | Проверка состояния сервиса |
 
 ---
 
-## Rate Limiting Strategy
+## События Socket.IO
+
+### Чат и присутствие
+
+Клиент → сервер: `join_chat`, `send_message`, `mark_read`, `typing_start`,
+`typing_stop`, `ping`.
+
+Сервер → клиент: `message_new`, `message_edited`, `message_updated`,
+`message_deleted`, `messages_read`, `typing`, `user_online`, `user_offline`,
+`online_users`, `reminder_due`, `pong`.
+
+### Звонки
+
+Клиент → сервер: `call:invite`, `call:accept`, `call:decline`, `call:cancel`,
+`call:hangup`, `call:failed`, `call:signal`, `call:media-state`.
+
+Сервер → клиент: `call:incoming`, `call:ringing`, `call:accepted`, `call:signal`,
+`call:media-state`, `call:ended`, `call:taken-elsewhere`, `call:peer-busy`.
+
+Полный протокол и поток установки — в [docs/CALLS.md](docs/CALLS.md).
+
+---
+
+## Стратегия JWT
+
+- **Access-токен**: короткоживущий (15 мин), HS256, payload `{ sub, username, role, sessionId }`.
+- **Refresh-токен**: долгоживущий (30 дней), хранится в виде хэша в `DeviceSession.refreshTokenHash`.
+- При refresh: проверка хэша → новая пара → обновление хэша (ротация) → возврат токенов.
+- При выходе: проставляется `revokedAt` у `DeviceSession`.
+- Refresh-токен передаётся в теле запроса (не в cookie) — для совместимости с мобильными клиентами.
+
+---
+
+## Rate-limiting
 
 ```
-POST /auth/register  → 5 req / 1 hour / IP
-POST /auth/login     → 10 req / 15 min / IP (exponential backoff on 429)
-global API           → 100 req / 1 min / IP
+POST /auth/register  → 5 запросов / 1 час / IP
+POST /auth/login     → 10 запросов / 15 мин / IP
+глобально (API)      → 100 запросов / 1 мин / IP
 ```
 
-All thresholds configurable via env vars. Uses `@fastify/rate-limit` with Redis store.
-Real IP extracted from `X-Forwarded-For` / `X-Real-IP` (nginx sets these; `trustProxy` enabled only for known proxy IP).
+Все пороги настраиваются через переменные окружения (`RATE_LIMIT_*`).
+Реализация — `@fastify/rate-limit` с хранилищем в Redis. Реальный IP берётся из
+`X-Forwarded-For` / `X-Real-IP` (nginx; `trustProxy` включён только для известного IP).
 
 ---
 
-## JWT Strategy
+## Безопасность
 
-- **Access token**: short-lived (15 min), signed HS256, payload: `{sub: userId, username, role}`
-- **Refresh token**: long-lived (30 days), opaque random bytes, stored hashed (SHA-256) in `DeviceSession.refreshTokenHash`
-- On refresh: validate hash → generate new pair → update hash (rotation) → return new tokens
-- On logout: set `revokedAt` on `DeviceSession`
-- Middleware checks `revokedAt` IS NULL (token not revoked) before accepting access token
-
----
-
-## Phase Roadmap
-
-### Phase 1 — Auth, Profile, Sessions ✅ (current)
-- Register / login / refresh / logout
-- Device sessions management
-- Profile CRUD + avatar upload to MinIO
-- Rate limiting on sensitive endpoints
-- Frontend: register, login, profile, edit profile, my devices screens
-
-### Phase 2 — Real-time Chat (1-on-1)
-- Socket.IO messaging with history in Postgres
-- Message.id = UUID v7
-- Typing indicators, online/offline presence (Redis)
-- Frontend: chat list, chat window, message bubbles
-
-### Phase 3 — Media
-- Photo/video upload and display
-- Voice messages (MediaRecorder API)
-- Circle video (short round video clips)
-- Transcoding pipeline in media service
-- Frontend: media preview, voice player, circle video player
-
-### Phase 4 — Admin Panel
-- User management (role=ADMIN only)
-- Message history viewer
-- Container management via docker-socket-proxy (Tecnativa)
-  - Allowlist: list, status, logs, restart only
-  - No direct docker.sock mount in backend
-- Log viewer (read-only, via socket-proxy or Dozzle)
+- **Пароли**: argon2id.
+- **Токены**: access не хранится на сервере; refresh — в виде хэша.
+- **Звонки**: медиа шифруется DTLS/SRTP (часть WebRTC); сервер видит только
+  зашифрованный трафик при relay через TURN. TURN-credentials временные (HMAC),
+  запрещён relay в приватные/loopback-сети.
+- **Загрузка файлов**: проверка MIME, лимиты размера, хранение в MinIO (не на ФС).
+- **Доступ к Docker (админка)**: через docker-socket-proxy со строгим allowlist,
+  без прямого монтирования docker.sock в бэкенд.
+- **SQL-инъекции**: параметризованные запросы Prisma.
+- **XSS**: React экранирует по умолчанию; CSP-заголовки через nginx.
+- **CORS**: явный allowlist.
+- **TLS**: Let's Encrypt через certbot, автопродление.
+- **Модерация (Infy Shield)**: предупреждения, временные муты, баны.
 
 ---
 
-## Security Considerations
+## Переменные окружения
 
-- Passwords: argon2id hashing
-- Tokens: access tokens never stored server-side; refresh tokens stored as SHA-256 hash
-- Rate limiting: Redis-backed, IP-based, per-route
-- File uploads: MIME validation, size limits, stored in MinIO (not filesystem)
-- Admin docker access: docker-socket-proxy with strict allowlist, no raw socket exposure
-- SQL injection: Prisma parameterized queries
-- XSS: React escapes by default; CSP headers via nginx
-- CORS: explicit allowlist (app.DOMAIN only)
-- TLS: Let's Encrypt via certbot, auto-renewal
+Полный список со значениями по умолчанию и описанием — в
+[`.env.example`](.env.example).
 
----
-
-## Environment Variables
-
-See `.env.example` for full list with defaults and documentation.
-
-Key groups:
-- `DATABASE_URL` — Postgres connection string
-- `REDIS_URL` — Redis connection string
-- `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` — signing keys
-- `MINIO_*` — MinIO connection and credentials
-- `RATE_LIMIT_*` — rate limit thresholds
-- `SERVICE_ROLE` — `core` | `realtime` | `media` (controls which modules start)
+Ключевые группы:
+- `DATABASE_URL` — строка подключения Postgres
+- `REDIS_URL` — строка подключения Redis
+- `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` — ключи подписи
+- `MINIO_*` — подключение и доступы MinIO
+- `RATE_LIMIT_*` — пороги rate-limit
+- `VAPID_*` — ключи web-push
+- `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` — ИИ (Infy Pulse), опционально
+- `STUN_URLS`, `TURN_URLS`, `TURN_SECRET`, `TURN_TTL_SEC`, `TURN_REALM`, `TURN_EXTERNAL_IP` — звонки
+- `SERVICE_ROLE` — `core` | `realtime` | `media` | `scheduler`
