@@ -179,7 +179,7 @@ export function MessengerLayout() {
   })
 
   return (
-    <div className="flex flex-col overflow-hidden" style={{ height: '100%', background: 'var(--bg-deep)' }}>
+    <div className="flex flex-col overflow-hidden" style={{ height: '100dvh', background: 'var(--bg-deep)' }}>
       {/* ── Основной контент ── */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
       {/* ── Sidebar ── */}
