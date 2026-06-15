@@ -42,6 +42,17 @@ function pinnedLabel(type: string): string {
   return m[type] ?? 'Вложение'
 }
 
+function SystemNotice({ text }: { text: string }) {
+  return (
+    <div className="flex items-center justify-center my-2">
+      <span className="px-3 py-1 rounded-full text-xs font-medium text-center"
+        style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.06)', color: 'var(--text-mid)' }}>
+        {text}
+      </span>
+    </div>
+  )
+}
+
 function DateSeparator({ label }: { label: string }) {
   return (
     <div className="flex items-center justify-center my-3">
@@ -463,7 +474,7 @@ export function ChatPage() {
 
   const searchResults = searchQuery.trim().length > 1
     ? chatMessages.filter(m =>
-        m.content?.toLowerCase().includes(searchQuery.toLowerCase())
+        m.type !== 'SYSTEM' && m.content?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : []
 
@@ -644,11 +655,22 @@ export function ChatPage() {
                 const showDate = !prev || new Date(msg.createdAt).toDateString() !== new Date(prev.createdAt).toDateString()
                 const isHighlighted = highlightedMsgId === msg.id
 
-                // Группировка: тот же автор, тот же день, разрыв ≤ 60 сек
-                const groupWithPrev = !!prev && !showDate &&
+                // Системное сообщение — центрированная плашка, без пузыря и меню
+                if (msg.type === 'SYSTEM') {
+                  return (
+                    <Fragment key={msg.id}>
+                      {showDate && <DateSeparator label={formatDateLabel(msg.createdAt)} />}
+                      <SystemNotice text={msg.content ?? ''} />
+                    </Fragment>
+                  )
+                }
+
+                // Группировка: тот же автор, тот же день, разрыв ≤ 60 сек.
+                // Системные сообщения разрывают группу.
+                const groupWithPrev = !!prev && prev.type !== 'SYSTEM' && !showDate &&
                   prev.sender.id === msg.sender.id &&
                   new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() < GROUP_WINDOW_MS
-                const groupWithNext = !!next &&
+                const groupWithNext = !!next && next.type !== 'SYSTEM' &&
                   new Date(next.createdAt).toDateString() === new Date(msg.createdAt).toDateString() &&
                   next.sender.id === msg.sender.id &&
                   new Date(next.createdAt).getTime() - new Date(msg.createdAt).getTime() < GROUP_WINDOW_MS

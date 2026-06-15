@@ -30,7 +30,7 @@ async function buildTranscript(
   if (!member) throw new AppError('CHAT_NOT_MEMBER', 'Вы не участник этого чата', 403)
 
   const rows = await prisma.message.findMany({
-    where: { chatId, deletedAt: null },
+    where: { chatId, deletedAt: null, type: { not: 'SYSTEM' } },
     include: { sender: { select: { id: true, nickname: true } } },
     orderBy: { id: 'desc' },
     take: limit,

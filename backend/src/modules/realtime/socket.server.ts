@@ -121,7 +121,7 @@ export function createSocketServer(
       const p = payload as { event: string; data: { chatId?: string; sender?: { id: string; nickname: string; avatarUrl?: string | null }; content?: string; type?: string } }
       if (p.data?.chatId) {
         io.to(`chat:${p.data.chatId}`).emit(p.event, p.data)
-        if (p.event === 'message_new' && p.data.sender?.id) {
+        if (p.event === 'message_new' && p.data.sender?.id && p.data.type !== 'SYSTEM') {
           pushToOfflineMembers(pubClient, prisma, p.data as MessageForPush, p.data.sender.id).catch(() => {})
         }
       }

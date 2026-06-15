@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { profileApi } from '@/api/auth'
 import { useAuthStore } from '@/store/auth'
 import { Avatar } from '@/components/ui/Avatar'
@@ -16,7 +16,6 @@ function calcAge(birthdate: string): number {
 }
 
 export function ProfilePage() {
-  const navigate = useNavigate()
   const { user, setUser, logout } = useAuthStore()
   const avatarRef = useRef<HTMLInputElement>(null)
   const coverRef = useRef<HTMLInputElement>(null)
@@ -58,33 +57,7 @@ export function ProfilePage() {
   const age = user.birthdate ? calcAge(user.birthdate) : null
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg-deep)' }}>
-      {/* Header */}
-      <div className="sticky top-0 z-10 flex items-center gap-3 px-4 py-3"
-        style={{
-          background: 'rgba(8,11,22,0.7)',
-          backdropFilter: 'blur(24px) saturate(140%)',
-          WebkitBackdropFilter: 'blur(24px) saturate(140%)',
-          borderBottom: '1px solid rgba(255,255,255,0.05)',
-        }}>
-        <button onClick={() => navigate(-1)}
-          className="w-9 h-9 flex items-center justify-center rounded-xl transition-colors -ml-1"
-          style={{ color: 'rgba(255,255,255,0.5)' }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M19 12H5M12 5l-7 7 7 7"/>
-          </svg>
-        </button>
-        <h1 className="text-base font-semibold text-white flex-1">Профиль</h1>
-        <button onClick={logout} className="text-sm font-medium px-3 py-1.5 rounded-xl transition-colors"
-          style={{ color: '#EF4444' }}
-          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.1)')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-          Выйти
-        </button>
-      </div>
-
+    <div className="flex-1 min-h-0 overflow-y-auto" style={{ background: 'var(--bg-deep)' }}>
       <div className="max-w-lg mx-auto px-4 py-5 space-y-3">
         {/* Avatar + Cover card */}
         <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
@@ -187,6 +160,20 @@ export function ProfilePage() {
               </svg>
             } label="Панель администратора" accent />
           )}
+          <button
+            onClick={logout}
+            className="w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-colors text-left"
+            style={{ color: '#EF4444' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.08)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            <span style={{ color: '#EF4444' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </span>
+            <span className="font-medium text-sm flex-1">Выйти</span>
+          </button>
         </div>
       </div>
     </div>

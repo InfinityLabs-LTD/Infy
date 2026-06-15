@@ -227,8 +227,10 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
   }, async (request) => {
     const { id } = request.params as { id: string }
     const userId = BigInt(request.user.sub)
-    const message = await ChatService.togglePin(app.prisma, id, userId)
+    const { message, systemMessage } = await ChatService.togglePin(app.prisma, id, userId)
+    // Обновлённое состояние закрепления + системное уведомление обоим участникам
     await publishMessage(app.redis, 'chat:message', { event: 'message_updated', data: message })
+    await publishMessage(app.redis, 'chat:message', { event: 'message_new', data: systemMessage })
     return { data: message }
   })
 

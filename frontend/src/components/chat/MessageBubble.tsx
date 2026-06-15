@@ -195,7 +195,7 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
 
   function handleCopy() {
     setShowMenu(false)
-    if (message.content) navigator.clipboard.writeText(message.content).catch(() => {})
+    if (message.content) copyText(message.content)
   }
 
   async function handleReact(emoji: string) {
@@ -650,6 +650,28 @@ function ReactionBar({ reactions, myId, onReact }: {
 }
 
 // ── Helpers ───────────────────────────────────────────────────
+
+// Копирование текста. Clipboard API доступен только в защищённом контексте
+// (HTTPS/localhost); на обычном HTTP падаем в execCommand-фолбэк.
+function copyText(text: string) {
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).catch(() => fallbackCopy(text))
+  } else {
+    fallbackCopy(text)
+  }
+}
+
+function fallbackCopy(text: string) {
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.style.position = 'fixed'
+  ta.style.left = '-9999px'
+  ta.setAttribute('readonly', '')
+  document.body.appendChild(ta)
+  ta.select()
+  try { document.execCommand('copy') } catch { /* ignore */ }
+  document.body.removeChild(ta)
+}
 
 function replyPreviewText(reply: NonNullable<Message['replyTo']>): string {
   if (reply.deleted) return 'Сообщение удалено'

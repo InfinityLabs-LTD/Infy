@@ -23,6 +23,7 @@ enum MessageType {
   VIDEO
   AUDIO
   CIRCLE_VIDEO
+  SYSTEM
 }
 
 // Кому адресовано напоминание о событии календаря

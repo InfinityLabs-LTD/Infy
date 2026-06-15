@@ -113,7 +113,9 @@ function ChatRow({ chat, active }: { chat: Chat; active: boolean }) {
           {chat.lastMessage
             ? (chat.lastMessage.type === 'TEXT'
                 ? (chat.lastMessage.isOwn ? `Вы: ${chat.lastMessage.content}` : chat.lastMessage.content)
-                : mediaLabel(chat.lastMessage.type))
+                : chat.lastMessage.type === 'SYSTEM'
+                  ? chat.lastMessage.content
+                  : mediaLabel(chat.lastMessage.type))
             : 'Нет сообщений'}
         </p>
       </div>
@@ -127,6 +129,7 @@ export function MessengerLayout() {
   const chatMatch = useMatch('/chat/:id')
   const activeChatId = chatMatch?.params.id
   const isContactsTab = location.pathname === '/contacts'
+  const isProfileTab = location.pathname === '/profile'
 
   const user = useAuthStore(s => s.user)
   const logout = useAuthStore(s => s.logout)
@@ -181,7 +184,7 @@ export function MessengerLayout() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
       {/* ── Sidebar ── */}
       <aside
-        className={`flex flex-col md:w-[320px] md:shrink-0 ${activeChatId || isContactsTab ? 'hidden md:flex' : 'flex w-full'}`}
+        className={`flex flex-col md:w-[320px] md:shrink-0 ${activeChatId || isContactsTab || isProfileTab ? 'hidden md:flex' : 'flex w-full'}`}
         style={{ background: 'rgba(255,255,255,0.03)', borderRight: '1px solid rgba(255,255,255,0.06)' }}
       >
 
@@ -298,7 +301,7 @@ export function MessengerLayout() {
 
       {/* ── Main ── */}
       <div
-        className={`flex-1 min-w-0 min-h-0 flex-col overflow-hidden ${activeChatId || isContactsTab ? 'flex' : 'hidden md:flex'}`}
+        className={`flex-1 min-w-0 min-h-0 flex-col overflow-hidden ${activeChatId || isContactsTab || isProfileTab ? 'flex' : 'hidden md:flex'}`}
         style={{ background: 'var(--bg-deep)' }}
       >
         <Outlet />
@@ -309,16 +312,6 @@ export function MessengerLayout() {
       <div className={`md:hidden shrink-0 px-4 ${activeChatId ? 'hidden' : ''}`}
         style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))', paddingTop: 8 }}>
         <div className="glass-pop flex items-center justify-around rounded-full px-2 py-1.5">
-          <MobileNavBtn
-            label="Чаты"
-            active={!isContactsTab && !activeChatId}
-            onClick={() => navigate('/')}
-            icon={
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-              </svg>
-            }
-          />
           <MobileNavBtn
             label="Контакты"
             active={isContactsTab}
@@ -331,8 +324,18 @@ export function MessengerLayout() {
             }
           />
           <MobileNavBtn
+            label="Чаты"
+            active={!isContactsTab && !isProfileTab && !activeChatId}
+            onClick={() => navigate('/')}
+            icon={
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+              </svg>
+            }
+          />
+          <MobileNavBtn
             label="Профиль"
-            active={false}
+            active={isProfileTab}
             onClick={() => navigate('/profile')}
             icon={
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">

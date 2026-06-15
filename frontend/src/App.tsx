@@ -48,10 +48,10 @@ export default function App() {
           <Route path="/" element={<ChatListPage />} />
           <Route path="/contacts" element={<ContactsPage />} />
           <Route path="/chat/:id" element={<ChatPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
         </Route>
 
         {/* Profile */}
-        <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
         <Route path="/profile/edit" element={<RequireAuth><EditProfilePage /></RequireAuth>} />
         <Route path="/sessions" element={<RequireAuth><SessionsPage /></RequireAuth>} />
         <Route path="/u/:username" element={<RequireAuth><UserProfilePage /></RequireAuth>} />

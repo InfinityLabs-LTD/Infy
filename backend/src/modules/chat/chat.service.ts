@@ -276,7 +276,7 @@ export async function getChatMedia(
     where: {
       chatId,
       deletedAt: null,
-      type: { not: 'TEXT' },
+      type: { in: ['IMAGE', 'VIDEO', 'AUDIO', 'CIRCLE_VIDEO'] },
       ...(cursor ? { id: { lt: cursor } } : {}),
     },
     include: { sender: true, attachments: true },
@@ -344,7 +344,26 @@ export async function togglePin(
     include: messageInclude,
   })
 
-  return serializeMessage(updated)
+  // Системное сообщение-уведомление для обоих участников
+  const actor = await prisma.user.findUnique({ where: { id: userId }, select: { nickname: true } })
+  const actorName = actor?.nickname ?? 'Пользователь'
+  const systemMessage = await prisma.message.create({
+    data: {
+      id: ulid(),
+      chatId: msg.chatId,
+      senderId: userId,
+      type: 'SYSTEM',
+      content: willPin
+        ? `${actorName} закрепил(а) сообщение`
+        : `${actorName} открепил(а) сообщение`,
+    },
+    include: messageInclude,
+  })
+
+  return {
+    message: serializeMessage(updated),
+    systemMessage: serializeMessage(systemMessage),
+  }
 }
 
 // Текущее закреплённое сообщение чата (или null)

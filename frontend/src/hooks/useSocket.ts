@@ -26,7 +26,7 @@ export function useSocket(): Socket | null {
       addMessage(msg)
       // Browser notification when tab is not focused
       const myId = useAuthStore.getState().user?.id
-      if (document.hidden && msg.sender.id !== myId && Notification.permission === 'granted') {
+      if (document.hidden && msg.type !== 'SYSTEM' && msg.sender.id !== myId && Notification.permission === 'granted') {
         new Notification(msg.sender.nickname, {
           body: msg.type === 'TEXT' ? (msg.content ?? '') : '📎 Вложение',
           icon: msg.sender.avatarUrl ?? '/icon.jpg',
