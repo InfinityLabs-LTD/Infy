@@ -24,6 +24,7 @@ export interface Chat {
   lastMessage: LastMessage | null
   unreadCount: number
   partnerLastReadMessageId: string | null
+  partnerReadAt: string | null
   createdAt: string
 }
 
@@ -54,6 +55,14 @@ export interface MessageReaction {
   userIds: string[]
 }
 
+export interface ReplyPreview {
+  id: string
+  content: string | null
+  type: string
+  deleted: boolean
+  sender: { id: string; nickname: string }
+}
+
 export interface Message {
   id: string
   chatId: string
@@ -61,6 +70,8 @@ export interface Message {
   type: string
   createdAt: string
   editedAt: string | null
+  pinnedAt?: string | null
+  replyTo?: ReplyPreview | null
   sender: MessageSender
   attachments?: MessageAttachment[]
   reactions?: MessageReaction[]
@@ -88,7 +99,7 @@ interface ChatState {
   updateMessage: (msg: Message) => void
   removeMessage: (chatId: string, id: string) => void
   resetUnread: (chatId: string) => void
-  updatePartnerRead: (chatId: string, messageId: string) => void
+  updatePartnerRead: (chatId: string, messageId: string, readAt?: string) => void
   setUserOnline: (userId: string) => void
   setUserOffline: (userId: string, lastSeenAt: string) => void
   setTyping: (chatId: string, username: string, isTyping: boolean) => void
@@ -193,10 +204,12 @@ export const useChatStore = create<ChatState>((set) => ({
       chats: s.chats.map((c) => c.id === chatId ? { ...c, unreadCount: 0 } : c),
     })),
 
-  updatePartnerRead: (chatId, messageId) =>
+  updatePartnerRead: (chatId, messageId, readAt) =>
     set((s) => ({
       chats: s.chats.map((c) =>
-        c.id === chatId ? { ...c, partnerLastReadMessageId: messageId } : c
+        c.id === chatId
+          ? { ...c, partnerLastReadMessageId: messageId, partnerReadAt: readAt ?? c.partnerReadAt }
+          : c
       ),
     })),
 

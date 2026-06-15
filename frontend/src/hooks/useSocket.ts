@@ -35,14 +35,15 @@ export function useSocket(): Socket | null {
       }
     }
     const onMessageEdited = (msg: Message) => updateMessage(msg)
+    const onMessageUpdated = (msg: Message) => updateMessage(msg)
     const onMessageDeleted = ({ id, chatId }: { id: string; chatId: string }) => removeMessage(chatId, id)
     const onUserOnline = ({ userId }: { userId: string }) => setUserOnline(userId)
     const onUserOffline = ({ userId, lastSeenAt }: { userId: string; lastSeenAt: string }) => setUserOffline(userId, lastSeenAt)
     const onOnlineUsers = ({ userIds }: { userIds: string[] }) => userIds.forEach(id => setUserOnline(id))
     const onConnect = () => setSocketReady(true)
     const onDisconnect = () => setSocketReady(false)
-    const onMessagesRead = ({ chatId, messageId }: { chatId: string; userId: string; messageId: string }) => {
-      updatePartnerRead(chatId, messageId)
+    const onMessagesRead = ({ chatId, messageId, readAt }: { chatId: string; userId: string; messageId: string; readAt?: string }) => {
+      updatePartnerRead(chatId, messageId, readAt)
     }
     const onReminderDue = (r: Omit<DueReminder, 'receivedAt'>) => {
       if (!r?.reminderId) return
@@ -59,6 +60,7 @@ export function useSocket(): Socket | null {
 
     socket.on('message_new', onMessageNew)
     socket.on('message_edited', onMessageEdited)
+    socket.on('message_updated', onMessageUpdated)
     socket.on('message_deleted', onMessageDeleted)
     socket.on('user_online', onUserOnline)
     socket.on('user_offline', onUserOffline)
@@ -73,6 +75,7 @@ export function useSocket(): Socket | null {
     return () => {
       socket.off('message_new', onMessageNew)
       socket.off('message_edited', onMessageEdited)
+      socket.off('message_updated', onMessageUpdated)
       socket.off('message_deleted', onMessageDeleted)
       socket.off('user_online', onUserOnline)
       socket.off('user_offline', onUserOffline)

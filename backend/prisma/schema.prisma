@@ -139,6 +139,7 @@ model ChatMember {
   userId            BigInt
   joinedAt          DateTime @default(now())
   lastReadMessageId String?
+  lastReadAt        DateTime?
 
   chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -157,11 +158,15 @@ model Message {
   createdAt DateTime    @default(now())
   editedAt  DateTime?
   deletedAt DateTime?
+  pinnedAt  DateTime?                  // when this message was pinned in its chat
+  replyToId String?                    // message this one replies to
 
   chat        Chat              @relation(fields: [chatId], references: [id], onDelete: Cascade)
   sender      User              @relation(fields: [senderId], references: [id])
   attachments Attachment[]
   reactions   MessageReaction[]
+  replyTo     Message?          @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies     Message[]         @relation("MessageReply")
 
   @@index([chatId, id])   // range scan for cursor pagination
   @@index([senderId])

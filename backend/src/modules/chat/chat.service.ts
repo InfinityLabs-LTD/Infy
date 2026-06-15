@@ -1,6 +1,18 @@
-import { PrismaClient, MessageType } from '@prisma/client'
+import { PrismaClient, MessageType, Prisma } from '@prisma/client'
 import { ulid } from 'ulid'
 import { AppError } from '../../lib/errors.js'
+
+// Максимум разных реакций от одного пользователя на одно сообщение
+const MAX_REACTIONS_PER_USER = 3
+
+// Общий include для полной сериализации сообщения (с автором, вложениями,
+// реакциями и кратким превью сообщения-ответа).
+const messageInclude = {
+  sender: true,
+  attachments: true,
+  reactions: { include: { user: true } },
+  replyTo: { include: { sender: true } },
+} satisfies Prisma.MessageInclude
 
 export interface AttachmentInput {
   storageKey: string
@@ -17,6 +29,7 @@ export interface SendMessageInput {
   content?: string
   type?: MessageType
   attachment?: AttachmentInput
+  replyToId?: string
 }
 
 export async function getOrCreateDirectChat(
@@ -111,13 +124,15 @@ export async function markAsRead(
   userId: bigint,
   messageId: string,
 ) {
+  const now = new Date()
   await prisma.$executeRaw`
     UPDATE chat_members
-    SET "lastReadMessageId" = ${messageId}
+    SET "lastReadMessageId" = ${messageId}, "lastReadAt" = ${now}
     WHERE "chatId" = ${chatId}
       AND "userId" = ${userId}
       AND ("lastReadMessageId" IS NULL OR "lastReadMessageId" < ${messageId})
   `
+  return now.toISOString()
 }
 
 export async function getMessages(
@@ -139,7 +154,7 @@ export async function getMessages(
       deletedAt: null,
       ...(cursor ? { id: { lt: cursor } } : {}),
     },
-    include: { sender: true, attachments: true, reactions: { include: { user: true } } },
+    include: messageInclude,
     orderBy: { id: 'desc' },
     take: limit + 1,
   })
@@ -168,6 +183,14 @@ export async function sendMessage(
     throw new AppError('MESSAGE_EMPTY', 'Message must have content or an attachment', 400)
   }
 
+  // Проверяем, что отвечаем на существующее сообщение из этого же чата
+  if (input.replyToId) {
+    const parent = await prisma.message.findUnique({ where: { id: input.replyToId } })
+    if (!parent || parent.deletedAt || parent.chatId !== chatId) {
+      throw new AppError('REPLY_TARGET_INVALID', 'Reply target not found in this chat', 400)
+    }
+  }
+
   const id = ulid()
   const message = await prisma.message.create({
     data: {
@@ -176,6 +199,7 @@ export async function sendMessage(
       senderId,
       content: input.content ?? null,
       type: input.type ?? 'TEXT',
+      replyToId: input.replyToId ?? null,
       ...(input.attachment
         ? {
             attachments: {
@@ -193,7 +217,7 @@ export async function sendMessage(
           }
         : {}),
     },
-    include: { sender: true, attachments: true, reactions: { include: { user: true } } },
+    include: messageInclude,
   })
 
   return serializeMessage(message)
@@ -220,12 +244,17 @@ export async function toggleReaction(
   if (existing) {
     await prisma.messageReaction.delete({ where: { id: existing.id } })
   } else {
+    // Лимит: не более 3 разных реакций от одного пользователя на сообщение
+    const myCount = await prisma.messageReaction.count({ where: { messageId, userId } })
+    if (myCount >= MAX_REACTIONS_PER_USER) {
+      throw new AppError('REACTION_LIMIT', `Maximum ${MAX_REACTIONS_PER_USER} reactions per message`, 409)
+    }
     await prisma.messageReaction.create({ data: { messageId, userId, emoji } })
   }
 
   const updated = await prisma.message.findUnique({
     where: { id: messageId },
-    include: { sender: true, attachments: true, reactions: { include: { user: true } } },
+    include: messageInclude,
   })
 
   return serializeMessage(updated!)
@@ -273,14 +302,68 @@ export async function editMessage(
   const msg = await prisma.message.findUnique({ where: { id: messageId } })
   if (!msg || msg.deletedAt) throw new AppError('MESSAGE_NOT_FOUND', 'Message not found', 404)
   if (msg.senderId !== userId) throw new AppError('MESSAGE_FORBIDDEN', 'Cannot edit another user\'s message', 403)
+  if (msg.type !== 'TEXT') throw new AppError('MESSAGE_NOT_EDITABLE', 'Only text messages can be edited', 400)
 
   const updated = await prisma.message.update({
     where: { id: messageId },
     data: { content, editedAt: new Date() },
-    include: { sender: true, attachments: true },
+    include: messageInclude,
   })
 
   return serializeMessage(updated)
+}
+
+// Закрепить/открепить сообщение. В прямом чате закреплённое — одно:
+// при закреплении нового открепляем все предыдущие.
+export async function togglePin(
+  prisma: PrismaClient,
+  messageId: string,
+  userId: bigint,
+) {
+  const msg = await prisma.message.findUnique({
+    where: { id: messageId },
+    include: { chat: { include: { members: true } } },
+  })
+  if (!msg || msg.deletedAt) throw new AppError('MESSAGE_NOT_FOUND', 'Message not found', 404)
+  if (!msg.chat.members.some(m => m.userId === userId)) {
+    throw new AppError('CHAT_NOT_MEMBER', 'Not a member', 403)
+  }
+
+  const willPin = !msg.pinnedAt
+  if (willPin) {
+    // Открепляем все остальные закреплённые в этом чате
+    await prisma.message.updateMany({
+      where: { chatId: msg.chatId, pinnedAt: { not: null }, id: { not: messageId } },
+      data: { pinnedAt: null },
+    })
+  }
+
+  const updated = await prisma.message.update({
+    where: { id: messageId },
+    data: { pinnedAt: willPin ? new Date() : null },
+    include: messageInclude,
+  })
+
+  return serializeMessage(updated)
+}
+
+// Текущее закреплённое сообщение чата (или null)
+export async function getPinnedMessage(
+  prisma: PrismaClient,
+  chatId: string,
+  userId: bigint,
+) {
+  const member = await prisma.chatMember.findUnique({
+    where: { chatId_userId: { chatId, userId } },
+  })
+  if (!member) throw new AppError('CHAT_NOT_MEMBER', 'You are not a member of this chat', 403)
+
+  const msg = await prisma.message.findFirst({
+    where: { chatId, deletedAt: null, pinnedAt: { not: null } },
+    include: messageInclude,
+    orderBy: { pinnedAt: 'desc' },
+  })
+  return msg ? serializeMessage(msg) : null
 }
 
 export async function deleteMessage(
@@ -308,6 +391,7 @@ type ChatWithMembers = {
   createdAt: Date
   members: Array<{
     lastReadMessageId: string | null
+    lastReadAt?: Date | null
     user: {
       id: bigint
       username: string
@@ -353,6 +437,7 @@ export function serializeChat(chat: ChatWithMembers, viewerId: bigint, unreadCou
       : null,
     unreadCount,
     partnerLastReadMessageId: partnerMember?.lastReadMessageId ?? null,
+    partnerReadAt: partnerMember?.lastReadAt ?? null,
     createdAt: chat.createdAt,
   }
 }
@@ -365,6 +450,15 @@ type MessageWithSender = {
   createdAt: Date
   editedAt: Date | null
   deletedAt: Date | null
+  pinnedAt?: Date | null
+  replyToId?: string | null
+  replyTo?: {
+    id: string
+    content: string | null
+    type: string
+    deletedAt: Date | null
+    sender: { id: bigint; nickname: string }
+  } | null
   sender: {
     id: bigint
     username: string
@@ -406,6 +500,19 @@ export function serializeMessage(msg: MessageWithSender) {
     type: msg.type,
     createdAt: msg.createdAt,
     editedAt: msg.editedAt,
+    pinnedAt: msg.pinnedAt ?? null,
+    replyTo: msg.replyTo
+      ? {
+          id: msg.replyTo.id,
+          content: msg.replyTo.deletedAt ? null : msg.replyTo.content,
+          type: msg.replyTo.type,
+          deleted: !!msg.replyTo.deletedAt,
+          sender: {
+            id: msg.replyTo.sender.id.toString(),
+            nickname: msg.replyTo.sender.nickname,
+          },
+        }
+      : null,
     sender: {
       id: msg.sender.id.toString(),
       username: msg.sender.username,

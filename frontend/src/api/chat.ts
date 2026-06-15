@@ -19,8 +19,8 @@ export const chatApi = {
       { params: { cursor, limit } },
     ),
 
-  sendMessage: (chatId: string, content: string) =>
-    api.post<{ data: Message }>(`/chats/${chatId}/messages`, { content }),
+  sendMessage: (chatId: string, content: string, replyToId?: string) =>
+    api.post<{ data: Message }>(`/chats/${chatId}/messages`, { content, replyToId }),
 
   sendMedia: (chatId: string, type: MediaMessageType, upload: UploadResult) =>
     api.post<{ data: Message }>(`/chats/${chatId}/messages`, {
@@ -51,4 +51,10 @@ export const chatApi = {
 
   reactToMessage: (messageId: string, emoji: string) =>
     api.post<{ data: Message }>(`/chats/messages/${messageId}/react`, { emoji }),
+
+  pinMessage: (messageId: string) =>
+    api.post<{ data: Message }>(`/chats/messages/${messageId}/pin`),
+
+  getPinned: (chatId: string) =>
+    api.get<{ data: Message | null }>(`/chats/${chatId}/pinned`),
 }

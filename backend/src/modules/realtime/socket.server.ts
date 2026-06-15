@@ -217,8 +217,8 @@ export function createSocketServer(
     socket.on('mark_read', async ({ chatId, messageId }: { chatId: string; messageId: string }) => {
       if (!chatId || !messageId) return
       try {
-        await ChatService.markAsRead(prisma, chatId, BigInt(userId), messageId)
-        socket.to(`chat:${chatId}`).emit('messages_read', { chatId, userId, messageId })
+        const readAt = await ChatService.markAsRead(prisma, chatId, BigInt(userId), messageId)
+        socket.to(`chat:${chatId}`).emit('messages_read', { chatId, userId, messageId, readAt })
       } catch { /* non-critical */ }
     })
 

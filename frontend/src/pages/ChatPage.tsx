@@ -3,7 +3,7 @@ import { AnimatePresence } from 'framer-motion'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { chatApi } from '@/api/chat'
 import { mediaApi } from '@/api/media'
-import { useChatStore } from '@/store/chat'
+import { useChatStore, type Message } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { getActiveSocket, joinChatRoom } from '@/lib/socket'
 import { Avatar } from '@/components/ui/Avatar'
@@ -33,6 +33,13 @@ function formatDateLabel(iso: string): string {
     day: 'numeric', month: 'long',
     ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}),
   })
+}
+
+function pinnedLabel(type: string): string {
+  const m: Record<string, string> = {
+    IMAGE: '🖼 Фото', VIDEO: '🎥 Видео', AUDIO: '🎤 Голосовое', CIRCLE_VIDEO: '⭕ Кружок',
+  }
+  return m[type] ?? 'Вложение'
 }
 
 function DateSeparator({ label }: { label: string }) {
@@ -71,7 +78,7 @@ export function ChatPage() {
   const myUser = useAuthStore(s => s.user)
   const myUsername = myUser?.username
 
-  const { chats, messages, nextCursor, socketReady, setMessages, prependMessages, setTyping, upsertChat, resetUnread } = useChatStore()
+  const { chats, messages, nextCursor, socketReady, setMessages, prependMessages, setTyping, upsertChat, resetUnread, updateMessage } = useChatStore()
 
   // ── Resolve partnerId → chatId ──────────────────────────────
   const [chatId, setChatId] = useState<string | null>(() => {
@@ -106,6 +113,9 @@ export function ChatPage() {
   const typingSet = useChatStore(s => chatId ? s.typing[chatId] : undefined)
   const typingNames = typingSet ? [...typingSet].filter(u => u !== myUsername) : []
 
+  // Закреплённое сообщение чата (загружается отдельно — может быть вне окна истории)
+  const [pinned, setPinned] = useState<Message | null>(null)
+
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [text, setText] = useState('')
@@ -119,6 +129,9 @@ export function ChatPage() {
   const [searchMode, setSearchMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null)
+  const [replyTo, setReplyTo] = useState<Message | null>(null)
+  const [editing, setEditing] = useState<Message | null>(null)
+  const [reactLimitToast, setReactLimitToast] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [recordMode, setRecordMode] = useState<'voice' | 'circle'>('voice')
   const [recordLocked, setRecordLocked] = useState(false)
@@ -182,6 +195,25 @@ export function ChatPage() {
     joinChatRoom(chatId)
   }, [chatId, socketReady])
 
+  // Загружаем закреплённое сообщение
+  useEffect(() => {
+    if (!chatId) { setPinned(null); return }
+    chatApi.getPinned(chatId).then(r => setPinned(r.data.data)).catch(() => setPinned(null))
+  }, [chatId])
+
+  // Держим закреплённое в синхроне с обновлениями загруженных сообщений
+  // (реакции/пин приходят по сокету через updateMessage → меняется chatMessages).
+  useEffect(() => {
+    if (!chatId) return
+    const pinnedInList = chatMessages.find(m => m.pinnedAt)
+    if (pinnedInList) {
+      setPinned(pinnedInList)
+    } else if (pinned && chatMessages.some(m => m.id === pinned.id && !m.pinnedAt)) {
+      // Текущее закреплённое было откреплено
+      setPinned(null)
+    }
+  }, [chatMessages, chatId])
+
   // Синхронизируем рефы со state для нативных обработчиков
   useEffect(() => { recordModeRef.current = recordMode }, [recordMode])
   useEffect(() => { recordLockedRef.current = recordLocked }, [recordLocked])
@@ -238,20 +270,56 @@ export function ChatPage() {
   async function sendText() {
     if (!text.trim() || !chatId || sending) return
     const content = text.trim()
+
+    // Режим редактирования — PATCH вместо отправки
+    if (editing) {
+      const target = editing
+      setText('')
+      setEditing(null)
+      setSending(true)
+      stopTyping()
+      try {
+        const res = await chatApi.editMessage(target.id, content)
+        updateMessage(res.data.data)
+      } finally { setSending(false); inputRef.current?.focus() }
+      return
+    }
+
+    const replyToId = replyTo?.id
     setText('')
+    setReplyTo(null)
     setSending(true)
     stopTyping()
     try {
       const socket = getActiveSocket()
-      if (socket?.connected) {
+      // Ответ всегда уходит через REST — у сокет-обработчика нет replyToId
+      if (socket?.connected && !replyToId) {
         socket.emit('join_chat', chatId)
         socket.emit('send_message', { chatId, content }, (res: { ok: boolean }) => {
           if (!res?.ok) chatApi.sendMessage(chatId, content).catch(() => {})
         })
       } else {
-        await chatApi.sendMessage(chatId, content)
+        await chatApi.sendMessage(chatId, content, replyToId)
       }
     } finally { setSending(false); inputRef.current?.focus() }
+  }
+
+  function startReply(msg: Message) {
+    setEditing(null)
+    setReplyTo(msg)
+    inputRef.current?.focus()
+  }
+
+  function startEdit(msg: Message) {
+    setReplyTo(null)
+    setEditing(msg)
+    setText(msg.content ?? '')
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }
+
+  function cancelComposerExtra() {
+    setReplyTo(null)
+    if (editing) { setEditing(null); setText('') }
   }
 
   async function sendMediaFile(file: File, msgType: 'IMAGE' | 'VIDEO') {
@@ -513,6 +581,29 @@ export function ChatPage() {
         )}
       </div>
 
+      {/* ── Закреплённое сообщение ── */}
+      {pinned && !searchMode && (
+        <button
+          onClick={() => scrollToMessage(pinned.id)}
+          className="shrink-0 flex items-center gap-2 px-3 py-1.5 text-left z-[5]"
+          style={{
+            background: 'rgba(168,85,247,0.10)',
+            borderBottom: '1px solid rgba(168,85,247,0.18)',
+            backdropFilter: 'blur(12px)',
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#C084FC" strokeWidth="2" className="shrink-0">
+            <path d="M12 17v5M9 3h6l-1 7 3 2v2H7v-2l3-2-1-7z"/>
+          </svg>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold leading-tight" style={{ color: '#C084FC' }}>Закреплённое сообщение</p>
+            <p className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.7)' }}>
+              {pinned.content ?? pinnedLabel(pinned.type)}
+            </p>
+          </div>
+        </button>
+      )}
+
       {/* ── Messages ── */}
       <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto px-2 py-2 chat-bg">
         {resolving ? (
@@ -577,6 +668,14 @@ export function ChatPage() {
                         message={msg}
                         groupPos={groupPos}
                         partnerLastReadMessageId={chat?.partnerLastReadMessageId}
+                        partnerReadAt={chat?.partnerReadAt ?? null}
+                        onReply={startReply}
+                        onEdit={startEdit}
+                        onJumpTo={scrollToMessage}
+                        onReactError={() => {
+                          setReactLimitToast(true)
+                          setTimeout(() => setReactLimitToast(false), 2500)
+                        }}
                       />
                     </div>
                   </Fragment>
@@ -596,6 +695,13 @@ export function ChatPage() {
         </div>
       )}
 
+      {/* Тост: превышен лимит реакций */}
+      {reactLimitToast && (
+        <div className="glass-pop fixed bottom-28 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm text-white">
+          Можно поставить не более 3 реакций на сообщение
+        </div>
+      )}
+
       {/* ── Input bar ── */}
       <div className="shrink-0 px-2 pt-2 pb-[max(8px,env(safe-area-inset-bottom))]" style={{
         background: 'rgba(255,255,255,0.04)',
@@ -604,6 +710,40 @@ export function ChatPage() {
         borderTop: '1px solid rgba(255,255,255,0.06)',
       }}>
        <div className="mx-auto w-full max-w-[880px]">
+        {/* Превью ответа / редактирования */}
+        {(replyTo || editing) && !isRecording && (
+          <div className="flex items-center gap-2 px-3 py-1.5 mb-2 rounded-xl"
+            style={{ background: 'rgba(168,85,247,0.10)', borderLeft: '3px solid var(--accent)' }}>
+            <span className="shrink-0" style={{ color: '#C084FC' }}>
+              {editing ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 00-4-4H4"/>
+                </svg>
+              )}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold leading-tight" style={{ color: '#C084FC' }}>
+                {editing ? 'Редактирование' : `Ответ ${replyTo?.sender.nickname ?? ''}`}
+              </p>
+              <p className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                {editing
+                  ? (editing.content ?? '')
+                  : (replyTo?.content ?? pinnedLabel(replyTo?.type ?? 'TEXT'))}
+              </p>
+            </div>
+            <button onClick={cancelComposerExtra} className="shrink-0 text-white/50 hover:text-white transition-colors">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        )}
+
         {/* Запись голосового — индикатор (не зафиксировано) */}
         {isRecording && !recordLocked && (
           <div className="flex items-center gap-2 px-3 py-1.5 mb-2 rounded-xl"

@@ -124,6 +124,7 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
         properties: {
           content: { type: 'string', minLength: 1, maxLength: 4000 },
           type: { type: 'string', enum: ['TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'CIRCLE_VIDEO'] },
+          replyToId: { type: 'string' },
           attachment: {
             type: 'object',
             properties: {
@@ -155,6 +156,7 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
     const input = z.object({
       content: z.string().min(1).max(4000).optional(),
       type: z.enum(['TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'CIRCLE_VIDEO']).optional(),
+      replyToId: z.string().optional(),
       attachment: attachmentSchema.optional(),
     }).parse(request.body)
 
@@ -211,6 +213,37 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
     const userId = BigInt(request.user.sub)
     const message = await ChatService.toggleReaction(app.prisma, id, userId, emoji)
     await publishMessage(app.redis, 'chat:message', { event: 'message_updated', data: message })
+    return { data: message }
+  })
+
+  // POST /messages/:id/pin — toggle pin (one pinned message per chat)
+  app.post('/messages/:id/pin', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'Toggle pin on a message',
+      security: [{ bearerAuth: [] }],
+      params: { type: 'object', properties: { id: { type: 'string' } } },
+    },
+  }, async (request) => {
+    const { id } = request.params as { id: string }
+    const userId = BigInt(request.user.sub)
+    const message = await ChatService.togglePin(app.prisma, id, userId)
+    await publishMessage(app.redis, 'chat:message', { event: 'message_updated', data: message })
+    return { data: message }
+  })
+
+  // GET /chats/:id/pinned — current pinned message of a chat
+  app.get('/:id/pinned', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'Get the pinned message of a chat',
+      security: [{ bearerAuth: [] }],
+      params: { type: 'object', properties: { id: { type: 'string' } } },
+    },
+  }, async (request) => {
+    const { id } = request.params as { id: string }
+    const userId = BigInt(request.user.sub)
+    const message = await ChatService.getPinnedMessage(app.prisma, id, userId)
     return { data: message }
   })
 

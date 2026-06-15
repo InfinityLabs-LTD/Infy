@@ -106,6 +106,10 @@ interface Props {
   groupPos?: GroupPos
   partnerLastReadMessageId?: string | null
   partnerReadAt?: string | null
+  onReply?: (msg: Message) => void
+  onEdit?: (msg: Message) => void
+  onReactError?: () => void
+  onJumpTo?: (msgId: string) => void
 }
 
 // Каскадные радиусы группы: внешние углы 20px, примыкающие и «хвост» — 6px.
@@ -121,7 +125,7 @@ function bubbleRadius(isOwn: boolean, pos: GroupPos): string {
   return `${tl} ${R} ${R} ${r}`
 }
 
-export function MessageBubble({ message, showSenderName, groupPos = 'single', partnerLastReadMessageId, partnerReadAt }: Props) {
+export function MessageBubble({ message, showSenderName, groupPos = 'single', partnerLastReadMessageId, partnerReadAt, onReply, onEdit, onReactError, onJumpTo }: Props) {
   const myId = useAuthStore((s) => s.user?.id)
   const isOwn = message.sender.id === myId
   const { updateMessage, removeMessage } = useChatStore()
@@ -129,6 +133,7 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
   const [showMenu, setShowMenu] = useState(false)
   const bubbleRef = useRef<HTMLDivElement>(null)
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const movedRef = useRef(false)
 
   const time = new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const att = message.attachments?.[0]
@@ -142,14 +147,37 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
 
   function openMenu() { setShowMenu(true) }
 
+  // Тап по сообщению открывает меню действий; долгое нажатие — тоже (на тач).
   function onPointerDown(e: React.PointerEvent) {
+    movedRef.current = false
     if (e.pointerType === 'touch') {
-      holdTimer.current = setTimeout(openMenu, 500)
+      holdTimer.current = setTimeout(() => { holdTimer.current = null; openMenu() }, 450)
     }
   }
 
-  function onPointerUp() {
+  function onPointerMove() {
+    movedRef.current = true
     if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null }
+  }
+
+  // У медиа-сообщений тап оставляем самому медиа (плей/зум) — меню только по долгому нажатию
+  const hasMedia = !!att
+
+  function onPointerUp() {
+    if (holdTimer.current) {
+      // короткое нажатие — считаем это тапом
+      clearTimeout(holdTimer.current)
+      holdTimer.current = null
+      if (!movedRef.current && !hasMedia) openMenu()
+    }
+  }
+
+  // На десктопе открываем по обычному клику (если не было выделения текста и это не медиа)
+  function onClick() {
+    if (hasMedia) return
+    if (window.matchMedia('(pointer: fine)').matches && !window.getSelection()?.toString()) {
+      openMenu()
+    }
   }
 
   function onContextMenu(e: React.MouseEvent) {
@@ -175,7 +203,28 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
     try {
       const res = await chatApi.reactToMessage(message.id, emoji)
       updateMessage(res.data.data)
+    } catch (err) {
+      // 409 — превышен лимит реакций
+      if ((err as { response?: { status?: number } })?.response?.status === 409) onReactError?.()
+    }
+  }
+
+  async function handlePin() {
+    setShowMenu(false)
+    try {
+      const res = await chatApi.pinMessage(message.id)
+      updateMessage(res.data.data)
     } catch {}
+  }
+
+  function handleReply() {
+    setShowMenu(false)
+    onReply?.(message)
+  }
+
+  function handleEdit() {
+    setShowMenu(false)
+    onEdit?.(message)
   }
 
   // Мета — время, «изм.» и галочки — живёт снаружи пузыря.
@@ -231,6 +280,20 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
             {message.sender.nickname}
           </p>
         )}
+        {message.replyTo && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onJumpTo?.(message.replyTo!.id) }}
+            className="flex flex-col items-start text-left w-full mb-1.5 pl-2 pr-2 py-1 rounded-lg"
+            style={{ background: 'rgba(0,0,0,0.18)', borderLeft: '2px solid var(--accent)' }}
+          >
+            <span className="text-[11px] font-semibold leading-tight" style={{ color: '#C084FC' }}>
+              {message.replyTo.sender.nickname}
+            </span>
+            <span className="text-[12px] truncate max-w-full opacity-80" style={{ color: 'rgba(255,255,255,0.75)' }}>
+              {replyPreviewText(message.replyTo)}
+            </span>
+          </button>
+        )}
         {att && (
           <div className={isMediaOnly ? '' : 'mb-1.5'}>
             {message.type === 'IMAGE' && (
@@ -267,10 +330,12 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
     <>
       <div
         ref={bubbleRef}
-        className={`group flex items-end gap-1.5 ${isOwn ? 'justify-end' : 'justify-start'} ${groupPos === 'first' || groupPos === 'single' ? 'mt-3' : 'mt-0.5'} msg-appear`}
+        className={`group flex items-end gap-1.5 ${isOwn ? 'justify-end' : 'justify-start'} ${groupPos === 'first' || groupPos === 'single' ? 'mt-3' : 'mt-0.5'} msg-appear cursor-pointer`}
         onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onClick={onClick}
         onContextMenu={onContextMenu}
       >
         {isOwn && <>{reactBtn}{meta}</>}
@@ -283,10 +348,14 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
           bubbleRef={bubbleRef}
           isOwn={isOwn}
           isText={message.type === 'TEXT' && !!message.content}
-          readAt={isRead ? (partnerReadAt ?? null) : null}
+          isPinned={!!message.pinnedAt}
+          readAt={isOwn && isRead ? (partnerReadAt ?? null) : null}
           onClose={() => setShowMenu(false)}
           onReact={handleReact}
+          onReply={onReply ? handleReply : undefined}
           onCopy={message.type === 'TEXT' && message.content ? handleCopy : undefined}
+          onEdit={isOwn && message.type === 'TEXT' && onEdit ? handleEdit : undefined}
+          onPin={handlePin}
           onDelete={isOwn ? handleDelete : undefined}
         />,
         document.body
@@ -298,15 +367,19 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
 // ── Context menu ──────────────────────────────────────────────
 
 function MessageContextMenu({
-  bubbleRef, isOwn, isText, readAt, onClose, onReact, onCopy, onDelete,
+  bubbleRef, isOwn, isText, isPinned, readAt, onClose, onReact, onReply, onCopy, onEdit, onPin, onDelete,
 }: {
   bubbleRef: React.RefObject<HTMLDivElement>
   isOwn: boolean
   isText: boolean
+  isPinned: boolean
   readAt: string | null
   onClose: () => void
   onReact: (emoji: string) => void
+  onReply?: () => void
   onCopy?: () => void
+  onEdit?: () => void
+  onPin?: () => void
   onDelete?: () => void
 }) {
   const [showFullPicker, setShowFullPicker] = useState(false)
@@ -317,7 +390,8 @@ function MessageContextMenu({
   const EMOJI_H = 56
   const MENU_W = 220
   const MENU_ITEM_H = 44
-  const itemCount = (onCopy ? 1 : 0) + (onDelete ? 1 : 0)
+  const itemCount =
+    (onReply ? 1 : 0) + (onCopy ? 1 : 0) + (onEdit ? 1 : 0) + (onPin ? 1 : 0) + (onDelete ? 1 : 0)
   const MENU_H = itemCount * MENU_ITEM_H + (readAt ? 36 : 0)
 
   const viewW = window.innerWidth
@@ -403,11 +477,20 @@ function MessageContextMenu({
               {readLabel}
             </div>
           )}
+          {onReply && (
+            <CtxItem icon="↩️" label="Ответить" onPointerDown={e => { e.stopPropagation(); onReply() }} />
+          )}
           {onCopy && isText && (
             <CtxItem icon="📋" label="Скопировать" onPointerDown={e => { e.stopPropagation(); onCopy() }} />
           )}
+          {onEdit && (
+            <CtxItem icon="✏️" label="Изменить" onPointerDown={e => { e.stopPropagation(); onEdit() }} />
+          )}
+          {onPin && (
+            <CtxItem icon="📌" label={isPinned ? 'Открепить' : 'Закрепить'} onPointerDown={e => { e.stopPropagation(); onPin() }} />
+          )}
           {onDelete && (
-            <CtxItem icon="🗑" label="Удалить" onPointerDown={e => { e.stopPropagation(); onDelete() }} danger />
+            <CtxItem icon="🗑" label="Удалить для всех" onPointerDown={e => { e.stopPropagation(); onDelete() }} danger />
           )}
         </motion.div>
       )}
@@ -549,7 +632,7 @@ function ReactionBar({ reactions, myId, onReact }: {
         return (
           <button
             key={r.emoji}
-            onClick={() => onReact(r.emoji)}
+            onClick={(e) => { e.stopPropagation(); onReact(r.emoji) }}
             className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs transition-all active:scale-95"
             style={{
               background: reacted ? 'rgba(168,85,247,0.25)' : 'rgba(255,255,255,0.08)',
@@ -567,6 +650,15 @@ function ReactionBar({ reactions, myId, onReact }: {
 }
 
 // ── Helpers ───────────────────────────────────────────────────
+
+function replyPreviewText(reply: NonNullable<Message['replyTo']>): string {
+  if (reply.deleted) return 'Сообщение удалено'
+  if (reply.content) return reply.content
+  const labels: Record<string, string> = {
+    IMAGE: '🖼 Фото', VIDEO: '🎥 Видео', AUDIO: '🎤 Голосовое', CIRCLE_VIDEO: '⭕ Кружок',
+  }
+  return labels[reply.type] ?? 'Вложение'
+}
 
 function mediaUrl(publicUrl: string | null | undefined, storageKey: string): string {
   if (publicUrl && !publicUrl.includes('minio:') && !publicUrl.includes('localhost:9000')) {
