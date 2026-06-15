@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   Mic, MicOff, Video, VideoOff, MonitorUp, PhoneOff, Volume2,
-  Settings, Phone, MessageSquare,
+  Settings, Phone, MessageSquare, ChevronUp,
 } from 'lucide-react'
 import { enumerateDevices, type MediaDeviceLists } from '@/lib/webrtc'
 
