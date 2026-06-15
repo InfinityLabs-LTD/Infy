@@ -182,7 +182,7 @@ export function AdminLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <div className="flex flex-col md:flex-row" style={{ height: '100dvh', background: 'var(--bg-deep)' }}>
+    <div className="flex flex-col md:flex-row" style={{ height: '100%', background: 'var(--bg-deep)' }}>
       {/* Мобильный топ-бар */}
       <div className="md:hidden shrink-0 flex items-center gap-2 px-2 py-2"
         style={{

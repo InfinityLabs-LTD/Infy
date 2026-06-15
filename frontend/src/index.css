@@ -25,19 +25,31 @@
     --glow-primary: 0 0 24px rgba(124, 58, 237, 0.35);
     --ease-fluid: cubic-bezier(0.32, 0.72, 0, 1);
   }
-  /* Защита только от горизонтального вылета за экран.
-     Вертикальный скролл/высоту НЕ трогаем — layout-страницы сами
-     управляют высотой через 100dvh и внутренние overflow-y-auto. */
-  html, body, #root {
-    max-width: 100%;
-    overflow-x: hidden;
-  }
   html { -webkit-tap-highlight-color: transparent; }
+  /* Сама страница (body) прибита к вьюпорту и не может скроллиться/
+     оттягиваться (rubber-band) на iOS — иначе шапка с поиском уезжает
+     за верхний край. Весь скролл живёт внутри #root и его потомков. */
   body {
     @apply antialiased;
     font-family: 'Inter Variable', 'Inter', system-ui, sans-serif;
     background: var(--bg-deep);
     color: var(--text-hi);
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  /* #root заполняет вьюпорт и клиппит горизонтальный вылет.
+     overflow-y: auto — чтобы страницы с min-h-screen (логин, сессии,
+     редактирование профиля) могли скроллиться здесь, раз body фиксирован.
+     Layout-страницы (100dvh + свои внутренние скроллы) ровно заполняют
+     #root и лишней высоты не создают. */
+  #root {
+    height: 100%;
+    width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   * {
     scrollbar-width: thin;
