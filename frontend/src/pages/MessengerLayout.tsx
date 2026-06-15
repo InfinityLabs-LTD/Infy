@@ -310,7 +310,7 @@ export function MessengerLayout() {
 
       {/* Нижняя навигация — плавающая стеклянная капсула (только мобильный, не в чате) */}
       <div className={`md:hidden shrink-0 px-4 ${activeChatId ? 'hidden' : ''}`}
-        style={{ paddingBottom: 12, paddingTop: 8 }}>
+        style={{ paddingBottom: 4, paddingTop: 8 }}>
         <div className="glass-pop flex items-center justify-around rounded-full px-2 py-1.5">
           <MobileNavBtn
             label="Контакты"
