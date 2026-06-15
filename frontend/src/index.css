@@ -35,7 +35,13 @@
     background: var(--bg-deep);
     color: var(--text-hi);
     position: fixed;
-    inset: 0;
+    left: 0;
+    right: 0;
+    /* Прибиваем к безопасной зоне: под чёлкой/Dynamic Island сверху и
+       над home-indicator снизу. Иначе шапка с поиском прячется под
+       системную строку статуса на iPhone. */
+    top: env(safe-area-inset-top);
+    bottom: env(safe-area-inset-bottom);
     overflow: hidden;
     overscroll-behavior: none;
   }
