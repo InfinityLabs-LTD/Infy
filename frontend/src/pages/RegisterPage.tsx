@@ -1,9 +1,14 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { AtSign, User, Mail, Calendar, Lock, ShieldCheck, ArrowRight } from 'lucide-react'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/store/auth'
 import { Spinner } from '@/components/ui/Spinner'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
+import { AuthBackground } from '@/components/auth/AuthBackground'
+import { AuthBrandPanel } from '@/components/auth/AuthBrandPanel'
+import { InfyLogo } from '@/components/auth/InfyLogo'
 
 export function RegisterPage() {
   const navigate = useNavigate()
@@ -34,80 +39,107 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex" style={{ background: 'var(--bg-deep)' }}>
-      <div className="chat-bg hidden lg:flex flex-1 flex-col items-center justify-center p-12 text-white"
-        style={{ borderRight: '1px solid rgba(255,255,255,0.05)' }}>
-        <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-6"
-          style={{ background: 'rgba(124,58,237,0.18)', border: '1px solid rgba(168,85,247,0.3)' }}>
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="1.5">
-            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-          </svg>
-        </div>
-        <h1 className="text-4xl font-bold mb-3">Присоединяйтесь</h1>
-        <p className="text-lg max-w-sm text-center" style={{ color: 'rgba(255,255,255,0.4)' }}>
-          Создайте аккаунт и начните общаться прямо сейчас
-        </p>
-      </div>
+    <div className="relative min-h-screen w-full overflow-hidden">
+      <AuthBackground />
 
-      <div className="w-full lg:w-[460px] flex items-center justify-center p-6 overflow-y-auto" style={{ background: 'var(--bg-deep)' }}>
-        <div className="w-full max-w-sm py-8">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-white">Создать аккаунт</h2>
-            <p className="mt-1" style={{ color: 'var(--text-low)' }}>Заполните информацию ниже</p>
-          </div>
+      <div className="relative grid min-h-screen grid-cols-1 lg:grid-cols-2">
+        {/* Левая часть — бренд (только desktop) */}
+        <AuthBrandPanel />
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error !== null && <ErrorMessage error={error} />}
+        {/* Правая часть — форма */}
+        <div className="flex items-center justify-center px-5 py-10 sm:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 28, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.6, ease: [0.32, 0.72, 0, 1] }}
+            className="auth-glass w-full max-w-md p-7 sm:p-9"
+          >
+            <div className="mb-6 flex flex-col items-center text-center lg:hidden">
+              <InfyLogo size={56} />
+              <span className="mt-3 text-xl font-bold tracking-tight text-white/90">Infy Messenger</span>
+            </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">Имя пользователя</label>
-                <input className="input" type="text" placeholder="username" autoComplete="username"
-                  value={form.username} onChange={set('username')}
-                  pattern="[a-z0-9_]+" minLength={3} maxLength={32} required />
-                <p className="text-xs mt-1" style={{ color: 'var(--text-low)' }}>3–32 символа, a-z, 0-9, _</p>
+            <div className="mb-7">
+              <h2 className="font-display text-3xl font-bold tracking-tight text-white">
+                Создать аккаунт
+              </h2>
+              <p className="mt-2 text-[15px] text-white/55">Присоединяйтесь к Infy за минуту</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error !== null && <ErrorMessage error={error} />}
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="relative">
+                  <AtSign size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/40" />
+                  <input
+                    className="auth-input" type="text" placeholder="username" autoComplete="username"
+                    value={form.username} onChange={set('username')}
+                    pattern="[a-z0-9_]+" minLength={3} maxLength={32} required
+                  />
+                </div>
+                <div className="relative">
+                  <User size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/40" />
+                  <input
+                    className="auth-input" type="text" placeholder="Ваше имя"
+                    value={form.nickname} onChange={set('nickname')} maxLength={64} required
+                  />
+                </div>
               </div>
-              <div>
-                <label className="label">Отображаемое имя</label>
-                <input className="input" type="text" placeholder="Ваше имя"
-                  value={form.nickname} onChange={set('nickname')} maxLength={64} required />
+              <p className="-mt-1 pl-1 text-xs text-white/35">3–32 символа: a-z, 0-9, _</p>
+
+              <div className="relative">
+                <Mail size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/40" />
+                <input
+                  className="auth-input" type="email" placeholder="Email (необязательно)"
+                  autoComplete="email" value={form.email} onChange={set('email')}
+                />
               </div>
-            </div>
 
-            <div>
-              <label className="label">Email <span className="font-normal" style={{ color: 'var(--text-low)' }}>(необязательно)</span></label>
-              <input className="input" type="email" placeholder="you@example.com"
-                autoComplete="email" value={form.email} onChange={set('email')} />
-            </div>
+              <div className="relative">
+                <Calendar size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/40" />
+                <input
+                  className="auth-input" type="date" value={form.birthdate} onChange={set('birthdate')}
+                  aria-label="Дата рождения (необязательно)"
+                />
+              </div>
 
-            <div>
-              <label className="label">Дата рождения <span className="font-normal" style={{ color: 'var(--text-low)' }}>(необязательно)</span></label>
-              <input className="input" type="date" value={form.birthdate} onChange={set('birthdate')} />
-            </div>
+              <div className="relative">
+                <Lock size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/40" />
+                <input
+                  className="auth-input" type="password" placeholder="Пароль (мин. 8 символов)"
+                  autoComplete="new-password" value={form.password} onChange={set('password')}
+                  minLength={8} required
+                />
+              </div>
 
-            <div>
-              <label className="label">Пароль</label>
-              <input className="input" type="password" placeholder="Мин. 8 символов"
-                autoComplete="new-password" value={form.password} onChange={set('password')}
-                minLength={8} required />
-            </div>
+              <div className="relative">
+                <ShieldCheck size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/40" />
+                <input
+                  className="auth-input" type="password" placeholder="Повторите пароль"
+                  autoComplete="new-password" value={form.passwordConfirm} onChange={set('passwordConfirm')} required
+                />
+              </div>
 
-            <div>
-              <label className="label">Подтвердите пароль</label>
-              <input className="input" type="password" placeholder="Повторите пароль"
-                autoComplete="new-password" value={form.passwordConfirm}
-                onChange={set('passwordConfirm')} required />
-            </div>
+              <button type="submit" className="auth-btn group" disabled={loading}>
+                {loading ? (
+                  <span className="flex items-center justify-center"><Spinner size={18} /></span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    Создать аккаунт
+                    <ArrowRight size={18} className="transition-transform duration-300 group-hover:translate-x-1" />
+                  </span>
+                )}
+              </button>
+            </form>
 
-            <button type="submit" className="btn-primary w-full py-3 text-base" disabled={loading}>
-              {loading ? <Spinner size={18} /> : 'Создать аккаунт'}
-            </button>
-          </form>
-
-          <p className="text-center text-sm mt-6" style={{ color: 'var(--text-low)' }}>
-            Уже есть аккаунт?{' '}
-            <Link to="/login" className="font-semibold" style={{ color: '#C084FC' }}>Войти</Link>
-          </p>
+            <p className="mt-7 text-center text-[15px] text-white/55">
+              Уже есть аккаунт?{' '}
+              <Link to="/login" className="font-semibold text-[#B388FF] transition-colors hover:text-white">
+                Войти
+              </Link>
+            </p>
+          </motion.div>
         </div>
       </div>
     </div>

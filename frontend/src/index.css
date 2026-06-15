@@ -179,8 +179,126 @@
 }
 .online-ping { animation: onlinePing 2.2s ease-out infinite; }
 
+/* ============================================================
+   Auth (страницы входа / регистрации) — premium liquid glass
+   ============================================================ */
+
+/* Глубокий брендовый фон со свечением */
+.auth-bg {
+  background:
+    radial-gradient(circle at 15% 15%, rgba(124, 77, 255, 0.28), transparent 42%),
+    radial-gradient(circle at 85% 85%, rgba(179, 136, 255, 0.18), transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.10), transparent 60%),
+    linear-gradient(135deg, #030712 0%, #0A1025 50%, #070B1D 100%);
+}
+
+/* Плавающая стеклянная сфера */
+.auth-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(2px);
+  pointer-events: none;
+  will-change: transform;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.35), transparent 45%),
+    radial-gradient(circle at 70% 75%, rgba(124, 77, 255, 0.55), rgba(124, 77, 255, 0.05) 70%);
+  box-shadow:
+    inset 0 0 40px rgba(255, 255, 255, 0.12),
+    0 30px 80px rgba(124, 77, 255, 0.35);
+}
+
+/* Большая liquid-glass панель */
+.auth-glass {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(40px) saturate(150%);
+  -webkit-backdrop-filter: blur(40px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 32px;
+  box-shadow:
+    0 40px 120px rgba(2, 4, 18, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Маленькая glass-карточка фичи */
+.auth-feature {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+/* Стеклянное поле ввода с иконкой */
+.auth-input {
+  @apply block w-full rounded-2xl py-3.5 pl-12 pr-4 text-[15px] text-white
+         placeholder-white/35 focus:outline-none;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: border-color 0.35s var(--ease-fluid),
+              box-shadow 0.35s var(--ease-fluid),
+              background 0.35s var(--ease-fluid);
+}
+.auth-input:focus {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(157, 107, 255, 0.6);
+  box-shadow: 0 0 0 4px rgba(124, 77, 255, 0.18), 0 0 30px rgba(124, 77, 255, 0.25);
+}
+.auth-input::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
+
+/* Liquid-gradient кнопка с бликом */
+.auth-btn {
+  @apply relative w-full overflow-hidden rounded-2xl py-3.5 text-[15px] font-semibold text-white
+         disabled:opacity-60 disabled:cursor-not-allowed;
+  background: linear-gradient(135deg, #7C4DFF 0%, #9D6BFF 50%, #B388FF 100%);
+  box-shadow: 0 10px 30px rgba(124, 77, 255, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: transform 0.35s var(--ease-fluid), box-shadow 0.35s var(--ease-fluid), filter 0.35s var(--ease-fluid);
+}
+.auth-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 44px rgba(124, 77, 255, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  filter: brightness(1.06);
+}
+.auth-btn:active:not(:disabled) { transform: translateY(0) scale(0.985); }
+/* Бегущий стеклянный блик по кнопке */
+.auth-btn::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  transform: skewX(-20deg);
+  animation: authShine 4.5s ease-in-out infinite;
+}
+
+@keyframes authShine {
+  0%, 60% { left: -60%; }
+  100% { left: 160%; }
+}
+
+@keyframes authFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(24px, -32px) scale(1.05); }
+  66% { transform: translate(-18px, 20px) scale(0.97); }
+}
+.auth-float-a { animation: authFloat 18s ease-in-out infinite; }
+.auth-float-b { animation: authFloat 22s ease-in-out infinite reverse; }
+.auth-float-c { animation: authFloat 26s ease-in-out infinite; }
+
+/* Свечение, пульсирующее за логотипом */
+@keyframes authPulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.08); }
+}
+.auth-pulse { animation: authPulse 5s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
-  .msg-appear, .pop-in, .typing-dot, .online-ping { animation: none; }
+  .msg-appear, .pop-in, .typing-dot, .online-ping,
+  .auth-float-a, .auth-float-b, .auth-float-c, .auth-pulse { animation: none; }
+  .auth-btn::after { display: none; }
 }
 
 @layer utilities {

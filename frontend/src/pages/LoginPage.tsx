@@ -1,9 +1,14 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import { AtSign, Lock, ArrowRight } from 'lucide-react'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/store/auth'
 import { Spinner } from '@/components/ui/Spinner'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
+import { AuthBackground } from '@/components/auth/AuthBackground'
+import { AuthBrandPanel } from '@/components/auth/AuthBrandPanel'
+import { InfyLogo } from '@/components/auth/InfyLogo'
 
 export function LoginPage() {
   const navigate = useNavigate()
@@ -30,76 +35,106 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex" style={{ background: 'var(--bg-deep)' }}>
-      {/* Left decorative panel */}
-      <div className="chat-bg hidden lg:flex flex-1 flex-col items-center justify-center p-12 text-white"
-        style={{ borderRight: '1px solid rgba(255,255,255,0.05)' }}>
-        <div className="mb-10">
-          <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-6"
-            style={{ background: 'rgba(124,58,237,0.18)', border: '1px solid rgba(168,85,247,0.3)' }}>
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="1.5">
-              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-            </svg>
-          </div>
-          <h1 className="text-4xl font-bold mb-3">Infy Messenger</h1>
-          <p className="text-lg leading-relaxed max-w-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
-            Современный мессенджер для общения с близкими и коллегами
-          </p>
-        </div>
-        <div className="space-y-3 w-full max-w-sm">
-          {['Мгновенные сообщения', 'Голосовые и видеосообщения', 'Безопасное хранение данных'].map(f => (
-            <div key={f} className="flex items-center gap-3" style={{ color: 'rgba(255,255,255,0.5)' }}>
-              <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
-                style={{ background: 'rgba(124,58,237,0.25)' }}>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#C084FC" strokeWidth="3">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
+    <div className="relative min-h-screen w-full overflow-hidden">
+      <AuthBackground />
+
+      <div className="relative grid min-h-screen grid-cols-1 lg:grid-cols-2">
+        {/* Левая часть — бренд (только desktop) */}
+        <AuthBrandPanel />
+
+        {/* Правая часть — форма */}
+        <div className="flex items-center justify-center px-5 py-10 sm:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 28, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.6, ease: [0.32, 0.72, 0, 1] }}
+            className="auth-glass w-full max-w-md p-7 sm:p-9"
+          >
+            {/* Логотип сверху на мобильных */}
+            <div className="mb-6 flex flex-col items-center text-center lg:hidden">
+              <InfyLogo size={56} />
+              <span className="mt-3 text-xl font-bold tracking-tight text-white/90">Infy Messenger</span>
+            </div>
+
+            <div className="mb-7">
+              <h2 className="font-display text-3xl font-bold tracking-tight text-white">
+                Добро пожаловать обратно
+              </h2>
+              <p className="mt-2 text-[15px] text-white/55">Войдите в свой аккаунт Infy</p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error !== null && <ErrorMessage error={error} />}
+
+              <div className="relative">
+                <AtSign
+                  size={18}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/40"
+                />
+                <input
+                  className="auth-input"
+                  type="text"
+                  placeholder="Имя пользователя"
+                  autoComplete="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  required
+                />
               </div>
-              <span className="text-sm">{f}</span>
-            </div>
-          ))}
-        </div>
-      </div>
 
-      {/* Right form panel */}
-      <div className="w-full lg:w-[420px] flex items-center justify-center p-6" style={{ background: 'var(--bg-deep)' }}>
-        <div className="w-full max-w-sm">
-          <div className="mb-8">
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4 lg:hidden"
-              style={{ background: 'rgba(124,58,237,0.18)', border: '1px solid rgba(168,85,247,0.3)' }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="2">
-                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-              </svg>
-            </div>
-            <h2 className="text-2xl font-bold text-white">С возвращением!</h2>
-            <p className="mt-1" style={{ color: 'var(--text-low)' }}>Войдите в свой аккаунт</p>
-          </div>
+              <div className="relative">
+                <Lock
+                  size={18}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/40"
+                />
+                <input
+                  className="auth-input"
+                  type="password"
+                  placeholder="Пароль"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error !== null && <ErrorMessage error={error} />}
-            <div>
-              <label className="label">Имя пользователя</label>
-              <input className="input" type="text" placeholder="your_username"
-                autoComplete="username" value={username}
-                onChange={e => setUsername(e.target.value.toLowerCase())} required />
-            </div>
-            <div>
-              <label className="label">Пароль</label>
-              <input className="input" type="password" placeholder="••••••••"
-                autoComplete="current-password" value={password}
-                onChange={e => setPassword(e.target.value)} required />
-            </div>
-            <button type="submit" className="btn-primary w-full py-3 text-base" disabled={loading}>
-              {loading ? <Spinner size={18} /> : 'Войти'}
-            </button>
-          </form>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  className="text-sm font-medium text-white/50 transition-colors hover:text-[#B388FF]"
+                  onClick={() => navigate('/register')}
+                >
+                  Восстановить пароль
+                </button>
+              </div>
 
-          <p className="text-center text-sm mt-6" style={{ color: 'var(--text-low)' }}>
-            Нет аккаунта?{' '}
-            <Link to="/register" className="font-semibold" style={{ color: '#C084FC' }}>
-              Создать аккаунт
-            </Link>
-          </p>
+              <button type="submit" className="auth-btn group" disabled={loading}>
+                {loading ? (
+                  <span className="flex items-center justify-center">
+                    <Spinner size={18} />
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    Войти
+                    <ArrowRight
+                      size={18}
+                      className="transition-transform duration-300 group-hover:translate-x-1"
+                    />
+                  </span>
+                )}
+              </button>
+            </form>
+
+            <p className="mt-7 text-center text-[15px] text-white/55">
+              Нет аккаунта?{' '}
+              <Link
+                to="/register"
+                className="font-semibold text-[#B388FF] transition-colors hover:text-white"
+              >
+                Создать аккаунт
+              </Link>
+            </p>
+          </motion.div>
         </div>
       </div>
     </div>
