@@ -25,12 +25,27 @@
     --glow-primary: 0 0 24px rgba(124, 58, 237, 0.35);
     --ease-fluid: cubic-bezier(0.32, 0.72, 0, 1);
   }
-  html { -webkit-tap-highlight-color: transparent; }
+  html {
+    -webkit-tap-highlight-color: transparent;
+    /* iOS/Android: не давать странице скроллиться вбок и растягиваться шире экрана */
+    width: 100%;
+    overflow-x: hidden;
+  }
   body {
     @apply antialiased;
     font-family: 'Inter Variable', 'Inter', system-ui, sans-serif;
     background: var(--bg-deep);
     color: var(--text-hi);
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    /* запретить «резиновое» горизонтальное смещение на iOS Safari */
+    overscroll-behavior-x: none;
+  }
+  #root {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
   }
   * {
     scrollbar-width: thin;
