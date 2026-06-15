@@ -29,7 +29,7 @@ export function useSocket(): Socket | null {
       if (document.hidden && msg.sender.id !== myId && Notification.permission === 'granted') {
         new Notification(msg.sender.nickname, {
           body: msg.type === 'TEXT' ? (msg.content ?? '') : '📎 Вложение',
-          icon: msg.sender.avatarUrl ?? '/icon.svg',
+          icon: msg.sender.avatarUrl ?? '/icon.jpg',
           tag: msg.chatId,  // replaces previous notification for same chat
         })
       }
@@ -52,7 +52,7 @@ export function useSocket(): Socket | null {
       if (document.hidden && Notification.permission === 'granted') {
         new Notification(`📅 ${r.title}`, {
           body: `${r.categoryName}${r.notes ? ` — ${r.notes}` : ''}`,
-          icon: '/icon.svg',
+          icon: '/icon.jpg',
           tag: `reminder:${r.reminderId}`,
         })
       }

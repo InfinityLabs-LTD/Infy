@@ -50,10 +50,10 @@ async function pushToOfflineMembers(
     })
 
     const senderName = msg.sender?.nickname ?? 'Infy'
-    const senderAvatar = msg.sender?.avatarUrl ?? '/icon.svg'
+    const senderAvatar = msg.sender?.avatarUrl ?? '/icon.jpg'
     const body = msg.type === 'TEXT' ? (msg.content ?? '') : '📎 Вложение'
 
-    await Promise.allSettled(
+    const results = await Promise.allSettled(
       subscriptions.map(sub =>
         sendPush(sub, {
           title: senderName,
@@ -64,6 +64,14 @@ async function pushToOfflineMembers(
         }),
       ),
     )
+
+    // Prune subscriptions the push service reported as gone (404/410).
+    const deadEndpoints = subscriptions
+      .filter((_, i) => results[i].status === 'fulfilled' && (results[i] as PromiseFulfilledResult<boolean>).value === false)
+      .map(sub => sub.endpoint)
+    if (deadEndpoints.length > 0) {
+      await prisma.pushSubscription.deleteMany({ where: { endpoint: { in: deadEndpoints } } })
+    }
   } catch { /* non-critical */ }
 }
 

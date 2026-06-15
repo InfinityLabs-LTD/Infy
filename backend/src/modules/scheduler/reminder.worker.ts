@@ -108,17 +108,23 @@ async function deliverOne(
     const when = event.allDay
       ? 'сегодня'
       : new Date(event.eventAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-    await Promise.allSettled(
+    const results = await Promise.allSettled(
       subs.map(sub =>
         sendPush(sub, {
           title: `📅 ${event.title}`,
           body: `${categoryName} · ${when}${event.notes ? ` — ${event.notes}` : ''}`,
-          icon: event.createdBy.avatarUrl ?? '/icon.svg',
+          icon: event.createdBy.avatarUrl ?? '/icon.jpg',
           tag: `reminder:${reminder.id}`,
           url: '/',
         }),
       ),
     )
+    const deadEndpoints = subs
+      .filter((_, i) => results[i].status === 'fulfilled' && (results[i] as PromiseFulfilledResult<boolean>).value === false)
+      .map(sub => sub.endpoint)
+    if (deadEndpoints.length > 0) {
+      await prisma.pushSubscription.deleteMany({ where: { endpoint: { in: deadEndpoints } } })
+    }
   }
 }
 

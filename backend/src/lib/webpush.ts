@@ -17,12 +17,24 @@ export interface PushSubscriptionKeys {
   auth: string
 }
 
-export async function sendPush(sub: PushSubscriptionKeys, payload: PushPayload): Promise<void> {
-  await webpush.sendNotification(
-    {
-      endpoint: sub.endpoint,
-      keys: { p256dh: sub.p256dh, auth: sub.auth },
-    },
-    JSON.stringify(payload),
-  )
+/**
+ * Sends a push. Returns `true` on success. If the push service reports the
+ * subscription is gone (404/410), returns `false` so the caller can prune it.
+ * Other errors are rethrown.
+ */
+export async function sendPush(sub: PushSubscriptionKeys, payload: PushPayload): Promise<boolean> {
+  try {
+    await webpush.sendNotification(
+      {
+        endpoint: sub.endpoint,
+        keys: { p256dh: sub.p256dh, auth: sub.auth },
+      },
+      JSON.stringify(payload),
+    )
+    return true
+  } catch (err) {
+    const status = (err as { statusCode?: number }).statusCode
+    if (status === 404 || status === 410) return false
+    throw err
+  }
 }

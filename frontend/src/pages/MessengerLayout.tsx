@@ -4,7 +4,7 @@ import { chatApi } from '@/api/chat'
 import { useChatStore, Chat } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { useSocket } from '@/hooks/useSocket'
-import { useNotifications } from '@/hooks/useNotifications'
+import { NotificationPrompt } from '@/components/NotificationPrompt'
 import { Avatar } from '@/components/ui/Avatar'
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator'
 import { Spinner } from '@/components/ui/Spinner'
@@ -139,7 +139,6 @@ export function MessengerLayout() {
   const menuRef = useRef<HTMLDivElement>(null)
 
   useSocket()
-  useNotifications()
 
   // Глобальный хоткей ⌘K / Ctrl+K — командная палитра
   useEffect(() => {
@@ -274,6 +273,7 @@ export function MessengerLayout() {
 
         {/* Chat list — скрыт на мобильном когда открыты Контакты */}
         <nav className={`flex-1 overflow-y-auto ${isContactsTab ? 'hidden md:block' : ''}`}>
+          <NotificationPrompt />
           {loading ? (
             <div className="flex justify-center py-10"><Spinner size={20} /></div>
           ) : filtered.length === 0 ? (
