@@ -145,6 +145,25 @@ services:
     environment:
       SERVICE_ROLE: scheduler
 
+  # ── coturn (TURN/STUN для звонков) ──────────────────────────
+  # Использует host-сеть: TURN ретранслирует медиа на большом диапазоне
+  # UDP-портов (49152–65535), который непрактично пробрасывать поштучно.
+  # Секрет и realm подставляются из env. На проде открой в firewall:
+  #   3478/udp, 3478/tcp, 5349/tcp и диапазон 49152–65535/udp.
+  coturn:
+    image: coturn/coturn:4.6-alpine
+    network_mode: host
+    env_file: .env
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    # Конфиг из файла + динамические параметры (секрет/realm/внешний IP) из env.
+    command: >
+      -c /etc/coturn/turnserver.conf
+      --static-auth-secret=${TURN_SECRET}
+      --realm=${TURN_REALM:-infy.local}
+      ${TURN_EXTERNAL_IP:+--external-ip=$TURN_EXTERNAL_IP}
+    restart: unless-stopped
+
   # ── Frontend ─────────────────────────────────────────────────
 
   frontend:

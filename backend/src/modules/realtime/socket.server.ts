@@ -9,6 +9,7 @@ import { subscribeToChannel } from '../../lib/pubsub.js'
 import { setOnline, setOffline, refreshPresence, isOnline, getOnlineUserIds } from '../../lib/presence.js'
 import { sendPush } from '../../lib/webpush.js'
 import * as ChatService from '../chat/chat.service.js'
+import { registerCallHandlers } from '../calls/calls.signaling.js'
 
 interface AuthSocket extends Socket {
   userId: string
@@ -182,6 +183,9 @@ export function createSocketServer(
         socket.join(`chat:${chatId}`)
       }
     } catch { /* non-critical */ }
+
+    // ── Сигналинг звонков (WebRTC) ──────────────────────────
+    registerCallHandlers(io, s, pubClient, prisma)
 
     // ── join_chat ───────────────────────────────────────────
     socket.on('join_chat', async (chatId: string) => {

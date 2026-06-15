@@ -26,6 +26,7 @@ import adminStatsRoutes from './modules/admin/admin.stats.routes.js'
 import adminModerationRoutes from './modules/admin/admin.moderation.routes.js'
 import aiRoutes from './modules/ai/ai.routes.js'
 import pushRoutes from './modules/push/push.routes.js'
+import callRoutes from './modules/calls/calls.routes.js'
 import { createSocketServer } from './modules/realtime/socket.server.js'
 
 async function buildCoreServer() {
@@ -65,6 +66,7 @@ async function buildCoreServer() {
         { name: 'Chat', description: 'Chats and messages' },
         { name: 'Calendar', description: 'Shared chat calendar and reminders' },
         { name: 'Media', description: 'File upload and serving' },
+        { name: 'Calls', description: 'Voice/video calls — ICE config and history' },
         { name: 'Admin', description: 'Admin panel (role=ADMIN only)' },
       ],
     },
@@ -122,6 +124,7 @@ async function buildCoreServer() {
   await app.register(adminModerationRoutes, { prefix: '/admin/moderation' })
   await app.register(aiRoutes, { prefix: '/ai' })
   await app.register(pushRoutes, { prefix: '/push' })
+  await app.register(callRoutes, { prefix: '/calls' })
 
   return app
 }

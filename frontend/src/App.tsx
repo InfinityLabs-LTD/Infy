@@ -19,6 +19,8 @@ import { AdminModerationPage } from '@/pages/admin/AdminModerationPage'
 import { AdminAiCenterPage } from '@/pages/admin/AdminAiCenterPage'
 import { AdminPaymentsPage } from '@/pages/admin/AdminPaymentsPage'
 import { AdminContainersPage } from '@/pages/admin/AdminContainersPage'
+import { CallOverlay } from '@/components/call/CallOverlay'
+import { useCallSignaling } from '@/hooks/useCallSignaling'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user)
@@ -39,9 +41,17 @@ function RequireGuest({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+// Глобальный слой звонков: слушает сигналинг и рендерит экран звонка
+// поверх всего приложения. Внутри BrowserRouter — использует useNavigate.
+function CallLayer() {
+  useCallSignaling()
+  return <CallOverlay />
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <CallLayer />
       <Routes>
         {/* Messenger (sidebar + chat) */}
         <Route element={<RequireAuth><MessengerLayout /></RequireAuth>}>

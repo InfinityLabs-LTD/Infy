@@ -16,6 +16,8 @@ import { CalendarPanel } from '@/components/chat/calendar/CalendarPanel'
 import { AiPanel } from '@/components/chat/AiPanel'
 import { Spinner } from '@/components/ui/Spinner'
 import { useMediaRecorder } from '@/hooks/useMediaRecorder'
+import { callController } from '@/lib/callController'
+import { useCallStore } from '@/store/call'
 
 const TYPING_DEBOUNCE_MS = 1500
 const GROUP_WINDOW_MS = 60_000
@@ -480,6 +482,19 @@ export function ChatPage() {
 
   const partner = chat?.partner
 
+  // Звонок уже идёт — блокируем повторную инициацию.
+  const callBusy = useCallStore(s => s.phase !== 'idle')
+
+  function startCall(media: 'AUDIO' | 'VIDEO') {
+    if (!partner || callBusy || !chatId) return
+    void callController.startCall(chatId, media, {
+      id: partner.id,
+      username: partner.username,
+      nickname: partner.nickname,
+      avatarUrl: partner.avatarUrl,
+    })
+  }
+
   return (
     <div className="flex flex-col flex-1 min-h-0" style={{ background: 'var(--bg-base)' }}>
       {/* ── Header ── */}
@@ -542,6 +557,28 @@ export function ChatPage() {
             </button>
 
             <div className="flex items-center shrink-0">
+              {/* Голосовой звонок */}
+              <IconBtn
+                onClick={() => startCall('AUDIO')}
+                disabled={!partner || resolving || !chatId || callBusy}
+                title="Голосовой звонок"
+                color="rgba(255,255,255,0.5)"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>
+                </svg>
+              </IconBtn>
+              {/* Видеозвонок */}
+              <IconBtn
+                onClick={() => startCall('VIDEO')}
+                disabled={!partner || resolving || !chatId || callBusy}
+                title="Видеозвонок"
+                color="rgba(255,255,255,0.5)"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                </svg>
+              </IconBtn>
               <IconBtn onClick={() => setSearchMode(true)} color="rgba(255,255,255,0.5)">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>

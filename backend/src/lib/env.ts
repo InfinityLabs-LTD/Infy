@@ -42,6 +42,18 @@ const schema = z.object({
   // AI (Infy Pulse) — опционально: без ключа фича отключена, остальное работает
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default('claude-opus-4-8'),
+
+  // ── Звонки / WebRTC ICE ────────────────────────────────────
+  // Публичные STUN-серверы (через запятую). Помогают узнать внешний адрес.
+  STUN_URLS: z.string().default('stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302'),
+  // URL(ы) собственного TURN (coturn). Пусто = TURN не выдаётся (только STUN).
+  // Пример: turn:turn.example.com:3478,turns:turn.example.com:5349
+  TURN_URLS: z.string().default(''),
+  // Общий секрет coturn (static-auth-secret / use-auth-secret).
+  // Бэкенд по нему генерирует time-limited credentials (REST API TURN).
+  TURN_SECRET: z.string().default(''),
+  // Срок жизни выданных TURN-credentials в секундах.
+  TURN_TTL_SEC: z.coerce.number().default(3600),
 })
 
 const parsed = schema.safeParse(process.env)

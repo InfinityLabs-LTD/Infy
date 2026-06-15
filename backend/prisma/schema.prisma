@@ -40,6 +40,23 @@ enum SanctionType {
   BAN       // блокировка аккаунта
 }
 
+// Аудио или видео — медийный режим звонка
+enum CallMedia {
+  AUDIO
+  VIDEO
+}
+
+// Жизненный цикл звонка. RINGING → ACTIVE → ENDED либо обрыв на любом шаге.
+enum CallStatus {
+  RINGING    // вызов идёт, ждём ответа
+  ACTIVE     // соединение установлено, идёт разговор
+  ENDED      // завершён штатно (любая из сторон повесила трубку)
+  MISSED     // не отвечен (таймаут или отклонён вызывающим до ответа)
+  DECLINED   // получатель отклонил
+  CANCELLED  // вызывающий отменил до ответа
+  FAILED     // ICE/сеть не дали установить соединение
+}
+
 model User {
   id              BigInt    @id @default(autoincrement())
   username        String    @unique @db.VarChar(32)
@@ -66,6 +83,8 @@ model User {
   reminderDeliveries      ReminderDelivery[]
   sanctions               Sanction[]           @relation("SanctionTarget")
   issuedSanctions         Sanction[]           @relation("SanctionIssuer")
+  initiatedCalls          CallSession[]        @relation("CallInitiator")
+  callParticipations      CallParticipant[]
 
   @@map("users")
 }
@@ -131,6 +150,7 @@ model Chat {
   events     CalendarEvent[]
   categories CalendarCategory[]
   settings   ChatCalendarSetting[]
+  calls      CallSession[]
 
   @@map("chats")
 }
@@ -314,4 +334,47 @@ model ChatCalendarSetting {
   @@id([chatId, userId])
   @@index([userId])
   @@map("chat_calendar_settings")
+}
+
+// ── Звонки ───────────────────────────────────────────────────
+// Одна запись = один звонок в рамках чата. На Phase 1 — личные 1:1
+// звонки (chat.type = DIRECT), но схема рассчитана на группы:
+// участники вынесены в CallParticipant, а не зафиксированы двумя FK.
+model CallSession {
+  id          String     @id @default(cuid())
+  chatId      String
+  // Кто инициировал вызов.
+  initiatorId BigInt
+  media       CallMedia  @default(AUDIO)
+  status      CallStatus @default(RINGING)
+
+  createdAt   DateTime   @default(now())  // момент инициации (начало звонка)
+  answeredAt  DateTime?                   // когда вызов был принят (→ ACTIVE)
+  endedAt     DateTime?                   // когда звонок завершился
+  // Длительность разговора в секундах (answeredAt → endedAt). 0 для неотвеченных.
+  durationSec Int        @default(0)
+
+  chat         Chat              @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  initiator    User              @relation("CallInitiator", fields: [initiatorId], references: [id])
+  participants CallParticipant[]
+
+  @@index([chatId, createdAt])
+  @@index([initiatorId])
+  @@map("call_sessions")
+}
+
+// Участник конкретного звонка. Для 1:1 их двое (инициатор + получатель).
+model CallParticipant {
+  id        String    @id @default(cuid())
+  callId    String
+  userId    BigInt
+  joinedAt  DateTime?            // когда реально подключился к медиа (null = так и не вошёл)
+  leftAt    DateTime?
+
+  call CallSession @relation(fields: [callId], references: [id], onDelete: Cascade)
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([callId, userId])
+  @@index([userId])
+  @@map("call_participants")
 }

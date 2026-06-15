@@ -295,6 +295,19 @@
 }
 .auth-pulse { animation: authPulse 5s ease-in-out infinite; }
 
+/* === Звонки === */
+/* Пульсирующий ореол вокруг аватара при дозвоне */
+@keyframes callRipple {
+  0%   { box-shadow: 0 0 0 0 rgba(168,85,247,0.45); }
+  70%  { box-shadow: 0 0 0 32px rgba(168,85,247,0); }
+  100% { box-shadow: 0 0 0 0 rgba(168,85,247,0); }
+}
+/* Лёгкое «дыхание» кнопки принятия входящего */
+@keyframes callPulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.08); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .msg-appear, .pop-in, .typing-dot, .online-ping,
   .auth-float-a, .auth-float-b, .auth-float-c, .auth-pulse { animation: none; }
