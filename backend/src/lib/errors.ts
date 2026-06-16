@@ -23,6 +23,7 @@ export const Errors = {
   SESSION_NOT_FOUND:   () => new AppError('AUTH_SESSION_NOT_FOUND', 'Session not found', 404),
   UNAUTHORIZED:        () => new AppError('AUTH_UNAUTHORIZED', 'Authentication required', 401),
   FORBIDDEN:           () => new AppError('AUTH_FORBIDDEN', 'Insufficient permissions', 403),
+  RESET_TOKEN_INVALID: () => new AppError('AUTH_RESET_TOKEN_INVALID', 'Reset link is invalid or expired', 400),
   // Profile
   USERNAME_INVALID:    () => new AppError('PROFILE_USERNAME_INVALID', 'Username may only contain lowercase letters, numbers and underscores', 400),
   AVATAR_TOO_LARGE:    () => new AppError('PROFILE_AVATAR_TOO_LARGE', 'Avatar must be under 5 MB', 400),

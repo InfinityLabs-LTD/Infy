@@ -28,6 +28,52 @@ export interface AdminMessage {
   attachments: Array<{ id: string; mimeType: string; sizeBytes: number | null }>
 }
 
+// Полное вложение для админ-просмотра переписки (рендер любого контента).
+export interface AdminAttachment {
+  id: string
+  storageKey: string
+  thumbnailKey: string | null
+  mimeType: string
+  sizeBytes: number | null
+  width: number | null
+  height: number | null
+  durationMs: number | null
+  waveform: number[] | null
+}
+
+export interface AdminThreadMessage {
+  id: string
+  chatId: string
+  content: string | null
+  type: string
+  createdAt: string
+  editedAt: string | null
+  sender: { id: string; username: string; nickname: string; avatarUrl: string | null }
+  attachments: AdminAttachment[]
+  replyTo: { id: string; content: string | null; type: string; sender: { id: string; nickname: string } } | null
+}
+
+export interface AdminChatParticipant {
+  id: string
+  username: string
+  nickname: string
+  avatarUrl: string | null
+}
+
+export interface AdminChatSummary {
+  id: string
+  type: string
+  messageCount: number
+  participants: AdminChatParticipant[]
+  lastMessage: { id: string; content: string | null; type: string; createdAt: string; senderId: string } | null
+}
+
+export interface AdminThread {
+  chat: { id: string; type: string; participants: AdminChatParticipant[] }
+  messages: AdminThreadMessage[]
+  nextCursor: string | null
+}
+
 export interface Container {
   id: string
   names: string[]
@@ -102,6 +148,25 @@ export const adminApi = {
   getUserMessages: (id: string, params?: { page?: number; limit?: number }) =>
     api.get<{ data: { messages: AdminMessage[]; total: number; page: number; pages: number } }>(
       `/admin/users/${id}/messages`, { params }),
+
+  // Диалоги пользователя + чтение переписки по конкретному чату
+  getUserChats: (id: string) =>
+    api.get<{ data: { chats: AdminChatSummary[] } }>(`/admin/users/${id}/chats`),
+
+  getChatThread: (chatId: string, params?: { cursor?: string; limit?: number }) =>
+    api.get<{ data: AdminThread }>(`/admin/users/chats/${chatId}/messages`, { params }),
+
+  // Управление паролем
+  resetUserPassword: (id: string) =>
+    api.post<{ data: { password: string } }>(`/admin/users/${id}/password`),
+
+  createPasswordResetLink: (id: string) =>
+    api.post<{ data: { url: string; token: string; expiresInHours: number } }>(
+      `/admin/users/${id}/password-reset-link`),
+
+  // Полное удаление аккаунта
+  deleteUser: (id: string) =>
+    api.delete(`/admin/users/${id}`),
 
   // Stats
   getStats: () =>

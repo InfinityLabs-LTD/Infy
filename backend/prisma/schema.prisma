@@ -74,6 +74,7 @@ model User {
 
   sessions                DeviceSession[]
   emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
   chatMemberships         ChatMember[]
   messages                Message[]
   pushSubscriptions       PushSubscription[]
@@ -138,6 +139,22 @@ model EmailVerificationToken {
 
   @@index([userId])
   @@map("email_verification_tokens")
+}
+
+// Одноразовый токен смены пароля. Выдаётся админом («ссылка для самостоятельной
+// смены») — пользователь переходит по ссылке и сам ставит новый пароль.
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     BigInt
+  tokenHash  String    @unique               // sha256 от сырого токена из ссылки
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 model Chat {

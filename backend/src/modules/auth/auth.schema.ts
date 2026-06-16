@@ -23,6 +23,11 @@ export const refreshSchema = z.object({
   refreshToken: z.string(),
 })
 
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8).max(128),
+})
+
 export const logoutAllSchema = z.object({
   exceptCurrent: z.boolean().default(true),
 })

@@ -2,11 +2,13 @@ import { FastifyPluginAsync } from 'fastify'
 import { env } from '../../lib/env.js'
 import { authenticate } from '../../middleware/authenticate.js'
 import { AppError } from '../../lib/errors.js'
+import { hashRefreshToken } from '../../lib/jwt.js'
 import * as AuthService from './auth.service.js'
 import {
   registerSchema,
   loginSchema,
   refreshSchema,
+  resetPasswordSchema,
 } from './auth.schema.js'
 
 const authRoutes: FastifyPluginAsync = async (app) => {
@@ -91,6 +93,53 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       ip: request.ip,
     })
     return reply.send({ data: result })
+  })
+
+  // GET /auth/reset-password/:token — проверить, что ссылка ещё валидна
+  app.get('/reset-password/:token', {
+    schema: {
+      tags: ['Auth'],
+      summary: 'Validate a password reset token',
+      params: { type: 'object', required: ['token'], properties: { token: { type: 'string' } } },
+    },
+  }, async (request, reply) => {
+    const { token } = request.params as { token: string }
+    const tokenHash = hashRefreshToken(token)
+    const record = await app.prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+      include: { user: { select: { username: true, nickname: true } } },
+    })
+    const valid = !!record && !record.consumedAt && record.expiresAt >= new Date()
+    if (!valid) {
+      return reply.send({ data: { valid: false, user: null } })
+    }
+    return reply.send({ data: { valid: true, user: record!.user } })
+  })
+
+  // POST /auth/reset-password — самостоятельная смена пароля по токену из ссылки
+  app.post('/reset-password', {
+    config: {
+      rateLimit: {
+        max: env.RATE_LIMIT_LOGIN_MAX,
+        timeWindow: env.RATE_LIMIT_LOGIN_WINDOW_MS,
+      },
+    },
+    schema: {
+      tags: ['Auth'],
+      summary: 'Reset password using a token from the reset link',
+      body: {
+        type: 'object',
+        required: ['token', 'password'],
+        properties: {
+          token: { type: 'string' },
+          password: { type: 'string', minLength: 8, maxLength: 128 },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const body = resetPasswordSchema.parse(request.body)
+    await AuthService.resetPasswordWithToken(app.prisma, body.token, body.password)
+    return reply.code(204).send()
   })
 
   // POST /auth/logout

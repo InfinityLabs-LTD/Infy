@@ -1,4 +1,5 @@
 import argon2 from 'argon2'
+import crypto from 'crypto'
 import { PrismaClient } from '@prisma/client'
 import {
   signAccessToken,
@@ -7,6 +8,20 @@ import {
 } from '../../lib/jwt.js'
 import { Errors } from '../../lib/errors.js'
 import { RegisterInput, LoginInput } from './auth.schema.js'
+
+// Срок жизни ссылки смены пароля.
+const RESET_TOKEN_TTL_MS = 24 * 3_600_000
+
+// Алфавит без визуально похожих символов (0/O, 1/l/I) — пароль легко продиктовать.
+const PWD_ALPHABET = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+// Криптостойкий читаемый пароль для админской смены.
+export function generatePassword(length = 16): string {
+  const bytes = crypto.randomBytes(length)
+  let out = ''
+  for (let i = 0; i < length; i++) out += PWD_ALPHABET[bytes[i] % PWD_ALPHABET.length]
+  return out
+}
 
 interface TokenPair {
   accessToken: string
@@ -156,6 +171,60 @@ export async function refresh(
   })
 
   return { accessToken, refreshToken: newRawToken }
+}
+
+// ── Смена пароля ─────────────────────────────────────────────
+
+// Установить новый пароль и отозвать все активные сессии пользователя
+// (после смены пароля все устройства должны перелогиниться).
+export async function setUserPassword(prisma: PrismaClient, userId: bigint, newPassword: string) {
+  const passwordHash = await argon2.hash(newPassword)
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+    prisma.deviceSession.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    }),
+    // Гасим все ещё не использованные ссылки смены пароля этого пользователя.
+    prisma.passwordResetToken.updateMany({
+      where: { userId, consumedAt: null },
+      data: { consumedAt: new Date() },
+    }),
+  ])
+}
+
+// Создать одноразовый токен смены пароля. Возвращает сырой токен (его нужно
+// вставить в ссылку — в БД хранится только хэш).
+export async function createPasswordResetToken(prisma: PrismaClient, userId: bigint): Promise<string> {
+  const rawToken = crypto.randomBytes(32).toString('base64url')
+  const tokenHash = hashRefreshToken(rawToken)
+  await prisma.passwordResetToken.create({
+    data: {
+      userId,
+      tokenHash,
+      expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+    },
+  })
+  return rawToken
+}
+
+// Сменить пароль по токену из ссылки (самостоятельная смена пользователем).
+export async function resetPasswordWithToken(prisma: PrismaClient, rawToken: string, newPassword: string) {
+  const tokenHash = hashRefreshToken(rawToken)
+  const record = await prisma.passwordResetToken.findUnique({ where: { tokenHash } })
+  if (!record || record.consumedAt || record.expiresAt < new Date()) {
+    throw Errors.RESET_TOKEN_INVALID()
+  }
+
+  const passwordHash = await argon2.hash(newPassword)
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
+    prisma.passwordResetToken.update({ where: { id: record.id }, data: { consumedAt: new Date() } }),
+    prisma.deviceSession.updateMany({
+      where: { userId: record.userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    }),
+  ])
 }
 
 export async function logout(prisma: PrismaClient, sessionId: string) {

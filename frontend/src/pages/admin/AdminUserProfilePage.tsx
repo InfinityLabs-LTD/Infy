@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { adminApi, AdminMessage, AdminUserDetail } from '@/api/admin'
+import { adminApi, AdminUserDetail } from '@/api/admin'
 import { IssueSanctionModal } from './AdminModerationPage'
+import { AdminDialogViewer } from '@/components/admin/AdminDialogViewer'
 import { useAuthStore } from '@/store/auth'
 import { Avatar } from '@/components/ui/Avatar'
 import { Spinner } from '@/components/ui/Spinner'
@@ -14,6 +15,7 @@ type Tab = 'overview' | 'messages'
 
 export function AdminUserProfilePage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const myId = useAuthStore(s => s.user?.id)
   const [searchParams, setSearchParams] = useSearchParams()
   const tab: Tab = searchParams.get('tab') === 'messages' ? 'messages' : 'overview'
@@ -134,7 +136,7 @@ export function AdminUserProfilePage() {
 
           {/* Табы */}
           <div className="flex gap-1 mb-3">
-            {([['overview', 'Обзор'], ['messages', `Сообщения`]] as [Tab, string][]).map(([t, label]) => (
+            {([['overview', 'Обзор'], ['messages', `Переписки`]] as [Tab, string][]).map(([t, label]) => (
               <button key={t} onClick={() => setTab(t)}
                 className="relative px-4 py-2 rounded-xl text-sm font-medium transition-colors"
                 style={{
@@ -146,7 +148,9 @@ export function AdminUserProfilePage() {
             ))}
           </div>
 
-          {tab === 'overview' ? <OverviewTab user={user} /> : <MessagesTab userId={user.id} />}
+          {tab === 'overview'
+            ? <OverviewTab user={user} isMe={isMe} onDeleted={() => navigate('/admin/users')} />
+            : <AdminDialogViewer userId={user.id} />}
         </>
       )}
 
@@ -165,7 +169,11 @@ export function AdminUserProfilePage() {
 
 // ── Обзор ────────────────────────────────────────────────────
 
-function OverviewTab({ user }: { user: AdminUserDetail }) {
+function OverviewTab({ user, isMe, onDeleted }: {
+  user: AdminUserDetail
+  isMe: boolean
+  onDeleted: () => void
+}) {
   const stats = [
     { label: 'Сообщений', value: user._count.messages },
     { label: 'Чатов', value: user._count.chatMemberships },
@@ -214,7 +222,173 @@ function OverviewTab({ user }: { user: AdminUserDetail }) {
           value={new Date(user.lastSeenAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} />
         <InfoRow label="ID" value={user.id} mono />
       </div>
+
+      {/* Безопасность — смена пароля */}
+      {!isMe && <SecurityCard user={user} />}
+
+      {/* Опасная зона — удаление аккаунта */}
+      {!isMe && <DangerCard user={user} onDeleted={onDeleted} />}
     </motion.div>
+  )
+}
+
+// ── Безопасность: смена пароля ───────────────────────────────
+
+function SecurityCard({ user }: { user: AdminUserDetail }) {
+  const [generating, setGenerating] = useState(false)
+  const [linking, setLinking] = useState(false)
+  const [newPassword, setNewPassword] = useState<string | null>(null)
+  const [resetLink, setResetLink] = useState<string | null>(null)
+  const [copied, setCopied] = useState<'pwd' | 'link' | null>(null)
+  const [error, setError] = useState<unknown>(null)
+
+  async function generate() {
+    if (!confirm(`Сгенерировать новый пароль для @${user.username}? Текущие сессии будут завершены.`)) return
+    setGenerating(true); setError(null); setResetLink(null)
+    try {
+      const res = await adminApi.resetUserPassword(user.id)
+      setNewPassword(res.data.data.password)
+    } catch (e) { setError(e) }
+    finally { setGenerating(false) }
+  }
+
+  async function makeLink() {
+    setLinking(true); setError(null); setNewPassword(null)
+    try {
+      const res = await adminApi.createPasswordResetLink(user.id)
+      setResetLink(res.data.data.url)
+    } catch (e) { setError(e) }
+    finally { setLinking(false) }
+  }
+
+  function copy(text: string, which: 'pwd' | 'link') {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(which)
+      setTimeout(() => setCopied(null), 1800)
+    })
+  }
+
+  return (
+    <div className="glass rounded-2xl p-5 space-y-3 md:col-span-2">
+      <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-low)' }}>
+        Безопасность
+      </p>
+
+      {error !== null && <ErrorMessage error={error} />}
+
+      <div className="flex flex-wrap gap-2">
+        <button onClick={generate} disabled={generating}
+          className="btn-ghost text-xs disabled:opacity-50"
+          style={{ color: '#C084FC', border: '1px solid rgba(255,255,255,0.1)' }}>
+          {generating ? <Spinner size={12} /> : 'Сгенерировать новый пароль'}
+        </button>
+        <button onClick={makeLink} disabled={linking}
+          className="btn-ghost text-xs disabled:opacity-50"
+          style={{ color: '#60A5FA', border: '1px solid rgba(255,255,255,0.1)' }}>
+          {linking ? <Spinner size={12} /> : 'Ссылка для самостоятельной смены'}
+        </button>
+      </div>
+
+      {newPassword && (
+        <div className="rounded-xl p-3 space-y-2" style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(168,85,247,0.25)' }}>
+          <p className="text-[11px]" style={{ color: 'var(--text-low)' }}>
+            Новый пароль (показывается один раз — передайте пользователю):
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 font-mono text-sm text-white px-2.5 py-1.5 rounded-lg" style={{ background: 'rgba(0,0,0,0.3)' }}>
+              {newPassword}
+            </code>
+            <button onClick={() => copy(newPassword, 'pwd')} className="btn-ghost py-1.5 px-3 text-xs">
+              {copied === 'pwd' ? 'Скопировано' : 'Копировать'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {resetLink && (
+        <div className="rounded-xl p-3 space-y-2" style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(96,165,250,0.25)' }}>
+          <p className="text-[11px]" style={{ color: 'var(--text-low)' }}>
+            Одноразовая ссылка (действует 24 часа) — отправьте её пользователю:
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 font-mono text-[12px] text-white/90 px-2.5 py-1.5 rounded-lg truncate" style={{ background: 'rgba(0,0,0,0.3)' }}>
+              {resetLink}
+            </code>
+            <button onClick={() => copy(resetLink, 'link')} className="btn-ghost py-1.5 px-3 text-xs shrink-0">
+              {copied === 'link' ? 'Скопировано' : 'Копировать'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Опасная зона: полное удаление аккаунта ───────────────────
+
+function DangerCard({ user, onDeleted }: { user: AdminUserDetail; onDeleted: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState<unknown>(null)
+
+  const canDelete = confirmText === user.username
+
+  async function doDelete() {
+    if (!canDelete) return
+    setDeleting(true); setError(null)
+    try {
+      await adminApi.deleteUser(user.id)
+      onDeleted()
+    } catch (e) { setError(e); setDeleting(false) }
+  }
+
+  return (
+    <div className="glass rounded-2xl p-5 space-y-3 md:col-span-2"
+      style={{ border: '1px solid rgba(239,68,68,0.25)' }}>
+      <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#EF4444' }}>
+        Опасная зона
+      </p>
+      <p className="text-[13px]" style={{ color: 'var(--text-low)' }}>
+        Полное удаление аккаунта <span className="text-white/80">@{user.username}</span> из всех баз данных:
+        сообщения, личные переписки (у обоих участников), вложения, сессии и звонки. Действие необратимо.
+      </p>
+
+      {error !== null && <ErrorMessage error={error} />}
+
+      {!open ? (
+        <button onClick={() => setOpen(true)}
+          className="btn-ghost text-xs"
+          style={{ color: '#EF4444', border: '1px solid rgba(239,68,68,0.3)' }}>
+          Удалить аккаунт навсегда
+        </button>
+      ) : (
+        <div className="space-y-2.5">
+          <p className="text-[12px]" style={{ color: 'var(--text-low)' }}>
+            Для подтверждения введите имя пользователя <span className="font-mono text-white/90">{user.username}</span>:
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <input
+              value={confirmText}
+              onChange={e => setConfirmText(e.target.value)}
+              placeholder={user.username}
+              autoFocus
+              className="flex-1 min-w-[180px] px-3 py-2 rounded-xl text-sm text-white bg-black/30 outline-none"
+              style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+            />
+            <button onClick={doDelete} disabled={!canDelete || deleting}
+              className="btn-ghost text-xs disabled:opacity-40"
+              style={{ color: '#fff', background: 'rgba(239,68,68,0.85)' }}>
+              {deleting ? <Spinner size={12} /> : 'Удалить'}
+            </button>
+            <button onClick={() => { setOpen(false); setConfirmText('') }} disabled={deleting}
+              className="btn-ghost text-xs disabled:opacity-40">
+              Отмена
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -233,102 +407,3 @@ function InfoRow({ label, value, extra, mono }: {
   )
 }
 
-// ── Сообщения ────────────────────────────────────────────────
-
-const TYPE_ICON: Record<string, string> = {
-  TEXT: '💬', IMAGE: '🖼️', VIDEO: '🎥', AUDIO: '🎤', CIRCLE_VIDEO: '⭕',
-}
-
-function MessagesTab({ userId }: { userId: string }) {
-  const [messages, setMessages] = useState<AdminMessage[]>([])
-  const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
-  const [pages, setPages] = useState(1)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<unknown>(null)
-
-  async function load(p: number) {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await adminApi.getUserMessages(userId, { page: p, limit: 50 })
-      const d = res.data.data
-      setMessages(d.messages)
-      setTotal(d.total)
-      setPage(d.page)
-      setPages(d.pages)
-    } catch (e) { setError(e) }
-    finally { setLoading(false) }
-  }
-
-  useEffect(() => { load(1) }, [userId])
-
-  if (error !== null) return <ErrorMessage error={error} />
-
-  if (loading && messages.length === 0) {
-    return (
-      <div className="space-y-2">
-        {[0, 1, 2].map(i => (
-          <div key={i} className="glass rounded-2xl h-[56px] animate-pulse" style={{ opacity: 1 - i * 0.2 }} />
-        ))}
-      </div>
-    )
-  }
-
-  if (messages.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-14">
-        <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
-          style={{ background: 'rgba(124,58,237,0.15)' }}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="1.5">
-            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-          </svg>
-        </div>
-        <p className="text-sm" style={{ color: 'var(--text-low)' }}>Нет сообщений</p>
-      </div>
-    )
-  }
-
-  return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      transition={{ type: 'spring', stiffness: 380, damping: 32 }}>
-      <p className="text-xs mb-2 px-1" style={{ color: 'var(--text-low)' }}>{total} всего</p>
-      <div className="space-y-1.5">
-        {messages.map(m => (
-          <div key={m.id} className="glass rounded-xl px-3.5 py-2.5 flex items-center gap-3 transition-colors hover:bg-white/[0.06]">
-            <span className="text-base shrink-0">{TYPE_ICON[m.type] ?? '?'}</span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm text-white/90 truncate">
-                {m.content ?? (m.attachments.length > 0 ? `[${m.type.toLowerCase()}]` : '—')}
-              </p>
-              {m.attachments.length > 0 && (
-                <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-low)' }}>
-                  {m.attachments[0].mimeType}
-                  {m.attachments[0].sizeBytes ? ` · ${(m.attachments[0].sizeBytes / 1024).toFixed(0)} КБ` : ''}
-                </p>
-              )}
-            </div>
-            <p className="text-[11px] font-mono shrink-0 hidden sm:block" style={{ color: 'rgba(255,255,255,0.25)' }}>
-              {m.chat.id.slice(0, 8)}
-            </p>
-            <p className="text-[11px] shrink-0 whitespace-nowrap" style={{ color: 'var(--text-low)' }}>
-              {new Date(m.createdAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {pages > 1 && (
-        <div className="flex items-center justify-between px-1 py-4">
-          <p className="text-xs" style={{ color: 'var(--text-low)' }}>Страница {page} из {pages}</p>
-          <div className="flex gap-1">
-            <button onClick={() => load(page - 1)} disabled={page <= 1 || loading}
-              className="btn-ghost py-1 px-3 text-xs disabled:opacity-40">← Назад</button>
-            <button onClick={() => load(page + 1)} disabled={page >= pages || loading}
-              className="btn-ghost py-1 px-3 text-xs disabled:opacity-40">Далее →</button>
-          </div>
-        </div>
-      )}
-    </motion.div>
-  )
-}

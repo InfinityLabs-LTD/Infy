@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { LoginPage } from '@/pages/LoginPage'
 import { RegisterPage } from '@/pages/RegisterPage'
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { EditProfilePage } from '@/pages/EditProfilePage'
 import { SessionsPage } from '@/pages/SessionsPage'
@@ -69,6 +70,7 @@ export default function App() {
         {/* Auth */}
         <Route path="/login" element={<RequireGuest><LoginPage /></RequireGuest>} />
         <Route path="/register" element={<RequireGuest><RegisterPage /></RequireGuest>} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         {/* Admin */}
         <Route path="/admin" element={<RequireAdmin><AdminLayout /></RequireAdmin>}>

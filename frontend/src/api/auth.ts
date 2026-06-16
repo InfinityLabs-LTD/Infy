@@ -44,6 +44,14 @@ export const authApi = {
     api.post<{ data: AuthResponse }>('/auth/login', body),
 
   logout: () => api.post('/auth/logout'),
+
+  // Самостоятельная смена пароля по ссылке от админа
+  validateResetToken: (token: string) =>
+    api.get<{ data: { valid: boolean; user: { username: string; nickname: string } | null } }>(
+      `/auth/reset-password/${encodeURIComponent(token)}`),
+
+  resetPassword: (body: { token: string; password: string }) =>
+    api.post('/auth/reset-password', body),
 }
 
 export const profileApi = {

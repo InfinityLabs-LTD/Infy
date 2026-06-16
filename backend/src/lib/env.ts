@@ -25,6 +25,10 @@ const schema = z.object({
 
   DOCKER_PROXY_URL: z.string().default('http://socket-proxy:2375'),
 
+  // Публичный URL фронтенда — для построения ссылок (например, смены пароля).
+  // Берём первый из CORS_ORIGINS, если не задан явно.
+  APP_PUBLIC_URL: z.string().default(''),
+
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
   TRUSTED_PROXY: z.string().default('127.0.0.1'),
 
