@@ -7,13 +7,19 @@ const userSelect = {
 } as const
 
 function serializeSanction(s: {
-  id: string; type: string; reason: string
+  id: string; userId: bigint; issuedById: bigint; type: string; reason: string
   createdAt: Date; expiresAt: Date | null; revokedAt: Date | null
   user: { id: bigint; username: string; nickname: string; avatarUrl: string | null }
   issuedBy: { id: bigint; username: string; nickname: string; avatarUrl: string | null }
 }) {
+  // Не разворачиваем `...s` целиком: userId/issuedById — BigInt и ломают JSON.stringify.
   return {
-    ...s,
+    id:        s.id,
+    type:      s.type,
+    reason:    s.reason,
+    createdAt: s.createdAt,
+    expiresAt: s.expiresAt,
+    revokedAt: s.revokedAt,
     user:     { ...s.user,     id: s.user.id.toString() },
     issuedBy: { ...s.issuedBy, id: s.issuedBy.id.toString() },
   }

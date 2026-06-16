@@ -20,7 +20,7 @@ const pushRoutes: FastifyPluginAsync = async (app) => {
     schema: { tags: ['Push'], summary: 'Save push subscription' },
     preHandler: [authenticate],
   }, async (request, reply) => {
-    const userId = BigInt((request as unknown as { userId: string }).userId)
+    const userId = BigInt(request.user.sub)
     const body = subscribeBodySchema.parse(request.body)
 
     await app.prisma.pushSubscription.upsert({
@@ -36,7 +36,7 @@ const pushRoutes: FastifyPluginAsync = async (app) => {
     schema: { tags: ['Push'], summary: 'Remove push subscription' },
     preHandler: [authenticate],
   }, async (request, reply) => {
-    const userId = BigInt((request as unknown as { userId: string }).userId)
+    const userId = BigInt(request.user.sub)
     const body = z.object({ endpoint: z.string() }).parse(request.body)
 
     await app.prisma.pushSubscription.deleteMany({
