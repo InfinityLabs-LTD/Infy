@@ -40,8 +40,12 @@ export function CallOverlay() {
   const remoteAudioRef = useRef<HTMLAudioElement>(null)
 
   const isVideo = s.media === 'VIDEO'
-  // Показываем удалённое видео, если собеседник включил камеру или демонстрацию.
-  const showRemoteVideo = isVideo && (s.peerCamOn || s.peerScreenOn) && !!s.remoteStream
+  // Показываем удалённое видео, если в удалённом потоке реально есть живой
+  // видеотрек (камера ИЛИ демонстрация экрана) — независимо от типа звонка.
+  // Демонстрацию экрана можно включить и в аудиозвонке, поэтому на isVideo не завязываемся.
+  const remoteHasVideo = !!s.remoteStream
+    && s.remoteStream.getVideoTracks().some(t => t.readyState === 'live')
+  const showRemoteVideo = remoteHasVideo && (s.peerCamOn || s.peerScreenOn || isVideo)
 
   // Привязка удалённого потока к media-элементам.
   useEffect(() => {

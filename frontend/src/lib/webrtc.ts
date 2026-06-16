@@ -130,6 +130,17 @@ export class CallEngine {
       // streams[0] обычно несёт оба трека — используем его, если есть.
       const stream = streams[0] ?? this.remoteStream
       this.cb.onRemoteStream(stream)
+      // Когда удалённый трек кончается/мьютится/размьючивается (напр. собеседник
+      // остановил демонстрацию экрана) — перерисовываем UI, чтобы скрыть/показать видео.
+      const notify = () => {
+        if (track.readyState === 'ended') {
+          try { this.remoteStream.removeTrack(track) } catch { /* noop */ }
+        }
+        this.cb.onRemoteStream(this.remoteStream)
+      }
+      track.onended = notify
+      track.onmute = notify
+      track.onunmute = notify
     }
 
     this.pc.onnegotiationneeded = async () => {
