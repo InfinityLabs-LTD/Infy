@@ -167,7 +167,34 @@ export interface ReportsResponse {
   counts: { pending: number; reviewing: number }
 }
 
+export type AiProvider = 'ANTHROPIC' | 'OPENAI'
+
+export interface AiSettings {
+  enabled: boolean
+  provider: AiProvider
+  webSearch: boolean
+  anthropic: { model: string; hasKey: boolean }
+  openai: { model: string; hasKey: boolean }
+}
+
+export interface AiSettingsUpdate {
+  enabled?: boolean
+  provider?: AiProvider
+  webSearch?: boolean
+  anthropicModel?: string
+  anthropicKey?: string
+  openaiModel?: string
+  openaiKey?: string
+}
+
 export const adminApi = {
+  // AI settings
+  getAiSettings: () =>
+    api.get<{ data: AiSettings }>('/admin/ai/settings'),
+
+  updateAiSettings: (body: AiSettingsUpdate) =>
+    api.patch<{ data: AiSettings }>('/admin/ai/settings', body),
+
   // Users
   listUsers: (params?: { page?: number; limit?: number; search?: string }) =>
     api.get<{ data: { users: AdminUser[]; total: number; page: number; pages: number } }>(

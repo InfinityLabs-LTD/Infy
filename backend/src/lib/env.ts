@@ -43,9 +43,14 @@ const schema = z.object({
   VAPID_PRIVATE_KEY: z.string().min(1),
   VAPID_SUBJECT: z.string().default('mailto:admin@example.com'),
 
-  // AI (Infy Pulse) — опционально: без ключа фича отключена, остальное работает
+  // AI (Infy Pulse) — опционально: без ключа фича отключена, остальное работает.
+  // Провайдер, модель и ключ можно переопределить из админки (таблица app_settings);
+  // переменные окружения служат значениями по умолчанию / фолбэком.
+  AI_PROVIDER: z.enum(['ANTHROPIC', 'OPENAI']).default('ANTHROPIC'),
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default('claude-opus-4-8'),
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_MODEL: z.string().default('gpt-4o'),
 
   // ── Звонки / WebRTC ICE ────────────────────────────────────
   // Публичные STUN-серверы (через запятую). Помогают узнать внешний адрес.

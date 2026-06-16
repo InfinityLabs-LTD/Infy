@@ -10,6 +10,10 @@ import { setOnline, setOffline, refreshPresence, isOnline, getOnlineUserIds } fr
 import { sendPush } from '../../lib/webpush.js'
 import * as ChatService from '../chat/chat.service.js'
 import { registerCallHandlers } from '../calls/calls.signaling.js'
+import { askInChat } from '../ai/ai.service.js'
+
+// Команда вызова ИИ прямо в чате: «/ask вопрос». Ответ виден обоим участникам.
+const ASK_PREFIX = /^\/ask\b\s*/i
 
 interface AuthSocket extends Socket {
   userId: string
@@ -206,6 +210,25 @@ export function createSocketServer(
         const { chatId, content, type } = payload
         if (!chatId || !content?.trim()) {
           ack?.({ ok: false, error: 'Invalid payload' })
+          return
+        }
+
+        // Команда /ask <вопрос> — вызов Infy AI в чате. Не сохраняем команду
+        // как обычное сообщение: ассистент сам публикует системный ответ обоим.
+        if (ASK_PREFIX.test(content.trim())) {
+          const question = content.trim().replace(ASK_PREFIX, '').trim()
+          if (!question) {
+            ack?.({ ok: false, error: 'Пустой вопрос для /ask', code: 'ASK_EMPTY' })
+            return
+          }
+          try {
+            await askInChat(prisma, pubClient, chatId, BigInt(userId), question)
+            ack?.({ ok: true })
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Error'
+            const code = err instanceof AppError ? err.code : undefined
+            ack?.({ ok: false, error: msg, code })
+          }
           return
         }
 

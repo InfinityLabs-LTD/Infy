@@ -60,6 +60,18 @@ enum ReportStatus {
   DISMISSED   // отклонена
 }
 
+// Провайдер модели ИИ (выбирается в админке)
+enum AiProvider {
+  ANTHROPIC
+  OPENAI
+}
+
+// Роль сообщения в приватном диалоге пользователя с ассистентом
+enum AiRole {
+  USER
+  ASSISTANT
+}
+
 // Аудио или видео — медийный режим звонка
 enum CallMedia {
   AUDIO
@@ -109,6 +121,7 @@ model User {
   reportsFiled            Report[]             @relation("ReportReporter")
   reportsReceived         Report[]             @relation("ReportTarget")
   reviewedReports         Report[]             @relation("ReportReviewer")
+  aiConversations         AiConversation[]
 
   @@map("users")
 }
@@ -221,6 +234,7 @@ model Chat {
   categories CalendarCategory[]
   settings   ChatCalendarSetting[]
   calls      CallSession[]
+  aiConversations AiConversation[]
 
   @@map("chats")
 }
@@ -447,4 +461,50 @@ model CallParticipant {
   @@unique([callId, userId])
   @@index([userId])
   @@map("call_participants")
+}
+
+// ── Infy AI ──────────────────────────────────────────────────
+// Глобальные настройки приложения (key/value). Используется для конфигурации
+// ИИ-ассистента из админки: провайдер, модель, API-ключ, тумблер.
+model AppSetting {
+  key       String   @id
+  value     String                // JSON или строка
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
+// Приватный диалог пользователя с ИИ в контексте конкретного чата.
+// Содержимое видно ТОЛЬКО владельцу (userId) — второй участник чата не видит
+// историю запросов. Один диалог на пару (chatId, userId).
+model AiConversation {
+  id        String      @id @default(cuid())
+  chatId    String
+  userId    BigInt                          // владелец диалога
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  chat     Chat        @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AiMessage[]
+
+  @@unique([chatId, userId])
+  @@index([userId])
+  @@map("ai_conversations")
+}
+
+// Сообщение в приватном диалоге с ИИ.
+model AiMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           AiRole
+  content        String                      // текст сообщения
+  // Опциональные метаданные ответа: какие инструменты вызывались, источники веба и т.п.
+  meta           Json?
+  createdAt      DateTime @default(now())
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("ai_messages")
 }

@@ -1,5 +1,13 @@
 import { api } from './client'
 
+export interface AiConvoMessage {
+  id: string
+  role: 'USER' | 'ASSISTANT'
+  content: string
+  meta?: { toolsUsed?: string[]; usedWebSearch?: boolean } | null
+  createdAt: string
+}
+
 export const aiApi = {
   status: () =>
     api.get<{ data: { enabled: boolean } }>('/ai/status'),
@@ -9,4 +17,20 @@ export const aiApi = {
 
   replies: (chatId: string) =>
     api.post<{ data: { replies: string[] } }>(`/ai/chats/${chatId}/replies`),
+
+  // Приватный диалог с ассистентом (история видна только владельцу)
+  getConversation: (chatId: string) =>
+    api.get<{ data: { id: string; messages: AiConvoMessage[] } }>(`/ai/chats/${chatId}/conversation`),
+
+  sendToAssistant: (chatId: string, message: string) =>
+    api.post<{ data: { reply: string; toolsUsed: string[]; usedWebSearch: boolean; conversationId: string } }>(
+      `/ai/chats/${chatId}/conversation`, { message }),
+
+  clearConversation: (chatId: string) =>
+    api.delete(`/ai/chats/${chatId}/conversation`),
+
+  // Публичный вопрос ИИ в чате (ответ виден обоим участникам)
+  ask: (chatId: string, question: string) =>
+    api.post<{ data: { reply: string; toolsUsed: string[]; usedWebSearch: boolean } }>(
+      `/ai/chats/${chatId}/ask`, { question }),
 }

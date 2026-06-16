@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { chatApi } from '@/api/chat'
+import { aiApi } from '@/api/ai'
 import { mediaApi } from '@/api/media'
 import { useChatStore, type Message } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
@@ -290,6 +291,26 @@ export function ChatPage() {
   async function sendText() {
     if (!text.trim() || !chatId || sending) return
     const content = text.trim()
+
+    // Команда /ask <вопрос> — вызов Infy AI в чате (ответ виден обоим).
+    if (/^\/ask\b/i.test(content) && !editing) {
+      const question = content.replace(/^\/ask\b\s*/i, '').trim()
+      if (!question) return
+      setText('')
+      setReplyTo(null)
+      setSending(true)
+      stopTyping()
+      try {
+        await aiApi.ask(chatId, question)
+      } catch (err) {
+        const e = err as { response?: { status?: number; data?: { error?: { message?: string } } } }
+        setMutedNotice(e.response?.status === 503
+          ? 'AI-функции не настроены на сервере'
+          : (e.response?.data?.error?.message ?? 'Не удалось получить ответ AI'))
+        setText(content)
+      } finally { setSending(false); inputRef.current?.focus() }
+      return
+    }
 
     // Режим редактирования — PATCH вместо отправки
     if (editing) {
