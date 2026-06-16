@@ -99,10 +99,14 @@ async function buildEngine(media: CallMedia, polite: boolean): Promise<CallEngin
   })
 
   await eng.initLocalMedia({ video: media === 'VIDEO' })
-  // Применяем стартовое состояние камеры (в аудиозвонке трека нет — ничего)
+  // Применяем стартовое состояние. Если видео запрашивали, но камера недоступна —
+  // движок откатился на аудио; синхронизируем флаг камеры в сторе.
   const st = useCallStore.getState()
+  const camOn = st.camOn && eng.videoAvailable
+  if (st.camOn && !eng.videoAvailable) st.setCam(false)
   eng.setMicEnabled(st.micOn)
-  eng.setCamEnabled(st.camOn)
+  eng.setCamEnabled(camOn)
+  emit('call:media-state', { callId: useCallStore.getState().callId, camOn })
   useCallStore.getState().setStreams(eng.getLocalStream(), eng.getRemoteStream())
 
   // Сливаем буфер сигналов, накопленных до создания движка.

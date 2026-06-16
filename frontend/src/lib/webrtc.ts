@@ -82,13 +82,33 @@ export class CallEngine {
     this.wireConnection()
   }
 
+  // Удалось ли получить видеотрек при инициализации (false → видео недоступно).
+  videoAvailable = false
+
   // ── Получение локального медиа ──────────────────────────────
+  // Если видео запрошено, но недоступно (нет камеры / отказ в доступе),
+  // НЕ роняем звонок целиком — откатываемся на аудио. Без микрофона звонок
+  // невозможен, поэтому ошибка аудио пробрасывается.
   async initLocalMedia(opts: MediaConstraintsOptions): Promise<MediaStream> {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: audioConstraints(opts.audioDeviceId),
-      video: opts.video ? videoConstraints(opts.videoDeviceId) : false,
-    })
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: audioConstraints(opts.audioDeviceId),
+        video: opts.video ? videoConstraints(opts.videoDeviceId) : false,
+      })
+    } catch (err) {
+      if (opts.video) {
+        // Повтор только с аудио — частый случай: микрофон есть, камеры нет/занята.
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: audioConstraints(opts.audioDeviceId),
+          video: false,
+        })
+      } else {
+        throw err
+      }
+    }
     this.localStream = stream
+    this.videoAvailable = stream.getVideoTracks().length > 0
     for (const track of stream.getTracks()) {
       this.pc.addTrack(track, stream)
     }

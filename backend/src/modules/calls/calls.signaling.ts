@@ -144,6 +144,9 @@ export function registerCallHandlers(
       await saveState(redis, state)
 
       const caller = call.initiator
+      // Диагностика маршрутизации входящего (видно в логах realtime).
+      const calleeSockets = await io.in(room(calleeId)).fetchSockets()
+      console.log(`[call] invite ${call.id} ${userId}→${calleeId} media=${media} calleeSockets=${calleeSockets.length}`)
       // Получателю — входящий звонок (на все его сокеты)
       io.to(room(calleeId)).emit('call:incoming', {
         callId: call.id,
