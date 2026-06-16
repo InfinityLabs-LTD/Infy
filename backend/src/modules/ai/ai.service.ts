@@ -7,6 +7,7 @@ import { runAgent } from './ai.provider.js'
 import { buildToolDefs, buildHandlers, ToolContext } from './ai.tools.js'
 import { publishMessage } from '../../lib/pubsub.js'
 import { listEvents } from '../calendar/calendar.service.js'
+import { formatInTz, safeTimezone } from '../../lib/timezone.js'
 
 // ── Доступ / контекст ─────────────────────────────────────────
 
@@ -49,9 +50,23 @@ async function buildTranscript(
 }
 
 // Текущая дата/время для системного промпта (чтобы модель планировала корректно).
-function nowContext(): string {
+// tz — IANA-зона пользователя: «сейчас» и относительные даты («завтра 19:00»)
+// трактуются в его поясе, иначе модель планировала бы по серверному времени.
+function nowContext(tz: string | null | undefined): string {
   const now = new Date()
-  return `Текущие дата и время: ${now.toLocaleString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })} (ISO: ${now.toISOString()}).`
+  const zone = safeTimezone(tz)
+  const local = now.toLocaleString('ru-RU', {
+    timeZone: zone,
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+  return `Текущие дата и время пользователя: ${local} (часовой пояс ${zone}, ISO UTC: ${now.toISOString()}). ` +
+    `Все даты, которые называет пользователь, трактуй в его часовом поясе (${zone}).`
+}
+
+// Часовой пояс пользователя (для форматирования и планирования в его зоне).
+async function getUserTimezone(prisma: PrismaClient, userId: bigint): Promise<string> {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { timezone: true } })
+  return safeTimezone(u?.timezone)
 }
 
 // Публикует созданные ИИ события календаря и системное упоминание в чат
@@ -72,7 +87,7 @@ async function publishCreatedEvents(
     }
     // Для напоминаний «для обоих» — системное сообщение в чат, чтобы оба увидели.
     if (created.forBoth && full) {
-      const when = new Date(full.eventAt).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+      const when = formatInTz(new Date(full.eventAt), ctx.timezone)
       const sysMsg = await prisma.message.create({
         data: {
           id: ulid(),
@@ -98,9 +113,9 @@ async function publishCreatedEvents(
 // История видна только владельцу (userId). Поддерживает поиск по чату,
 // веб-поиск, создание напоминаний, ответы по контексту.
 
-const PRIVATE_SYSTEM = (myNickname: string, transcript: string) =>
+const PRIVATE_SYSTEM = (myNickname: string, transcript: string, tz: string) =>
   `Ты — Infy AI, умный помощник внутри мессенджера Infy. Ты помогаешь пользователю «${myNickname}» в контексте его личного чата с собеседником. ` +
-  `Отвечай на русском, дружелюбно и по делу. ${nowContext()}\n\n` +
+  `Отвечай на русском, дружелюбно и по делу. ${nowContext(tz)}\n\n` +
   `Твои возможности:\n` +
   `• Находить информацию по переписке (инструмент search_chat).\n` +
   `• Искать актуальную информацию в интернете (веб-поиск).\n` +
@@ -176,11 +191,12 @@ export async function chatWithAssistant(
     take: 40,
   })
   const { transcript, myNickname } = await buildTranscript(prisma, chatId, userId, 50)
+  const tz = await getUserTimezone(prisma, userId)
 
-  const ctx: ToolContext = { prisma, chatId, userId, createdEvents: [] }
+  const ctx: ToolContext = { prisma, chatId, userId, timezone: tz, createdEvents: [] }
   const result = await runAgent({
     config,
-    system: PRIVATE_SYSTEM(myNickname, transcript),
+    system: PRIVATE_SYSTEM(myNickname, transcript, tz),
     messages: history.map(m => ({ role: m.role === 'USER' ? 'user' as const : 'assistant' as const, content: m.content })),
     tools: buildToolDefs(),
     handlers: buildHandlers(ctx),
@@ -208,9 +224,9 @@ export async function chatWithAssistant(
 // ── Команда /ask в чате (видна обоим участникам) ──────────────
 // Ответ ИИ публикуется отдельным системным сообщением в чат.
 
-const ASK_SYSTEM = (transcript: string) =>
+const ASK_SYSTEM = (transcript: string, tz: string) =>
   `Ты — Infy AI, помощник в общем чате мессенджера Infy. Двое участников вызвали тебя командой /ask, и оба видят твой ответ. ` +
-  `Отвечай на русском, кратко и нейтрально. ${nowContext()}\n\n` +
+  `Отвечай на русском, кратко и нейтрально. ${nowContext(tz)}\n\n` +
   `Твои возможности:\n` +
   `• Отвечать на вопросы по переписке (инструмент search_chat).\n` +
   `• Искать факты в интернете (веб-поиск).\n` +
@@ -220,13 +236,104 @@ const ASK_SYSTEM = (transcript: string) =>
   `Недавняя переписка:\n${transcript || '(пусто)'}`
 
 export interface AskResult {
-  reply: string
-  toolsUsed: string[]
-  usedWebSearch: boolean
+  // id опубликованного сообщения-запроса (AI_QUERY); ответ придёт асинхронно по сокету.
+  queryMessageId: string
 }
 
-// Обрабатывает /ask: прогоняет агента и публикует ответ как системное сообщение
-// в чат (видно обоим). Возвращает текст для отправителя.
+const MESSAGE_INCLUDE = {
+  sender: true,
+  attachments: true,
+  reactions: { include: { user: true } },
+  replyTo: { include: { sender: true } },
+} as const
+
+// Создаёт сообщение в чате и публикует его всем участникам через realtime.
+async function createAndPublishMessage(
+  prisma: PrismaClient,
+  redis: Redis,
+  chatId: string,
+  senderId: bigint,
+  type: 'AI_QUERY' | 'AI',
+  content: string,
+) {
+  const msg = await prisma.message.create({
+    data: { id: ulid(), chatId, senderId, type, content },
+    include: MESSAGE_INCLUDE,
+  })
+  const { serializeMessage } = await import('../chat/chat.service.js')
+  await publishMessage(redis, 'chat:message', { event: 'message_new', data: serializeMessage(msg) })
+  return msg
+}
+
+// Обновляет содержимое сообщения и публикует обновление (для замены «печатает…»
+// на готовый ответ ИИ — фронт ловит message_updated и заменяет тот же пузырь).
+async function updateAndPublishMessage(
+  prisma: PrismaClient,
+  redis: Redis,
+  messageId: string,
+  content: string,
+) {
+  const msg = await prisma.message.update({
+    where: { id: messageId },
+    data: { content },
+    include: MESSAGE_INCLUDE,
+  })
+  const { serializeMessage } = await import('../chat/chat.service.js')
+  await publishMessage(redis, 'chat:message', { event: 'message_updated', data: serializeMessage(msg) })
+  return msg
+}
+
+// Фоновая генерация ответа /ask. Запускается «fire-and-forget» из askInChat,
+// поэтому ловит все ошибки сама и публикует ответ (или сообщение об ошибке)
+// как сообщение типа AI — оба участника увидят его по сокету.
+async function runAskGeneration(
+  prisma: PrismaClient,
+  redis: Redis,
+  chatId: string,
+  userId: bigint,
+  question: string,
+  placeholderId: string,
+): Promise<void> {
+  try {
+    const config = await requireConfig(prisma)
+    const { transcript } = await buildTranscript(prisma, chatId, userId, 50)
+    const tz = await getUserTimezone(prisma, userId)
+
+    const ctx: ToolContext = { prisma, chatId, userId, timezone: tz, createdEvents: [] }
+    const result = await runAgent({
+      config,
+      system: ASK_SYSTEM(transcript, tz),
+      messages: [{ role: 'user', content: question.trim() }],
+      tools: buildToolDefs(),
+      handlers: buildHandlers(ctx),
+      webSearch: config.webSearch,
+    })
+
+    const reply = result.text || 'Не удалось сформировать ответ.'
+    await updateAndPublishMessage(prisma, redis, placeholderId, reply)
+
+    // Созданные в ходе /ask общие напоминания — публикуем события календаря.
+    for (const created of ctx.createdEvents) {
+      const events = await listEvents(prisma, created.chatId, userId)
+      const full = events.find(e => e.id === created.id)
+      if (full) await publishMessage(redis, 'chat:calendar', { event: 'event_created', data: full })
+    }
+  } catch (err) {
+    console.error('[ai] ask generation failed:', err)
+    const text = err instanceof AppError && err.code === 'AI_DISABLED'
+      ? 'AI-функции сейчас недоступны.'
+      : 'Не удалось получить ответ. Попробуйте позже.'
+    try {
+      await updateAndPublishMessage(prisma, redis, placeholderId, text)
+    } catch (e2) {
+      console.error('[ai] failed to publish error message:', e2)
+    }
+  }
+}
+
+// Обрабатывает /ask: сразу публикует вопрос пользователя (AI_QUERY, видят оба),
+// запускает генерацию ответа в фоне и возвращает управление. Ответ (AI) придёт
+// асинхронно по сокету — поле ввода у отправителя не блокируется.
 export async function askInChat(
   prisma: PrismaClient,
   redis: Redis,
@@ -235,48 +342,21 @@ export async function askInChat(
   question: string,
 ): Promise<AskResult> {
   await assertMember(prisma, chatId, userId)
-  const config = await requireConfig(prisma)
+  // Проверяем конфиг до публикации запроса, чтобы при выключенном ИИ вернуть
+  // ошибку отправителю, а не «зависший» вопрос без ответа.
+  await requireConfig(prisma)
 
-  const { transcript, myNickname } = await buildTranscript(prisma, chatId, userId, 50)
+  // 1) Публикуем сам вопрос как сообщение-запрос к ИИ (видят оба участника).
+  const queryMsg = await createAndPublishMessage(prisma, redis, chatId, userId, 'AI_QUERY', question.trim())
 
-  const ctx: ToolContext = { prisma, chatId, userId, createdEvents: [] }
-  const result = await runAgent({
-    config,
-    system: ASK_SYSTEM(transcript),
-    messages: [{ role: 'user', content: question.trim() }],
-    tools: buildToolDefs(),
-    handlers: buildHandlers(ctx),
-    webSearch: config.webSearch,
-  })
+  // 2) Сразу публикуем пустой ответ-плейсхолдер (оба видят «Infy AI печатает…»).
+  const placeholder = await createAndPublishMessage(prisma, redis, chatId, userId, 'AI', '')
 
-  // Публикуем ответ ИИ как системное сообщение в чат (видно обоим участникам).
-  const reply = result.text || 'Не удалось сформировать ответ.'
-  const aiMsg = await prisma.message.create({
-    data: {
-      id: ulid(),
-      chatId,
-      senderId: userId,
-      type: 'SYSTEM',
-      content: `🤖 Infy AI (по запросу ${myNickname}):\n${reply}`,
-    },
-    include: {
-      sender: true,
-      attachments: true,
-      reactions: { include: { user: true } },
-      replyTo: { include: { sender: true } },
-    },
-  })
-  const { serializeMessage } = await import('../chat/chat.service.js')
-  await publishMessage(redis, 'chat:message', { event: 'message_new', data: serializeMessage(aiMsg) })
+  // 3) Генерация ответа — в фоне (не блокируем HTTP и поле ввода). По готовности
+  //    плейсхолдер заменяется готовым текстом через message_updated.
+  void runAskGeneration(prisma, redis, chatId, userId, question, placeholder.id)
 
-  // Если в ходе /ask создались общие напоминания — публикуем события (без дубля сис.сообщения).
-  for (const created of ctx.createdEvents) {
-    const events = await listEvents(prisma, created.chatId, userId)
-    const full = events.find(e => e.id === created.id)
-    if (full) await publishMessage(redis, 'chat:calendar', { event: 'event_created', data: full })
-  }
-
-  return { reply, toolsUsed: result.toolsUsed, usedWebSearch: result.usedWebSearch }
+  return { queryMessageId: queryMsg.id }
 }
 
 // ── Лёгкие фичи без диалога: сводка и умные ответы ────────────

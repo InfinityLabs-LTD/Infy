@@ -24,6 +24,8 @@ enum MessageType {
   AUDIO
   CIRCLE_VIDEO
   SYSTEM
+  AI_QUERY    // вопрос пользователя к Infy AI (видят оба, помечен как обращение к ИИ)
+  AI          // ответ Infy AI (видят оба)
 }
 
 // Кому адресовано напоминание о событии календаря
@@ -101,6 +103,9 @@ model User {
   email           String?   @unique @db.VarChar(255)
   emailVerifiedAt DateTime?
   role            Role      @default(USER)
+  // IANA-зона пользователя (напр. "Asia/Yekaterinburg") для календаря/напоминаний.
+  // null = ещё не задана (клиент при первом заходе пишет авто-зону браузера).
+  timezone        String?   @db.VarChar(64)
   createdAt       DateTime  @default(now())
   lastSeenAt      DateTime  @default(now())
 

@@ -9,6 +9,7 @@ import { ImageMessage } from './ImageMessage'
 import { VideoMessage } from './VideoMessage'
 import { AudioMessage } from './AudioMessage'
 import { CircleVideoMessage } from './CircleVideoMessage'
+import { MarkdownText } from './MarkdownText'
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥']
 
@@ -326,6 +327,12 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
     </div>
   )
 
+  // ── AI-сообщения: вопрос к ИИ (AI_QUERY) и ответ ИИ (AI) ──
+  // Рендерятся как сообщения (видят оба), но с явной стилизацией под Infy AI.
+  if (message.type === 'AI' || message.type === 'AI_QUERY') {
+    return <AiMessage message={message} isOwn={isOwn} time={time} />
+  }
+
   return (
     <>
       <div
@@ -361,6 +368,100 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
         document.body
       )}
     </>
+  )
+}
+
+// ── AI-сообщения ──────────────────────────────────────────────
+// Вопрос пользователя к Infy AI (AI_QUERY) и ответ ассистента (AI).
+// Оба видны обоим участникам; вопрос помечен как обращение к ИИ, чтобы
+// собеседник не принял его за обычное сообщение.
+
+function AiMessage({ message, isOwn, time }: { message: Message; isOwn: boolean; time: string }) {
+  const isQuery = message.type === 'AI_QUERY'
+
+  if (isQuery) {
+    // Вопрос к ИИ — на стороне автора, с бейджем «Вопрос Infy AI».
+    return (
+      <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mt-3 msg-appear`}>
+        <div className="flex flex-col gap-0.5" style={{ maxWidth: '78%', alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
+          <div
+            className="px-3 py-2 text-sm"
+            style={{
+              borderRadius: isOwn ? '20px 6px 6px 20px' : '6px 20px 20px 6px',
+              background: 'rgba(168,85,247,0.10)',
+              border: '1px solid rgba(168,85,247,0.35)',
+            }}
+          >
+            <div className="flex items-center gap-1.5 mb-1" style={{ color: '#C084FC' }}>
+              <AiGlyph />
+              <span className="text-[11px] font-semibold tracking-wide">Вопрос Infy AI</span>
+            </div>
+            <p className="whitespace-pre-wrap break-words leading-relaxed" style={{ color: 'rgba(255,255,255,0.92)' }}>
+              {message.content}
+            </p>
+          </div>
+          <span className="text-[11px] px-1" style={{ color: 'var(--text-low)' }}>{time}</span>
+        </div>
+      </div>
+    )
+  }
+
+  // Ответ ИИ — пузырь Infy AI слева, с аватаркой-иконкой и markdown.
+  const pending = !message.content
+  return (
+    <div className="flex justify-start mt-2 msg-appear">
+      <div className="flex items-end gap-2" style={{ maxWidth: '85%' }}>
+        <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mb-0.5"
+          style={{ background: 'linear-gradient(135deg, #A855F7, #7C3AED)' }}>
+          <AiGlyph color="white" />
+        </div>
+        <div className="flex flex-col gap-0.5 min-w-0">
+          <div
+            className="px-3 py-2 text-sm w-full overflow-hidden"
+            style={{
+              borderRadius: '6px 18px 18px 18px',
+              background: 'var(--glass-2, rgba(255,255,255,0.06))',
+              border: '1px solid rgba(168,85,247,0.25)',
+            }}
+          >
+            <div className="flex items-center gap-1.5 mb-1" style={{ color: '#C084FC' }}>
+              <span className="text-[11px] font-semibold tracking-wide">Infy AI</span>
+            </div>
+            {pending ? (
+              <TypingDots />
+            ) : (
+              <div className="text-sm" style={{ color: 'rgba(255,255,255,0.92)' }}>
+                <MarkdownText text={message.content ?? ''} />
+              </div>
+            )}
+          </div>
+          <span className="text-[11px] px-1" style={{ color: 'var(--text-low)' }}>{time}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AiGlyph({ color = '#C084FC' }: { color?: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l1.6 4.6L18 8l-4.4 1.4L12 14l-1.6-4.6L6 8l4.4-1.4z" />
+      <circle cx="18" cy="17" r="2.2" />
+    </svg>
+  )
+}
+
+function TypingDots() {
+  return (
+    <div className="flex items-center gap-1 py-0.5">
+      {[0, 1, 2].map(i => (
+        <span
+          key={i}
+          className="typing-dot w-1.5 h-1.5 rounded-full"
+          style={{ background: '#C084FC' }}
+        />
+      ))}
+    </div>
   )
 }
 

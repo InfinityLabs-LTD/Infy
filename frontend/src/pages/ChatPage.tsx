@@ -292,23 +292,24 @@ export function ChatPage() {
     if (!text.trim() || !chatId || sending) return
     const content = text.trim()
 
-    // Команда /ask <вопрос> — вызов Infy AI в чате (ответ виден обоим).
+    // Команда /ask <вопрос> — вызов Infy AI в чате (вопрос и ответ видны обоим).
+    // Не блокируем поле ввода: вопрос публикуется сразу, ответ ИИ придёт
+    // асинхронно по сокету как отдельное сообщение.
     if (/^\/ask\b/i.test(content) && !editing) {
       const question = content.replace(/^\/ask\b\s*/i, '').trim()
       if (!question) return
       setText('')
       setReplyTo(null)
-      setSending(true)
+      setMutedNotice(null)
       stopTyping()
-      try {
-        await aiApi.ask(chatId, question)
-      } catch (err) {
+      aiApi.ask(chatId, question).catch((err) => {
         const e = err as { response?: { status?: number; data?: { error?: { message?: string } } } }
         setMutedNotice(e.response?.status === 503
           ? 'AI-функции не настроены на сервере'
-          : (e.response?.data?.error?.message ?? 'Не удалось получить ответ AI'))
+          : (e.response?.data?.error?.message ?? 'Не удалось отправить запрос AI'))
         setText(content)
-      } finally { setSending(false); inputRef.current?.focus() }
+      })
+      inputRef.current?.focus()
       return
     }
 
@@ -856,11 +857,13 @@ export function ChatPage() {
                 }
 
                 // Группировка: тот же автор, тот же день, разрыв ≤ 60 сек.
-                // Системные сообщения разрывают группу.
-                const groupWithPrev = !!prev && prev.type !== 'SYSTEM' && !showDate &&
+                // Системные и AI-сообщения (запрос/ответ) разрывают группу —
+                // у них своя стилизация и они не должны сливаться с обычными.
+                const isPlain = (t: string) => t !== 'SYSTEM' && t !== 'AI' && t !== 'AI_QUERY'
+                const groupWithPrev = !!prev && isPlain(prev.type) && isPlain(msg.type) && !showDate &&
                   prev.sender.id === msg.sender.id &&
                   new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() < GROUP_WINDOW_MS
-                const groupWithNext = !!next && next.type !== 'SYSTEM' &&
+                const groupWithNext = !!next && isPlain(next.type) && isPlain(msg.type) &&
                   new Date(next.createdAt).toDateString() === new Date(msg.createdAt).toDateString() &&
                   next.sender.id === msg.sender.id &&
                   new Date(next.createdAt).getTime() - new Date(msg.createdAt).getTime() < GROUP_WINDOW_MS

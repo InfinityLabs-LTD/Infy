@@ -89,11 +89,13 @@ const aiRoutes: FastifyPluginAsync = async (app) => {
         properties: { question: { type: 'string', minLength: 1, maxLength: 4000 } },
       },
     },
-  }, async (request) => {
+  }, async (request, reply) => {
     const { chatId } = request.params as { chatId: string }
     const { question } = z.object({ question: z.string().min(1).max(4000) }).parse(request.body)
     const userId = BigInt(request.user.sub)
-    return { data: await askInChat(app.prisma, app.redis, chatId, userId, question) }
+    const result = await askInChat(app.prisma, app.redis, chatId, userId, question)
+    // 202: вопрос принят и опубликован; ответ ИИ придёт асинхронно по сокету.
+    return reply.code(202).send({ data: result })
   })
 }
 

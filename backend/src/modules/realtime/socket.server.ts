@@ -126,7 +126,10 @@ export function createSocketServer(
       const p = payload as { event: string; data: { chatId?: string; sender?: { id: string; nickname: string; avatarUrl?: string | null }; content?: string; type?: string } }
       if (p.data?.chatId) {
         io.to(`chat:${p.data.chatId}`).emit(p.event, p.data)
-        if (p.event === 'message_new' && p.data.sender?.id && p.data.type !== 'SYSTEM') {
+        // Push только для обычных сообщений: системные, AI-запрос/ответ и пустые
+        // плейсхолдеры не уведомляем (у ИИ-ответа своя доставка/обновление).
+        const noPushTypes = new Set(['SYSTEM', 'AI', 'AI_QUERY'])
+        if (p.event === 'message_new' && p.data.sender?.id && !noPushTypes.has(p.data.type ?? '')) {
           pushToOfflineMembers(pubClient, prisma, p.data as MessageForPush, p.data.sender.id).catch(() => {})
         }
       }

@@ -3,6 +3,7 @@ import Redis from 'ioredis'
 import { publishMessage } from '../../lib/pubsub.js'
 import { sendPush } from '../../lib/webpush.js'
 import { getPreset } from '../calendar/calendar.presets.js'
+import { formatTimeInTz } from '../../lib/timezone.js'
 
 const TICK_MS = 60_000        // проверяем раз в минуту
 const BATCH = 200             // максимум напоминаний за тик
@@ -105,19 +106,29 @@ async function deliverOne(
     const subs = await prisma.pushSubscription.findMany({
       where: { userId: { in: recipients } },
     })
-    const when = event.allDay
-      ? 'сегодня'
-      : new Date(event.eventAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+    // Время показываем каждому получателю в ЕГО часовом поясе (момент один и тот же).
+    const tzByUser = new Map<string, string | null>()
+    if (!event.allDay) {
+      const users = await prisma.user.findMany({
+        where: { id: { in: recipients } },
+        select: { id: true, timezone: true },
+      })
+      for (const u of users) tzByUser.set(u.id.toString(), u.timezone)
+    }
+    const eventAt = new Date(event.eventAt)
     const results = await Promise.allSettled(
-      subs.map(sub =>
-        sendPush(sub, {
+      subs.map(sub => {
+        const when = event.allDay
+          ? 'сегодня'
+          : formatTimeInTz(eventAt, tzByUser.get(sub.userId.toString()))
+        return sendPush(sub, {
           title: `📅 ${event.title}`,
           body: `${categoryName} · ${when}${event.notes ? ` — ${event.notes}` : ''}`,
           icon: event.createdBy.avatarUrl ?? '/icon.jpg',
           tag: `reminder:${reminder.id}`,
           url: '/',
-        }),
-      ),
+        })
+      }),
     )
     const deadEndpoints = subs
       .filter((_, i) => results[i].status === 'fulfilled' && (results[i] as PromiseFulfilledResult<boolean>).value === false)

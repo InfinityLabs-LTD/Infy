@@ -2,12 +2,15 @@ import { PrismaClient } from '@prisma/client'
 import { ToolDef, ToolHandler } from './ai.provider.js'
 import { createEvent, EventInput } from '../calendar/calendar.service.js'
 import { CATEGORY_PRESETS } from '../calendar/calendar.presets.js'
+import { formatInTz, parseInTz } from '../../lib/timezone.js'
 
 // Контекст выполнения инструментов в рамках одного запроса.
 export interface ToolContext {
   prisma: PrismaClient
   chatId: string
   userId: bigint
+  // IANA-зона пользователя — для форматирования подтверждений в его поясе.
+  timezone: string
   // ── Накопители побочных эффектов (читает сервис после прогона агента) ──
   // Созданные через ИИ события календаря — сервис их опубликует/уведомит.
   createdEvents: { id: string; chatId: string; forBoth: boolean }[]
@@ -106,8 +109,10 @@ export function buildHandlers(ctx: ToolContext): Record<string, ToolHandler> {
       const eventAtRaw = String(input.eventAt ?? '').trim()
       if (!title || !eventAtRaw) return { result: 'Нужны название и дата-время события.' }
 
-      const eventAt = new Date(eventAtRaw)
-      if (Number.isNaN(eventAt.getTime())) {
+      // Дату от модели трактуем в поясе пользователя: «18:30» = 18:30 у него,
+      // а не на сервере. parseInTz уважает уже указанный оффсет/Z, если он есть.
+      const eventAt = parseInTz(eventAtRaw, ctx.timezone)
+      if (!eventAt || Number.isNaN(eventAt.getTime())) {
         return { result: `Не удалось разобрать дату «${eventAtRaw}». Нужен ISO 8601.` }
       }
 
@@ -134,7 +139,7 @@ export function buildHandlers(ctx: ToolContext): Record<string, ToolHandler> {
       const event = await createEvent(ctx.prisma, ctx.chatId, ctx.userId, eventInput)
       ctx.createdEvents.push({ id: event.id, chatId: ctx.chatId, forBoth })
 
-      const when = eventAt.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+      const when = formatInTz(eventAt, ctx.timezone)
       return {
         result: `Создано событие «${title}» на ${when}. Напоминание за ${offsetMin} мин, ` +
           `${forBoth ? 'для обоих участников' : 'только для тебя'}.`,

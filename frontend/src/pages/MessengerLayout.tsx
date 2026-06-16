@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useNavigate, useMatch, useLocation } from 'react-router-dom'
 import { chatApi } from '@/api/chat'
+import { profileApi } from '@/api/auth'
 import { useChatStore, Chat } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { useSocket } from '@/hooks/useSocket'
@@ -116,7 +117,11 @@ function ChatRow({ chat, active }: { chat: Chat; active: boolean }) {
                 ? (chat.lastMessage.isOwn ? `Вы: ${chat.lastMessage.content}` : chat.lastMessage.content)
                 : chat.lastMessage.type === 'SYSTEM'
                   ? chat.lastMessage.content
-                  : mediaLabel(chat.lastMessage.type))
+                  : chat.lastMessage.type === 'AI'
+                    ? `🤖 ${chat.lastMessage.content || 'Infy AI печатает…'}`
+                    : chat.lastMessage.type === 'AI_QUERY'
+                      ? `🤖 Вопрос Infy AI`
+                      : mediaLabel(chat.lastMessage.type))
             : 'Нет сообщений'}
         </p>
       </div>
@@ -161,6 +166,17 @@ export function MessengerLayout() {
       .then(r => setChats(r.data.data))
       .finally(() => setLoading(false))
   }, [])
+
+  // Авто-установка часового пояса при первом заходе (если ещё не задан).
+  // Берём зону браузера; пользователь может сменить вручную в профиле.
+  useEffect(() => {
+    if (!user || user.timezone) return
+    let tz = 'UTC'
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' } catch { /* ignore */ }
+    profileApi.updateMe({ timezone: tz })
+      .then(r => useAuthStore.getState().setUser(r.data.data))
+      .catch(() => { /* не критично */ })
+  }, [user?.id, user?.timezone])
 
   useEffect(() => {
     if (!menuOpen) return

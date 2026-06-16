@@ -29,8 +29,9 @@ export const aiApi = {
   clearConversation: (chatId: string) =>
     api.delete(`/ai/chats/${chatId}/conversation`),
 
-  // Публичный вопрос ИИ в чате (ответ виден обоим участникам)
+  // Публичный вопрос ИИ в чате. Вопрос и ответ публикуются как сообщения
+  // (видны обоим); ответ приходит асинхронно по сокету. Возвращает id сообщения-запроса.
   ask: (chatId: string, question: string) =>
-    api.post<{ data: { reply: string; toolsUsed: string[]; usedWebSearch: boolean } }>(
+    api.post<{ data: { queryMessageId: string } }>(
       `/ai/chats/${chatId}/ask`, { question }),
 }

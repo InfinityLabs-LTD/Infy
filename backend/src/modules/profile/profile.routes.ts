@@ -6,6 +6,7 @@ import { Errors } from '../../lib/errors.js'
 import { serializeUser } from '../auth/auth.service.js'
 import { usernameSchema } from '../auth/auth.schema.js'
 import { env } from '../../lib/env.js'
+import { isValidTimezone } from '../../lib/timezone.js'
 
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024 // 5 MB
@@ -16,6 +17,9 @@ const updateProfileSchema = z.object({
   username: usernameSchema.optional(),
   birthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   bio: z.string().max(500).trim().optional().nullable(),
+  // IANA-зона (напр. "Asia/Yekaterinburg"); null — сбросить.
+  timezone: z.string().max(64).optional().nullable()
+    .refine(v => v == null || isValidTimezone(v), { message: 'Invalid IANA timezone' }),
 })
 
 const profileRoutes: FastifyPluginAsync = async (app) => {
@@ -47,6 +51,7 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
           username: { type: 'string', minLength: 3, maxLength: 32 },
           birthdate: { type: 'string', nullable: true },
           bio: { type: 'string', maxLength: 500, nullable: true },
+          timezone: { type: 'string', maxLength: 64, nullable: true },
         },
       },
     },
@@ -70,6 +75,7 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
           birthdate: input.birthdate ? new Date(input.birthdate) : null,
         }),
         ...(input.bio !== undefined && { bio: input.bio ?? null }),
+        ...(input.timezone !== undefined && { timezone: input.timezone ?? null }),
       },
     })
 

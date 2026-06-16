@@ -14,6 +14,36 @@ function toDateInput(value: string | null | undefined): string {
   }
 }
 
+// Зона браузера по умолчанию (используем как авто-значение, если у пользователя не задано).
+function browserTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  } catch {
+    return 'UTC'
+  }
+}
+
+// Список IANA-зон. Intl.supportedValuesOf есть в современных браузерах; иначе
+// — небольшой фолбэк-набор плюс текущая зона пользователя.
+function timezoneList(current: string): string[] {
+  let list: string[] = []
+  try {
+    const sv = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf
+    if (sv) list = sv('timeZone')
+  } catch { /* ignore */ }
+  if (list.length === 0) {
+    list = [
+      'UTC', 'Europe/London', 'Europe/Moscow', 'Europe/Kaliningrad',
+      'Asia/Yekaterinburg', 'Asia/Omsk', 'Asia/Krasnoyarsk', 'Asia/Irkutsk',
+      'Asia/Yakutsk', 'Asia/Vladivostok', 'Asia/Magadan', 'Asia/Kamchatka',
+      'Europe/Kyiv', 'Asia/Almaty', 'Asia/Tashkent', 'America/New_York',
+      'America/Los_Angeles', 'Asia/Dubai', 'Asia/Tokyo', 'Asia/Shanghai',
+    ]
+  }
+  if (current && !list.includes(current)) list = [current, ...list]
+  return list
+}
+
 export function EditProfilePage() {
   const navigate = useNavigate()
   const { user, setUser } = useAuthStore()
@@ -23,12 +53,15 @@ export function EditProfilePage() {
     username: user?.username ?? '',
     birthdate: toDateInput(user?.birthdate),
     bio: user?.bio ?? '',
+    timezone: user?.timezone ?? browserTimezone(),
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<unknown>(null)
 
+  const timezones = timezoneList(form.timezone)
+
   function set(field: keyof typeof form) {
-    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
       setForm((prev) => ({
         ...prev,
         [field]: field === 'username' ? e.target.value.toLowerCase() : e.target.value,
@@ -44,6 +77,7 @@ export function EditProfilePage() {
         username: form.username || undefined,
         birthdate: form.birthdate || null,
         bio: form.bio.trim() || null,
+        timezone: form.timezone || null,
       })
       setUser(res.data.data)
       navigate('/profile')
@@ -107,6 +141,18 @@ export function EditProfilePage() {
                 style={{ height: 'auto' }}
               />
               <p className="text-xs mt-1 text-right" style={{ color: 'var(--text-low)' }}>{form.bio.length}/500</p>
+            </div>
+
+            <div>
+              <label className="label">Часовой пояс</label>
+              <select className="input" value={form.timezone} onChange={set('timezone')}>
+                {timezones.map((tz) => (
+                  <option key={tz} value={tz}>{tz}</option>
+                ))}
+              </select>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-low)' }}>
+                Время событий и напоминаний показывается в вашем поясе. У собеседника из другого пояса — в его.
+              </p>
             </div>
 
             <div className="flex gap-3 pt-2">

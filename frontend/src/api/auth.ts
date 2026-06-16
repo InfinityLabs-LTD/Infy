@@ -10,6 +10,7 @@ export interface User {
   role: string
   email: string | null
   birthdate: string | null
+  timezone: string | null
   createdAt: string
   lastSeenAt: string
 }
@@ -60,7 +61,7 @@ export const profileApi = {
   getByUsername: (username: string) =>
     api.get<{ data: User }>(`/profile/${username}`),
 
-  updateMe: (body: { nickname?: string; username?: string; birthdate?: string | null; bio?: string | null }) =>
+  updateMe: (body: { nickname?: string; username?: string; birthdate?: string | null; bio?: string | null; timezone?: string | null }) =>
     api.patch<{ data: User }>('/profile/me', body),
 
   uploadAvatar: (file: File) => {

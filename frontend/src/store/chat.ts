@@ -200,11 +200,28 @@ export const useChatStore = create<ChatState>((set) => ({
   updateMessage: (msg) =>
     set((s) => {
       const existing = s.messages[msg.chatId] ?? []
+      // Если обновлённое сообщение — последнее в списке чата (напр. ответ ИИ
+      // заменил плейсхолдер «печатает…»), синхронизируем превью в сайдбаре.
+      const myId = useAuthStore.getState().user?.id
+      const chats = s.chats.map((c) => {
+        if (c.id !== msg.chatId || c.lastMessage?.id !== msg.id) return c
+        return {
+          ...c,
+          lastMessage: {
+            id: msg.id,
+            content: msg.content,
+            type: msg.type,
+            createdAt: msg.createdAt,
+            isOwn: msg.sender.id === myId,
+          },
+        }
+      })
       return {
         messages: {
           ...s.messages,
           [msg.chatId]: existing.map((m) => (m.id === msg.id ? msg : m)),
         },
+        chats,
       }
     }),
 
