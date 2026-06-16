@@ -47,6 +47,10 @@ export interface CallState {
   localStream: MediaStream | null
   remoteStream: MediaStream | null
   streamVersion: number
+
+  // Выбранное устройство вывода звука (deviceId). Пусто = устройство по умолчанию.
+  // Применяется к удалённому <audio> через setSinkId (не поддерживается на iOS Safari).
+  audioOutputId: string
 }
 
 interface CallActions {
@@ -61,6 +65,7 @@ interface CallActions {
   tickDuration: () => void
   setStreams: (local: MediaStream | null, remote: MediaStream | null) => void
   bumpStreams: () => void
+  setAudioOutput: (deviceId: string) => void
   end: (reason: string | null) => void
   reset: () => void
 }
@@ -84,6 +89,7 @@ const initial: CallState = {
   localStream: null,
   remoteStream: null,
   streamVersion: 0,
+  audioOutputId: '',
 }
 
 export const useCallStore = create<CallState & CallActions>((set) => ({
@@ -125,6 +131,7 @@ export const useCallStore = create<CallState & CallActions>((set) => ({
     localStream: local, remoteStream: remote, streamVersion: s.streamVersion + 1,
   })),
   bumpStreams: () => set((s) => ({ streamVersion: s.streamVersion + 1 })),
+  setAudioOutput: (deviceId) => set({ audioOutputId: deviceId }),
   end: (reason) => set({ phase: 'ended', endedReason: reason }),
   reset: () => set({ ...initial }),
 }))

@@ -57,22 +57,28 @@ export function GlassButton({
   )
 }
 
+// Поддерживается ли программный выбор аудиовыхода (нет на iOS Safari).
+const SINK_SUPPORTED = typeof document !== 'undefined'
+  && 'setSinkId' in HTMLMediaElement.prototype
+
 // Полоса управления активным звонком + меню выбора устройств.
 export function ActiveControls({
-  micOn, camOn, screenOn, isVideo,
+  micOn, camOn, screenOn, isVideo, audioOutputId,
   onToggleMic, onToggleCam, onToggleScreen, onHangup,
-  onSwitchAudio, onSwitchVideo,
+  onSwitchAudio, onSwitchVideo, onSwitchOutput,
 }: {
   micOn: boolean
   camOn: boolean
   screenOn: boolean
   isVideo: boolean
+  audioOutputId: string
   onToggleMic: () => void
   onToggleCam: () => void
   onToggleScreen: () => void
   onHangup: () => void
   onSwitchAudio: (deviceId: string) => void
   onSwitchVideo: (deviceId: string) => void
+  onSwitchOutput: (deviceId: string) => void
 }) {
   const [showDevices, setShowDevices] = useState(false)
   const [devices, setDevices] = useState<MediaDeviceLists | null>(null)
@@ -110,8 +116,21 @@ export function ActiveControls({
                 <DeviceGroup label="Камера" icon={<Video size={14} />}
                   devices={devices?.videoInputs ?? []} onPick={onSwitchVideo} />
               )}
-              <DeviceGroup label="Динамики" icon={<Volume2 size={14} />}
-                devices={devices?.audioOutputs ?? []} onPick={() => { /* setSinkId на <audio> */ }} disabled />
+              {SINK_SUPPORTED ? (
+                <DeviceGroup label="Динамики" icon={<Volume2 size={14} />}
+                  devices={devices?.audioOutputs ?? []} activeId={audioOutputId} onPick={onSwitchOutput} />
+              ) : (
+                <div>
+                  <div className="flex items-center gap-1.5 px-1 mb-1 text-[11px] font-semibold uppercase tracking-wide"
+                    style={{ color: 'var(--text-low)' }}>
+                    <Volume2 size={14} />Динамики
+                  </div>
+                  <p className="px-2 py-1 text-xs" style={{ color: 'var(--text-low)' }}>
+                    Выбор вывода недоступен в этом браузере. Переключение между динамиком
+                    и наушниками — в настройках устройства.
+                  </p>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -125,13 +144,14 @@ export function ActiveControls({
 }
 
 function DeviceGroup({
-  label, icon, devices, onPick, disabled,
+  label, icon, devices, onPick, disabled, activeId,
 }: {
   label: string
   icon: React.ReactNode
   devices: MediaDeviceInfo[]
   onPick: (deviceId: string) => void
   disabled?: boolean
+  activeId?: string
 }) {
   return (
     <div className="mb-2 last:mb-0">
@@ -141,16 +161,26 @@ function DeviceGroup({
       </div>
       {devices.length === 0 ? (
         <p className="px-2 py-1 text-xs" style={{ color: 'var(--text-low)' }}>Нет устройств</p>
-      ) : devices.map(d => (
-        <button
-          key={d.deviceId}
-          disabled={disabled}
-          onClick={() => onPick(d.deviceId)}
-          className="block w-full text-left px-2 py-1.5 rounded-lg text-xs text-white/80 hover:bg-white/8 transition-colors truncate disabled:opacity-40"
-        >
-          {d.label || 'Устройство'}
-        </button>
-      ))}
+      ) : devices.map(d => {
+        const active = activeId !== undefined
+          && (activeId === d.deviceId || (activeId === '' && d.deviceId === 'default'))
+        return (
+          <button
+            key={d.deviceId}
+            disabled={disabled}
+            onClick={() => onPick(d.deviceId)}
+            className="flex items-center justify-between gap-2 w-full text-left px-2 py-1.5 rounded-lg text-xs hover:bg-white/8 transition-colors truncate disabled:opacity-40"
+            style={{ color: active ? '#C084FC' : 'rgba(255,255,255,0.8)' }}
+          >
+            <span className="truncate">{d.label || 'Устройство'}</span>
+            {active && (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="shrink-0">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </button>
+        )
+      })}
     </div>
   )
 }

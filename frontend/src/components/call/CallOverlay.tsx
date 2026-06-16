@@ -59,6 +59,15 @@ export function CallOverlay() {
     }
   }, [s.remoteStream, s.streamVersion, showRemoteVideo])
 
+  // Применяем выбранный аудиовыход (динамик/наушники) к удалённому <audio>.
+  // setSinkId не поддерживается на iOS Safari — там вывод управляется системно.
+  useEffect(() => {
+    const el = remoteAudioRef.current as (HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }) | null
+    if (el?.setSinkId && s.audioOutputId) {
+      el.setSinkId(s.audioOutputId).catch(() => { /* устройство недоступно */ })
+    }
+  }, [s.audioOutputId, s.remoteStream])
+
   if (s.phase === 'idle') return null
 
   const showSelfPip = isVideo && s.camOn && !!s.localStream && (s.phase === 'active' || s.phase === 'connecting')
@@ -181,12 +190,14 @@ export function CallOverlay() {
               camOn={s.camOn}
               screenOn={s.screenOn}
               isVideo={isVideo}
+              audioOutputId={s.audioOutputId}
               onToggleMic={() => callController.toggleMic()}
               onToggleCam={() => void callController.toggleCam()}
               onToggleScreen={() => void callController.toggleScreen()}
               onHangup={() => callController.hangup()}
               onSwitchAudio={(id) => void callController.switchAudioInput(id)}
               onSwitchVideo={(id) => void callController.switchVideoInput(id)}
+              onSwitchOutput={(id) => callController.switchAudioOutput(id)}
             />
           ) : null}
         </div>

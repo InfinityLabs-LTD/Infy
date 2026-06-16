@@ -224,6 +224,10 @@ export const callController = {
     await engine?.switchVideoInput(deviceId)
     useCallStore.getState().bumpStreams()
   },
+  // Выбор устройства вывода звука — применяется в CallOverlay через setSinkId.
+  switchAudioOutput(deviceId: string): void {
+    useCallStore.getState().setAudioOutput(deviceId)
+  },
 
   // ── Обработка сигналинг-событий от сокета ─────────────────
   onAccepted(): void {
