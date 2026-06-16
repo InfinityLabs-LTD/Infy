@@ -190,9 +190,9 @@ export function AdminAiCenterPage() {
             placeholder={settings.anthropic.hasKey ? '•••••••• (оставьте пустым, чтобы не менять)' : 'sk-ant-…'}
             className={inputCls} />
         </Field>
-        <Field label="Anthropic — базовый URL (необязательно)">
+        <Field label="Anthropic — базовый URL (необязательно, без /v1)">
           <input value={anthropicBaseUrl} onChange={e => setAnthropicBaseUrl(e.target.value)}
-            placeholder="https://api.anthropic.com (по умолчанию)" className={inputCls} />
+            placeholder="https://api.anthropic.com · напр. https://api.artemox.com" className={inputCls} />
         </Field>
 
         <div className="h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />

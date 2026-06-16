@@ -50,6 +50,23 @@ function pick(map: Map<string, string>, key: string, fallback: string): string {
   return v !== undefined && v !== '' ? v : fallback
 }
 
+// Приводим base URL к формату, которого ждёт SDK провайдера.
+// Anthropic SDK сам добавляет «/v1/messages» → base должен быть БЕЗ хвостового /v1
+// (иначе получится …/v1/v1/messages → 404). OpenAI SDK добавляет «/chat/completions»
+// → base ДОЛЖЕН оканчиваться на /v1. Нормализуем оба случая, чтобы не зависеть
+// от того, с /v1 или без него администратор ввёл URL.
+function normalizeBaseUrl(provider: AiProvider, raw: string | null): string | null {
+  if (!raw) return null
+  let url = raw.trim().replace(/\/+$/, '') // убрать хвостовые слэши
+  if (!url) return null
+  if (provider === 'ANTHROPIC') {
+    url = url.replace(/\/v1$/, '')
+  } else {
+    if (!/\/v\d+$/.test(url)) url = `${url}/v1`
+  }
+  return url
+}
+
 // Полная конфигурация для выполнения запроса (включая активный ключ).
 export async function getAiConfig(prisma: PrismaClient): Promise<AiConfig> {
   const map = await readAll(prisma)
@@ -66,9 +83,10 @@ export async function getAiConfig(prisma: PrismaClient): Promise<AiConfig> {
     : pick(map, KEYS.anthropicModel, env.ANTHROPIC_MODEL)
   const apiKey = provider === 'OPENAI' ? openaiKey : anthropicKey
 
-  const baseUrl = (provider === 'OPENAI'
+  const baseUrlRaw = (provider === 'OPENAI'
     ? pick(map, KEYS.openaiBaseUrl, env.OPENAI_BASE_URL ?? '')
     : pick(map, KEYS.anthropicBaseUrl, env.ANTHROPIC_BASE_URL ?? '')) || null
+  const baseUrl = normalizeBaseUrl(provider, baseUrlRaw)
 
   // По умолчанию ассистент включён, если для выбранного провайдера есть ключ.
   const enabled = enabledRaw !== undefined ? enabledRaw === 'true' : !!apiKey
