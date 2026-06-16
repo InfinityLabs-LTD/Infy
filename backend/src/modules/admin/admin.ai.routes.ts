@@ -24,8 +24,10 @@ const adminAiRoutes: FastifyPluginAsync = async (app) => {
       webSearch: z.boolean().optional(),
       anthropicModel: z.string().max(100).optional(),
       anthropicKey: z.string().max(300).optional(),  // '' очищает
+      anthropicBaseUrl: z.string().max(300).optional(),
       openaiModel: z.string().max(100).optional(),
       openaiKey: z.string().max(300).optional(),      // '' очищает
+      openaiBaseUrl: z.string().max(300).optional(),
     }).parse(request.body)
 
     return { data: await updateAiSettings(app.prisma, body) }

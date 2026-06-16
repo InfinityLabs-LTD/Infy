@@ -173,8 +173,8 @@ export interface AiSettings {
   enabled: boolean
   provider: AiProvider
   webSearch: boolean
-  anthropic: { model: string; hasKey: boolean }
-  openai: { model: string; hasKey: boolean }
+  anthropic: { model: string; hasKey: boolean; baseUrl: string }
+  openai: { model: string; hasKey: boolean; baseUrl: string }
 }
 
 export interface AiSettingsUpdate {
@@ -183,8 +183,10 @@ export interface AiSettingsUpdate {
   webSearch?: boolean
   anthropicModel?: string
   anthropicKey?: string
+  anthropicBaseUrl?: string
   openaiModel?: string
   openaiKey?: string
+  openaiBaseUrl?: string
 }
 
 export const adminApi = {

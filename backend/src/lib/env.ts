@@ -49,8 +49,11 @@ const schema = z.object({
   AI_PROVIDER: z.enum(['ANTHROPIC', 'OPENAI']).default('ANTHROPIC'),
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default('claude-opus-4-8'),
+  ANTHROPIC_BASE_URL: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default('gpt-4o'),
+  // Кастомный base URL для OpenAI-совместимых провайдеров (Artemox, OpenRouter, …).
+  OPENAI_BASE_URL: z.string().optional(),
 
   // ── Звонки / WebRTC ICE ────────────────────────────────────
   // Публичные STUN-серверы (через запятую). Помогают узнать внешний адрес.

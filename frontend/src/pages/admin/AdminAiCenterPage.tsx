@@ -9,6 +9,24 @@ const PROVIDERS: { value: AiProvider; label: string; hint: string }[] = [
   { value: 'OPENAI', label: 'OpenAI · ChatGPT', hint: 'gpt-4o, gpt-4o-mini …' },
 ]
 
+// Известные модели для выпадающего списка. Всегда доступна опция «Своя…»
+// для произвольного ID (нужно при работе со сторонними API типа Artemox/OpenRouter).
+const ANTHROPIC_MODELS = [
+  'claude-opus-4-8',
+  'claude-sonnet-4-6',
+  'claude-haiku-4-5-20251001',
+  'claude-3-7-sonnet-latest',
+]
+const OPENAI_MODELS = [
+  'gpt-4o',
+  'gpt-4o-mini',
+  'gpt-4.1',
+  'gpt-4.1-mini',
+  'o3',
+  'o4-mini',
+]
+const CUSTOM = '__custom__'
+
 export function AdminAiCenterPage() {
   const [settings, setSettings] = useState<AiSettings | null>(null)
   const [loading, setLoading] = useState(true)
@@ -16,16 +34,20 @@ export function AdminAiCenterPage() {
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
-  // Локальный draft полей моделей и ключей.
+  // Локальный draft полей моделей, ключей и base URL.
   const [anthropicModel, setAnthropicModel] = useState('')
   const [openaiModel, setOpenaiModel] = useState('')
   const [anthropicKey, setAnthropicKey] = useState('')   // '' = не менять
   const [openaiKey, setOpenaiKey] = useState('')
+  const [anthropicBaseUrl, setAnthropicBaseUrl] = useState('')
+  const [openaiBaseUrl, setOpenaiBaseUrl] = useState('')
 
   function apply(s: AiSettings) {
     setSettings(s)
     setAnthropicModel(s.anthropic.model)
     setOpenaiModel(s.openai.model)
+    setAnthropicBaseUrl(s.anthropic.baseUrl)
+    setOpenaiBaseUrl(s.openai.baseUrl)
     setAnthropicKey('')
     setOpenaiKey('')
   }
@@ -47,6 +69,8 @@ export function AdminAiCenterPage() {
       if (!keepKeys) { setAnthropicKey(''); setOpenaiKey('') }
       setAnthropicModel(cur.anthropic.model)
       setOpenaiModel(cur.openai.model)
+      setAnthropicBaseUrl(cur.anthropic.baseUrl)
+      setOpenaiBaseUrl(cur.openai.baseUrl)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch {
@@ -55,7 +79,12 @@ export function AdminAiCenterPage() {
   }
 
   function saveProviderFields() {
-    const body: AiSettingsUpdate = { anthropicModel, openaiModel }
+    const body: AiSettingsUpdate = {
+      anthropicModel,
+      openaiModel,
+      anthropicBaseUrl: anthropicBaseUrl.trim(),
+      openaiBaseUrl: openaiBaseUrl.trim(),
+    }
     if (anthropicKey.trim()) body.anthropicKey = anthropicKey.trim()
     if (openaiKey.trim()) body.openaiKey = openaiKey.trim()
     patch(body)
@@ -153,25 +182,33 @@ export function AdminAiCenterPage() {
         <p className="font-semibold text-white text-sm">Модели и API-ключи</p>
 
         <Field label="Anthropic — модель">
-          <input value={anthropicModel} onChange={e => setAnthropicModel(e.target.value)}
-            placeholder="claude-opus-4-8" className={inputCls} />
+          <ModelSelect value={anthropicModel} options={ANTHROPIC_MODELS}
+            placeholder="claude-opus-4-8" onChange={setAnthropicModel} />
         </Field>
         <Field label={`Anthropic — API-ключ${settings.anthropic.hasKey ? ' (задан)' : ''}`}>
           <input value={anthropicKey} onChange={e => setAnthropicKey(e.target.value)} type="password"
             placeholder={settings.anthropic.hasKey ? '•••••••• (оставьте пустым, чтобы не менять)' : 'sk-ant-…'}
             className={inputCls} />
         </Field>
+        <Field label="Anthropic — базовый URL (необязательно)">
+          <input value={anthropicBaseUrl} onChange={e => setAnthropicBaseUrl(e.target.value)}
+            placeholder="https://api.anthropic.com (по умолчанию)" className={inputCls} />
+        </Field>
 
         <div className="h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
 
         <Field label="OpenAI — модель">
-          <input value={openaiModel} onChange={e => setOpenaiModel(e.target.value)}
-            placeholder="gpt-4o" className={inputCls} />
+          <ModelSelect value={openaiModel} options={OPENAI_MODELS}
+            placeholder="gpt-4o" onChange={setOpenaiModel} />
         </Field>
         <Field label={`OpenAI — API-ключ${settings.openai.hasKey ? ' (задан)' : ''}`}>
           <input value={openaiKey} onChange={e => setOpenaiKey(e.target.value)} type="password"
             placeholder={settings.openai.hasKey ? '•••••••• (оставьте пустым, чтобы не менять)' : 'sk-…'}
             className={inputCls} />
+        </Field>
+        <Field label="OpenAI — базовый URL (необязательно)">
+          <input value={openaiBaseUrl} onChange={e => setOpenaiBaseUrl(e.target.value)}
+            placeholder="https://api.openai.com/v1 · напр. https://api.artemox.com/v1" className={inputCls} />
         </Field>
 
         <button onClick={saveProviderFields} disabled={saving}
@@ -182,14 +219,59 @@ export function AdminAiCenterPage() {
       </div>
 
       <p className="text-[11px]" style={{ color: 'var(--text-low)' }}>
-        Ключи хранятся на сервере и не возвращаются в открытом виде. Также можно задать значения
-        по умолчанию через переменные окружения (ANTHROPIC_API_KEY, OPENAI_API_KEY).
+        Ключи хранятся на сервере и не возвращаются в открытом виде. Значения по умолчанию
+        можно задать через переменные окружения (ANTHROPIC_API_KEY, OPENAI_API_KEY,
+        OPENAI_BASE_URL …). Базовый URL позволяет использовать сторонние OpenAI-совместимые
+        провайдеры — выберите провайдер «OpenAI», укажите его URL, ключ и модель.
       </p>
     </div>
   )
 }
 
 const inputCls = 'w-full px-3 py-2 rounded-xl text-sm text-white outline-none transition-colors'
+
+// Опции <select> рендерятся системно — задаём тёмный фон и белый текст явно,
+// иначе на белом системном фоне светлый текст сливается.
+const optionStyle: React.CSSProperties = { background: '#1a1530', color: '#fff' }
+
+// Выпадающий список моделей с опцией ручного ввода произвольного ID.
+function ModelSelect({ value, options, placeholder, onChange }: {
+  value: string
+  options: string[]
+  placeholder: string
+  onChange: (v: string) => void
+}) {
+  // Режим «своя модель»: текущее значение отсутствует в списке (включая пустое),
+  // либо пользователь явно выбрал «Своя…».
+  const inList = options.includes(value)
+  const [custom, setCustom] = useState(!inList && value !== '')
+
+  const showCustom = custom || (!inList && value !== '')
+  const selectValue = showCustom ? CUSTOM : (inList ? value : '')
+
+  return (
+    <div className="space-y-2">
+      <select
+        value={selectValue}
+        onChange={e => {
+          if (e.target.value === CUSTOM) { setCustom(true); onChange('') }
+          else { setCustom(false); onChange(e.target.value) }
+        }}
+        className={inputCls}
+        style={{ background: '#1a1530', color: '#fff' }}>
+        {selectValue === '' && <option value="" disabled style={optionStyle}>Выберите модель…</option>}
+        {options.map(m => (
+          <option key={m} value={m} style={optionStyle}>{m}</option>
+        ))}
+        <option value={CUSTOM} style={optionStyle}>Своя модель…</option>
+      </select>
+      {showCustom && (
+        <input value={value} onChange={e => onChange(e.target.value)}
+          placeholder={placeholder} className={inputCls} autoFocus />
+      )}
+    </div>
+  )
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

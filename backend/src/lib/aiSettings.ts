@@ -11,8 +11,10 @@ const KEYS = {
   provider: 'ai.provider',
   anthropicModel: 'ai.anthropic.model',
   anthropicKey: 'ai.anthropic.key',
+  anthropicBaseUrl: 'ai.anthropic.baseUrl',
   openaiModel: 'ai.openai.model',
   openaiKey: 'ai.openai.key',
+  openaiBaseUrl: 'ai.openai.baseUrl',
   webSearch: 'ai.webSearch',
 } as const
 
@@ -23,6 +25,8 @@ export interface AiConfig {
   // Активные модель и ключ для выбранного провайдера
   model: string
   apiKey: string | null
+  // Кастомный base URL (для сторонних OpenAI/Anthropic-совместимых API). null = дефолт SDK.
+  baseUrl: string | null
 }
 
 // Публичное (безопасное) представление настроек для админки — без сырых ключей.
@@ -30,8 +34,8 @@ export interface AiSettingsPublic {
   enabled: boolean
   provider: AiProvider
   webSearch: boolean
-  anthropic: { model: string; hasKey: boolean }
-  openai: { model: string; hasKey: boolean }
+  anthropic: { model: string; hasKey: boolean; baseUrl: string }
+  openai: { model: string; hasKey: boolean; baseUrl: string }
 }
 
 async function readAll(prisma: PrismaClient): Promise<Map<string, string>> {
@@ -62,6 +66,10 @@ export async function getAiConfig(prisma: PrismaClient): Promise<AiConfig> {
     : pick(map, KEYS.anthropicModel, env.ANTHROPIC_MODEL)
   const apiKey = provider === 'OPENAI' ? openaiKey : anthropicKey
 
+  const baseUrl = (provider === 'OPENAI'
+    ? pick(map, KEYS.openaiBaseUrl, env.OPENAI_BASE_URL ?? '')
+    : pick(map, KEYS.anthropicBaseUrl, env.ANTHROPIC_BASE_URL ?? '')) || null
+
   // По умолчанию ассистент включён, если для выбранного провайдера есть ключ.
   const enabled = enabledRaw !== undefined ? enabledRaw === 'true' : !!apiKey
 
@@ -71,6 +79,7 @@ export async function getAiConfig(prisma: PrismaClient): Promise<AiConfig> {
     webSearch: webSearchRaw !== undefined ? webSearchRaw === 'true' : true,
     model,
     apiKey,
+    baseUrl,
   }
 }
 
@@ -96,8 +105,16 @@ export async function getAiSettingsPublic(prisma: PrismaClient): Promise<AiSetti
     enabled: enabledRaw !== undefined ? enabledRaw === 'true' : !!activeKey,
     provider,
     webSearch: webSearchRaw !== undefined ? webSearchRaw === 'true' : true,
-    anthropic: { model: pick(map, KEYS.anthropicModel, env.ANTHROPIC_MODEL), hasKey: !!anthropicKey },
-    openai: { model: pick(map, KEYS.openaiModel, env.OPENAI_MODEL), hasKey: !!openaiKey },
+    anthropic: {
+      model: pick(map, KEYS.anthropicModel, env.ANTHROPIC_MODEL),
+      hasKey: !!anthropicKey,
+      baseUrl: pick(map, KEYS.anthropicBaseUrl, env.ANTHROPIC_BASE_URL ?? ''),
+    },
+    openai: {
+      model: pick(map, KEYS.openaiModel, env.OPENAI_MODEL),
+      hasKey: !!openaiKey,
+      baseUrl: pick(map, KEYS.openaiBaseUrl, env.OPENAI_BASE_URL ?? ''),
+    },
   }
 }
 
@@ -107,8 +124,10 @@ export interface AiSettingsUpdate {
   webSearch?: boolean
   anthropicModel?: string
   anthropicKey?: string         // пустая строка очищает; undefined — не трогать
+  anthropicBaseUrl?: string     // пустая строка = дефолт SDK
   openaiModel?: string
   openaiKey?: string
+  openaiBaseUrl?: string
 }
 
 // Сохранить настройки из админки. Ключи, пришедшие undefined, не меняются.
@@ -122,6 +141,8 @@ export async function updateAiSettings(
   if (patch.webSearch !== undefined) writes.push({ key: KEYS.webSearch, value: String(patch.webSearch) })
   if (patch.anthropicModel !== undefined) writes.push({ key: KEYS.anthropicModel, value: patch.anthropicModel.trim() })
   if (patch.openaiModel !== undefined) writes.push({ key: KEYS.openaiModel, value: patch.openaiModel.trim() })
+  if (patch.anthropicBaseUrl !== undefined) writes.push({ key: KEYS.anthropicBaseUrl, value: patch.anthropicBaseUrl.trim() })
+  if (patch.openaiBaseUrl !== undefined) writes.push({ key: KEYS.openaiBaseUrl, value: patch.openaiBaseUrl.trim() })
   // Ключи: пустая строка = очистить; непустая = сохранить.
   if (patch.anthropicKey !== undefined) writes.push({ key: KEYS.anthropicKey, value: patch.anthropicKey.trim() })
   if (patch.openaiKey !== undefined) writes.push({ key: KEYS.openaiKey, value: patch.openaiKey.trim() })

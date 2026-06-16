@@ -58,7 +58,10 @@ export async function runAgent(opts: RunAgentOptions): Promise<RunAgentResult> {
 // ── Anthropic ─────────────────────────────────────────────────
 
 async function runAnthropic(opts: RunAgentOptions): Promise<RunAgentResult> {
-  const client = new Anthropic({ apiKey: opts.config.apiKey ?? undefined })
+  const client = new Anthropic({
+    apiKey: opts.config.apiKey ?? undefined,
+    baseURL: opts.config.baseUrl ?? undefined,
+  })
 
   const tools: Anthropic.Tool[] = opts.tools.map(t => ({
     name: t.name,
@@ -146,7 +149,10 @@ function extractAnthropicText(response: Anthropic.Message): string {
 // ── OpenAI ────────────────────────────────────────────────────
 
 async function runOpenAI(opts: RunAgentOptions): Promise<RunAgentResult> {
-  const client = new OpenAI({ apiKey: opts.config.apiKey ?? undefined })
+  const client = new OpenAI({
+    apiKey: opts.config.apiKey ?? undefined,
+    baseURL: opts.config.baseUrl ?? undefined,
+  })
 
   const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = opts.tools.map(t => ({
     type: 'function',
@@ -212,7 +218,7 @@ async function runOpenAI(opts: RunAgentOptions): Promise<RunAgentResult> {
       let result = `Инструмент ${name} недоступен.`
       if (name === 'web_search') {
         usedWebSearch = true
-        result = await openaiWebSearch(client, String(input.query ?? ''))
+        result = await openaiWebSearch(client, String(input.query ?? ''), opts.config)
       } else {
         const handler = opts.handlers[name]
         if (handler) {
@@ -232,13 +238,14 @@ async function runOpenAI(opts: RunAgentOptions): Promise<RunAgentResult> {
 }
 
 // Вложенный веб-поиск через search-preview модель OpenAI.
-async function openaiWebSearch(client: OpenAI, query: string): Promise<string> {
+async function openaiWebSearch(client: OpenAI, query: string, config: AiConfig): Promise<string> {
   if (!query.trim()) return 'Пустой поисковый запрос.'
   try {
-    // gpt-4o-search-preview сам выполняет веб-поиск. web_search_options может
-    // отсутствовать в типах SDK — передаём через нетипизированный объект.
+    // gpt-4o-search-preview сам выполняет веб-поиск. На сторонних (custom baseUrl)
+    // провайдерах этой модели может не быть — используем активную модель.
+    // web_search_options может отсутствовать в типах SDK — передаём нетипизированно.
     const params = {
-      model: 'gpt-4o-search-preview',
+      model: config.baseUrl ? config.model : 'gpt-4o-search-preview',
       web_search_options: {},
       messages: [
         { role: 'system', content: 'Кратко ответь на запрос фактами из интернета, на русском. Указывай источники, если уместно.' },
