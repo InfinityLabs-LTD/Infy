@@ -11,7 +11,7 @@ export function useSocket(): Socket | null {
   const socketRef = useRef<Socket | null>(null)
 
   const {
-    addMessage, updateMessage, removeMessage,
+    addMessage, updateMessage, removeMessage, removeChat,
     setUserOnline, setUserOffline, setSocketReady,
     updatePartnerRead,
   } = useChatStore()
@@ -37,6 +37,11 @@ export function useSocket(): Socket | null {
     const onMessageEdited = (msg: Message) => updateMessage(msg)
     const onMessageUpdated = (msg: Message) => updateMessage(msg)
     const onMessageDeleted = ({ id, chatId }: { id: string; chatId: string }) => removeMessage(chatId, id)
+    const onChatDeleted = ({ chatId }: { chatId: string }) => {
+      removeChat(chatId)
+      // Если открыт удалённый чат — уводим пользователя на список.
+      window.dispatchEvent(new CustomEvent('chat:deleted', { detail: { chatId } }))
+    }
     const onUserOnline = ({ userId }: { userId: string }) => setUserOnline(userId)
     const onUserOffline = ({ userId, lastSeenAt }: { userId: string; lastSeenAt: string }) => setUserOffline(userId, lastSeenAt)
     const onOnlineUsers = ({ userIds }: { userIds: string[] }) => userIds.forEach(id => setUserOnline(id))
@@ -62,6 +67,7 @@ export function useSocket(): Socket | null {
     socket.on('message_edited', onMessageEdited)
     socket.on('message_updated', onMessageUpdated)
     socket.on('message_deleted', onMessageDeleted)
+    socket.on('chat_deleted', onChatDeleted)
     socket.on('user_online', onUserOnline)
     socket.on('user_offline', onUserOffline)
     socket.on('online_users', onOnlineUsers)
@@ -77,6 +83,7 @@ export function useSocket(): Socket | null {
       socket.off('message_edited', onMessageEdited)
       socket.off('message_updated', onMessageUpdated)
       socket.off('message_deleted', onMessageDeleted)
+      socket.off('chat_deleted', onChatDeleted)
       socket.off('user_online', onUserOnline)
       socket.off('user_offline', onUserOffline)
       socket.off('online_users', onOnlineUsers)

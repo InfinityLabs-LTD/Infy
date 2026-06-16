@@ -249,6 +249,29 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
     return { data: message }
   })
 
+  // DELETE /chats/:id — удалить чат для обоих участников
+  app.delete('/:id', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'Delete a chat for both participants',
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: 'object',
+        properties: { id: { type: 'string' } },
+      },
+    },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const userId = BigInt(request.user.sub)
+    const result = await ChatService.deleteChat(app.prisma, id, userId)
+    // Уведомляем обоих участников, чтобы чат исчез у них в реальном времени.
+    await publishMessage(app.redis, 'chat:message', {
+      event: 'chat_deleted',
+      data: { chatId: result.id, memberIds: result.memberIds },
+    })
+    return reply.code(204).send()
+  })
+
   // DELETE /messages/:id — soft delete
   app.delete('/messages/:id', {
     schema: {

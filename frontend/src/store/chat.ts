@@ -92,6 +92,7 @@ interface ChatState {
 
   setChats: (chats: Chat[]) => void
   upsertChat: (chat: Chat) => void
+  removeChat: (chatId: string) => void
   setSocketReady: (v: boolean) => void
   setMessages: (chatId: string, messages: Message[], nextCursor: string | null) => void
   prependMessages: (chatId: string, messages: Message[], nextCursor: string | null) => void
@@ -134,6 +135,22 @@ export const useChatStore = create<ChatState>((set) => ({
         return { chats: sortChats(updated) }
       }
       return { chats: sortChats([chat, ...s.chats]) }
+    }),
+
+  removeChat: (chatId) =>
+    set((s) => {
+      const messages = { ...s.messages }
+      const nextCursor = { ...s.nextCursor }
+      const typing = { ...s.typing }
+      delete messages[chatId]
+      delete nextCursor[chatId]
+      delete typing[chatId]
+      return {
+        chats: s.chats.filter((c) => c.id !== chatId),
+        messages,
+        nextCursor,
+        typing,
+      }
     }),
 
   setMessages: (chatId, messages, nextCursor) =>

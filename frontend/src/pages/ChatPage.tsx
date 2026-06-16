@@ -91,7 +91,7 @@ export function ChatPage() {
   const myUser = useAuthStore(s => s.user)
   const myUsername = myUser?.username
 
-  const { chats, messages, nextCursor, socketReady, setMessages, prependMessages, setTyping, upsertChat, resetUnread, updateMessage } = useChatStore()
+  const { chats, messages, nextCursor, socketReady, setMessages, prependMessages, setTyping, upsertChat, resetUnread, updateMessage, removeChat } = useChatStore()
 
   // ── Resolve partnerId → chatId ──────────────────────────────
   const [chatId, setChatId] = useState<string | null>(() => {
@@ -138,6 +138,9 @@ export function ChatPage() {
   const [showCalendar, setShowCalendar] = useState(false)
   const [showAi, setShowAi] = useState(false)
   const [showAttachMenu, setShowAttachMenu] = useState(false)
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [shortRecordToast, setShortRecordToast] = useState(false)
   const [searchMode, setSearchMode] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -495,6 +498,29 @@ export function ChatPage() {
     })
   }
 
+  async function handleDeleteChat() {
+    if (!chatId || deleting) return
+    setDeleting(true)
+    try {
+      await chatApi.deleteChat(chatId)
+      removeChat(chatId)
+      navigate('/')
+    } finally {
+      setDeleting(false)
+      setShowDeleteConfirm(false)
+    }
+  }
+
+  // Чат удалён собеседником (по сокету) — уходим на список, если открыт именно он.
+  useEffect(() => {
+    function onChatDeleted(e: Event) {
+      const detail = (e as CustomEvent<{ chatId: string }>).detail
+      if (detail?.chatId && detail.chatId === chatId) navigate('/')
+    }
+    window.addEventListener('chat:deleted', onChatDeleted)
+    return () => window.removeEventListener('chat:deleted', onChatDeleted)
+  }, [chatId, navigate])
+
   return (
     <div className="flex flex-col flex-1 min-h-0" style={{ background: 'var(--bg-base)' }}>
       {/* ── Header ── */}
@@ -557,50 +583,118 @@ export function ChatPage() {
             </button>
 
             <div className="flex items-center shrink-0">
-              {/* Голосовой звонок */}
-              <IconBtn
-                onClick={() => startCall('AUDIO')}
-                disabled={!partner || resolving || !chatId || callBusy}
-                title="Голосовой звонок"
-                color="rgba(255,255,255,0.5)"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>
-                </svg>
-              </IconBtn>
-              {/* Видеозвонок */}
-              <IconBtn
-                onClick={() => startCall('VIDEO')}
-                disabled={!partner || resolving || !chatId || callBusy}
-                title="Видеозвонок"
-                color="rgba(255,255,255,0.5)"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
-                </svg>
-              </IconBtn>
-              <IconBtn onClick={() => setSearchMode(true)} color="rgba(255,255,255,0.5)">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                </svg>
-              </IconBtn>
+              {/* Infy Pulse — AI (отдельная акцентная кнопка) */}
               <IconBtn onClick={() => chatId && setShowAi(true)} title="Infy Pulse — AI" color="#C084FC">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/>
                 </svg>
               </IconBtn>
-              <IconBtn onClick={() => chatId && setShowCalendar(true)} title="Календарь" color="rgba(255,255,255,0.5)">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="4" width="18" height="18" rx="2"/>
-                  <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
-                  <line x1="3" y1="10" x2="21" y2="10"/>
-                </svg>
-              </IconBtn>
-              <IconBtn color="rgba(255,255,255,0.5)">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
-                </svg>
-              </IconBtn>
+
+              {/* Сэндвич-меню действий чата */}
+              <div className="relative">
+                <IconBtn
+                  onClick={() => setShowHeaderMenu(v => !v)}
+                  title="Меню"
+                  color={showHeaderMenu ? '#A855F7' : 'rgba(255,255,255,0.5)'}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <line x1="3" y1="6" x2="21" y2="6"/>
+                    <line x1="3" y1="12" x2="21" y2="12"/>
+                    <line x1="3" y1="18" x2="21" y2="18"/>
+                  </svg>
+                </IconBtn>
+
+                {showHeaderMenu && (
+                  <>
+                    {/* Клик вне меню — закрыть */}
+                    <div className="fixed inset-0 z-10" onClick={() => setShowHeaderMenu(false)} />
+                    <div className="glass-pop absolute top-12 right-0 z-20 rounded-2xl overflow-hidden"
+                      style={{ minWidth: 230 }}>
+
+                      {/* Группа: связь */}
+                      <div className="px-4 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider"
+                        style={{ color: 'var(--text-low)' }}>Связь</div>
+                      <button
+                        className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-white hover:bg-white/5 transition-colors disabled:opacity-30"
+                        disabled={!partner || resolving || !chatId || callBusy}
+                        onClick={() => { setShowHeaderMenu(false); startCall('AUDIO') }}
+                      >
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                          style={{ background: 'rgba(52,211,153,0.15)' }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>
+                          </svg>
+                        </div>
+                        Аудиозвонок
+                      </button>
+                      <button
+                        className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-white hover:bg-white/5 transition-colors disabled:opacity-30"
+                        disabled={!partner || resolving || !chatId || callBusy}
+                        onClick={() => { setShowHeaderMenu(false); startCall('VIDEO') }}
+                      >
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                          style={{ background: 'rgba(96,165,250,0.15)' }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                          </svg>
+                        </div>
+                        Видеозвонок
+                      </button>
+
+                      {/* Группа: чат */}
+                      <div className="px-4 pt-2.5 pb-1 mt-1 text-[10px] font-semibold uppercase tracking-wider"
+                        style={{ color: 'var(--text-low)', borderTop: '1px solid rgba(255,255,255,0.06)' }}>Чат</div>
+                      <button
+                        className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-white hover:bg-white/5 transition-colors"
+                        onClick={() => { setShowHeaderMenu(false); setSearchMode(true) }}
+                      >
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                          style={{ background: 'rgba(167,139,250,0.15)' }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2">
+                            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                          </svg>
+                        </div>
+                        Поиск по диалогу
+                      </button>
+                      <button
+                        className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-white hover:bg-white/5 transition-colors disabled:opacity-30"
+                        disabled={!chatId}
+                        onClick={() => { setShowHeaderMenu(false); setShowCalendar(true) }}
+                      >
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                          style={{ background: 'rgba(124,58,237,0.18)' }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#A855F7" strokeWidth="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                          </svg>
+                        </div>
+                        Календарь
+                      </button>
+
+                      {/* Группа: опасная зона */}
+                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} className="mt-1">
+                        <button
+                          className="flex items-center gap-3 w-full px-4 py-2.5 text-sm hover:bg-red-500/10 transition-colors disabled:opacity-30"
+                          style={{ color: '#f87171' }}
+                          disabled={!chatId}
+                          onClick={() => { setShowHeaderMenu(false); setShowDeleteConfirm(true) }}
+                        >
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                            style={{ background: 'rgba(239,68,68,0.12)' }}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2">
+                              <polyline points="3 6 5 6 21 6"/>
+                              <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                              <path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                            </svg>
+                          </div>
+                          Удалить диалог
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -1048,6 +1142,48 @@ export function ChatPage() {
 
       {showPanel && partner && chatId && (
         <PartnerInfoPanel chatId={chatId} partner={partner} onClose={() => setShowPanel(false)} />
+      )}
+
+      {/* Подтверждение удаления диалога */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
+          onClick={() => !deleting && setShowDeleteConfirm(false)}
+        >
+          <div className="glass-pop w-full max-w-sm rounded-2xl p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-center w-12 h-12 rounded-full mx-auto mb-4"
+              style={{ background: 'rgba(239,68,68,0.12)' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                <path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+              </svg>
+            </div>
+            <h3 className="text-center text-lg font-semibold text-white">Удалить диалог?</h3>
+            <p className="text-center text-sm mt-2" style={{ color: 'var(--text-mid)' }}>
+              Вся переписка с {partner?.nickname ?? 'собеседником'} будет удалена безвозвратно
+              у <span className="text-white/90">обоих участников</span>. Это действие нельзя отменить.
+            </p>
+            <div className="flex gap-3 mt-6">
+              <button
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium text-white transition-colors hover:bg-white/5 disabled:opacity-40"
+                style={{ background: 'var(--glass-2)', border: '1px solid var(--glass-stroke)' }}
+                disabled={deleting}
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                Отмена
+              </button>
+              <button
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center"
+                style={{ background: '#dc2626' }}
+                disabled={deleting}
+                onClick={handleDeleteChat}
+              >
+                {deleting ? <Spinner size={14} /> : 'Удалить'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showCalendar && chatId && (

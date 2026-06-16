@@ -402,6 +402,30 @@ export async function deleteMessage(
   return { id: messageId, chatId: msg.chatId }
 }
 
+// Полностью удалить прямой чат для обоих участников.
+// Удаляются сообщения, вложения, реакции, события календаря и сам чат.
+export async function deleteChat(
+  prisma: PrismaClient,
+  chatId: string,
+  userId: bigint,
+) {
+  const chat = await prisma.chat.findUnique({
+    where: { id: chatId },
+    include: { members: true },
+  })
+  if (!chat) throw new AppError('CHAT_NOT_FOUND', 'Chat not found', 404)
+  if (!chat.members.some(m => m.userId === userId)) {
+    throw new AppError('CHAT_NOT_MEMBER', 'You are not a member of this chat', 403)
+  }
+
+  const memberIds = chat.members.map(m => m.userId.toString())
+
+  // Удаляем сам чат — связанные записи уходят каскадно по схеме Prisma.
+  await prisma.chat.delete({ where: { id: chatId } })
+
+  return { id: chatId, memberIds }
+}
+
 // ── Serializers ──────────────────────────────────────────────
 
 type ChatWithMembers = {
