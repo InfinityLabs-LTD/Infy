@@ -133,6 +133,40 @@ export interface SanctionsResponse {
   activeByType: Record<SanctionType, number>
 }
 
+export type ReportCategory =
+  | 'SPAM' | 'HARASSMENT' | 'HATE' | 'VIOLENCE'
+  | 'SEXUAL' | 'SCAM' | 'ILLEGAL' | 'OTHER'
+
+export type ReportStatus = 'PENDING' | 'REVIEWING' | 'RESOLVED' | 'DISMISSED'
+
+export interface ReportUser {
+  id: string
+  username: string
+  nickname: string
+  avatarUrl: string | null
+}
+
+export interface Report {
+  id: string
+  category: ReportCategory
+  description: string
+  chatId: string | null
+  messageId: string | null
+  evidenceKeys: string[]
+  status: ReportStatus
+  createdAt: string
+  reviewedAt: string | null
+  resolution: string | null
+  reporter: ReportUser | null
+  target: ReportUser | null
+  reviewedBy: ReportUser | null
+}
+
+export interface ReportsResponse {
+  reports: Report[]
+  counts: { pending: number; reviewing: number }
+}
+
 export const adminApi = {
   // Users
   listUsers: (params?: { page?: number; limit?: number; search?: string }) =>
@@ -184,6 +218,13 @@ export const adminApi = {
 
   revokeSanction: (id: string) =>
     api.delete<{ data: Sanction }>(`/admin/moderation/sanctions/${id}`),
+
+  // Reports (жалобы пользователей)
+  listReports: (status: ReportStatus | 'all' = 'PENDING') =>
+    api.get<{ data: ReportsResponse }>('/admin/moderation/reports', { params: { status } }),
+
+  updateReport: (id: string, body: { status: ReportStatus; resolution?: string }) =>
+    api.patch<{ data: Report }>(`/admin/moderation/reports/${id}`, body),
 
   // Containers
   listContainers: () =>

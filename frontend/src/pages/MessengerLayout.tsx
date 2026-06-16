@@ -12,6 +12,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { NewChatModal } from '@/components/chat/NewChatModal'
 import { CommandPalette } from '@/components/chat/CommandPalette'
 import { ReminderToasts } from '@/components/chat/ReminderToasts'
+import { SanctionBanner } from '@/components/SanctionBanner'
 
 function formatTime(iso: string): string {
   const d = new Date(iso)
@@ -353,6 +354,7 @@ export function MessengerLayout() {
       </AnimatePresence>
 
       <ReminderToasts />
+      <SanctionBanner />
     </div>
   )
 }

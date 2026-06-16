@@ -12,6 +12,7 @@ import { TypingIndicator } from '@/components/ui/TypingIndicator'
 import { MessageBubble } from '@/components/chat/MessageBubble'
 import { CircleRecorderModal } from '@/components/chat/CircleRecorderModal'
 import { PartnerInfoPanel } from '@/components/chat/PartnerInfoPanel'
+import { ReportModal } from '@/components/chat/ReportModal'
 import { CalendarPanel } from '@/components/chat/calendar/CalendarPanel'
 import { AiPanel } from '@/components/chat/AiPanel'
 import { Spinner } from '@/components/ui/Spinner'
@@ -140,6 +141,7 @@ export function ChatPage() {
   const [showAttachMenu, setShowAttachMenu] = useState(false)
   const [showHeaderMenu, setShowHeaderMenu] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showReport, setShowReport] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [shortRecordToast, setShortRecordToast] = useState(false)
   const [searchMode, setSearchMode] = useState(false)
@@ -148,6 +150,8 @@ export function ChatPage() {
   const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [editing, setEditing] = useState<Message | null>(null)
   const [reactLimitToast, setReactLimitToast] = useState(false)
+  // Сообщение о муте — показывается в композере, если отправка отклонена санкцией.
+  const [mutedNotice, setMutedNotice] = useState<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [recordMode, setRecordMode] = useState<'voice' | 'circle'>('voice')
   const [recordLocked, setRecordLocked] = useState(false)
@@ -305,19 +309,39 @@ export function ChatPage() {
     setText('')
     setReplyTo(null)
     setSending(true)
+    setMutedNotice(null)
     stopTyping()
     try {
       const socket = getActiveSocket()
       // Ответ всегда уходит через REST — у сокет-обработчика нет replyToId
       if (socket?.connected && !replyToId) {
         socket.emit('join_chat', chatId)
-        socket.emit('send_message', { chatId, content }, (res: { ok: boolean }) => {
-          if (!res?.ok) chatApi.sendMessage(chatId, content).catch(() => {})
+        socket.emit('send_message', { chatId, content }, (res: { ok: boolean; error?: string; code?: string }) => {
+          if (res?.ok) return
+          // Санкция (мут/бан) — показываем причину, не уходим в REST-фолбэк.
+          if (res?.code === 'MOD_ACCOUNT_MUTED' || res?.code === 'MOD_ACCOUNT_BANNED') {
+            setMutedNotice(res.error ?? 'Вы не можете отправлять сообщения')
+            setText(content)
+            return
+          }
+          chatApi.sendMessage(chatId, content).catch(handleSendError)
         })
       } else {
         await chatApi.sendMessage(chatId, content, replyToId)
       }
+    } catch (err) {
+      handleSendError(err)
+      setText(content)
     } finally { setSending(false); inputRef.current?.focus() }
+  }
+
+  // Показывает причину, если отправка отклонена санкцией модерации.
+  function handleSendError(err: unknown) {
+    const e = err as { response?: { status?: number; data?: { error?: { code?: string; message?: string } } } }
+    const code = e.response?.data?.error?.code
+    if (code === 'MOD_ACCOUNT_MUTED' || code === 'MOD_ACCOUNT_BANNED') {
+      setMutedNotice(e.response?.data?.error?.message ?? 'Вы не можете отправлять сообщения')
+    }
   }
 
   function startReply(msg: Message) {
@@ -675,6 +699,20 @@ export function ChatPage() {
                       {/* Группа: опасная зона */}
                       <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }} className="mt-1">
                         <button
+                          className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-white hover:bg-white/5 transition-colors disabled:opacity-30"
+                          disabled={!partner}
+                          onClick={() => { setShowHeaderMenu(false); setShowReport(true) }}
+                        >
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                            style={{ background: 'rgba(245,158,11,0.15)' }}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"
+                              strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" /><line x1="4" y1="22" x2="4" y2="15" />
+                            </svg>
+                          </div>
+                          Пожаловаться
+                        </button>
+                        <button
                           className="flex items-center gap-3 w-full px-4 py-2.5 text-sm hover:bg-red-500/10 transition-colors disabled:opacity-30"
                           style={{ color: '#f87171' }}
                           disabled={!chatId}
@@ -863,6 +901,24 @@ export function ChatPage() {
         borderTop: '1px solid rgba(255,255,255,0.06)',
       }}>
        <div className="mx-auto w-full max-w-[880px]">
+        {/* Уведомление о муте/бане — отправка заблокирована модерацией */}
+        {mutedNotice && (
+          <div className="flex items-start gap-2 px-3 py-2 mb-2 rounded-xl"
+            style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.25)' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2"
+              className="shrink-0 mt-0.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <p className="text-xs flex-1" style={{ color: '#FCD34D' }}>{mutedNotice}</p>
+            <button onClick={() => setMutedNotice(null)} className="shrink-0 text-white/40 hover:text-white transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {/* Превью ответа / редактирования */}
         {(replyTo || editing) && !isRecording && (
           <div className="flex items-center gap-2 px-3 py-1.5 mb-2 rounded-xl"
@@ -1193,6 +1249,17 @@ export function ChatPage() {
           onClose={() => setShowCalendar(false)}
         />
       )}
+
+      <AnimatePresence>
+        {showReport && partner && (
+          <ReportModal
+            target={partner}
+            chatId={chatId ?? undefined}
+            onClose={() => setShowReport(false)}
+            onSent={() => setShowReport(false)}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showAi && chatId && (

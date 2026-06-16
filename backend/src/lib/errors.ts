@@ -5,6 +5,8 @@ export class AppError extends Error {
     public readonly code: string,
     public readonly message: string,
     public readonly statusCode: number = 400,
+    // Доп. данные для клиента (например, срок действия санкции).
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message)
     this.name = 'AppError'
@@ -24,6 +26,11 @@ export const Errors = {
   UNAUTHORIZED:        () => new AppError('AUTH_UNAUTHORIZED', 'Authentication required', 401),
   FORBIDDEN:           () => new AppError('AUTH_FORBIDDEN', 'Insufficient permissions', 403),
   RESET_TOKEN_INVALID: () => new AppError('AUTH_RESET_TOKEN_INVALID', 'Reset link is invalid or expired', 400),
+  // Moderation (Infy Shield) enforcement
+  ACCOUNT_BANNED:      (reason: string, expiresAt: Date | null) =>
+    new AppError('MOD_ACCOUNT_BANNED', reason, 403, { expiresAt: expiresAt?.toISOString() ?? null }),
+  ACCOUNT_MUTED:       (reason: string, expiresAt: Date | null) =>
+    new AppError('MOD_ACCOUNT_MUTED', reason, 403, { expiresAt: expiresAt?.toISOString() ?? null }),
   // Profile
   USERNAME_INVALID:    () => new AppError('PROFILE_USERNAME_INVALID', 'Username may only contain lowercase letters, numbers and underscores', 400),
   AVATAR_TOO_LARGE:    () => new AppError('PROFILE_AVATAR_TOO_LARGE', 'Avatar must be under 5 MB', 400),

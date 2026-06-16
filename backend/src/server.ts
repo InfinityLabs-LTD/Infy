@@ -24,6 +24,8 @@ import adminUsersRoutes from './modules/admin/admin.users.routes.js'
 import adminContainersRoutes from './modules/admin/admin.containers.routes.js'
 import adminStatsRoutes from './modules/admin/admin.stats.routes.js'
 import adminModerationRoutes from './modules/admin/admin.moderation.routes.js'
+import adminReportsRoutes from './modules/admin/admin.reports.routes.js'
+import reportsRoutes from './modules/reports/reports.routes.js'
 import aiRoutes from './modules/ai/ai.routes.js'
 import pushRoutes from './modules/push/push.routes.js'
 import callRoutes from './modules/calls/calls.routes.js'
@@ -67,6 +69,7 @@ async function buildCoreServer() {
         { name: 'Calendar', description: 'Shared chat calendar and reminders' },
         { name: 'Media', description: 'File upload and serving' },
         { name: 'Calls', description: 'Voice/video calls — ICE config and history' },
+        { name: 'Reports', description: 'User reports (file a complaint)' },
         { name: 'Admin', description: 'Admin panel (role=ADMIN only)' },
       ],
     },
@@ -94,7 +97,9 @@ async function buildCoreServer() {
 
   app.setErrorHandler((err, _request, reply) => {
     if (err instanceof AppError) {
-      return reply.code(err.statusCode).send({ error: { code: err.code, message: err.message } })
+      return reply.code(err.statusCode).send({
+        error: { code: err.code, message: err.message, ...(err.details ? { details: err.details } : {}) },
+      })
     }
     if (err.validation) {
       return reply.code(400).send({ error: { code: 'VALIDATION_ERROR', message: err.message } })
@@ -122,6 +127,8 @@ async function buildCoreServer() {
   await app.register(adminContainersRoutes, { prefix: '/admin/containers' })
   await app.register(adminStatsRoutes, { prefix: '/admin/stats' })
   await app.register(adminModerationRoutes, { prefix: '/admin/moderation' })
+  await app.register(adminReportsRoutes, { prefix: '/admin/moderation/reports' })
+  await app.register(reportsRoutes, { prefix: '/reports' })
   await app.register(aiRoutes, { prefix: '/ai' })
   await app.register(pushRoutes, { prefix: '/push' })
   await app.register(callRoutes, { prefix: '/calls' })

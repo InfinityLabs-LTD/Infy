@@ -40,6 +40,26 @@ enum SanctionType {
   BAN       // блокировка аккаунта
 }
 
+// Категория жалобы пользователя на другого пользователя
+enum ReportCategory {
+  SPAM          // спам / реклама
+  HARASSMENT    // оскорбления, травля
+  HATE          // разжигание ненависти
+  VIOLENCE      // угрозы, насилие
+  SEXUAL        // сексуализированный контент
+  SCAM          // мошенничество
+  ILLEGAL       // запрещённый контент
+  OTHER         // другое
+}
+
+// Статус обработки жалобы модератором
+enum ReportStatus {
+  PENDING     // ожидает рассмотрения
+  REVIEWING   // взята в работу
+  RESOLVED    // удовлетворена (приняты меры)
+  DISMISSED   // отклонена
+}
+
 // Аудио или видео — медийный режим звонка
 enum CallMedia {
   AUDIO
@@ -86,6 +106,9 @@ model User {
   issuedSanctions         Sanction[]           @relation("SanctionIssuer")
   initiatedCalls          CallSession[]        @relation("CallInitiator")
   callParticipations      CallParticipant[]
+  reportsFiled            Report[]             @relation("ReportReporter")
+  reportsReceived         Report[]             @relation("ReportTarget")
+  reviewedReports         Report[]             @relation("ReportReviewer")
 
   @@map("users")
 }
@@ -107,6 +130,36 @@ model Sanction {
   @@index([userId])
   @@index([type])
   @@map("sanctions")
+}
+
+// Жалоба одного пользователя на другого (Infy Shield).
+// Доказательства: опциональная ссылка на сообщение + до нескольких вложений-скриншотов.
+model Report {
+  id           String         @id @default(cuid())
+  reporterId   BigInt                                   // кто пожаловался
+  targetId     BigInt                                   // на кого
+  category     ReportCategory
+  description  String         @db.VarChar(1000)         // краткий текст жалобы
+  // Контекст: чат и (опц.) конкретное сообщение, на которое жалуются.
+  chatId       String?
+  messageId    String?
+  // Скриншоты-доказательства: массив ключей объектов MinIO.
+  evidenceKeys String[]       @default([])
+  status       ReportStatus   @default(PENDING)
+  createdAt    DateTime       @default(now())
+  // Кто и когда обработал + резолюция модератора.
+  reviewedById BigInt?
+  reviewedAt   DateTime?
+  resolution   String?        @db.VarChar(500)
+
+  reporter   User  @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  target     User  @relation("ReportTarget",   fields: [targetId],   references: [id], onDelete: Cascade)
+  reviewedBy User? @relation("ReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([targetId])
+  @@index([reporterId])
+  @@map("reports")
 }
 
 model DeviceSession {

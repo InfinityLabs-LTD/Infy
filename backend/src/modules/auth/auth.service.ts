@@ -7,7 +7,17 @@ import {
   hashRefreshToken,
 } from '../../lib/jwt.js'
 import { Errors } from '../../lib/errors.js'
+import { getActiveSanction } from '../../lib/sanctions.js'
 import { RegisterInput, LoginInput } from './auth.schema.js'
+
+// Человекочитаемое сообщение о бане для отказа во входе.
+function banMessage(reason: string, expiresAt: Date | null): string {
+  if (expiresAt) {
+    const until = expiresAt.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+    return `Аккаунт заблокирован до ${until}. Причина: ${reason}`
+  }
+  return `Аккаунт заблокирован бессрочно. Причина: ${reason}`
+}
 
 // Срок жизни ссылки смены пароля.
 const RESET_TOKEN_TTL_MS = 24 * 3_600_000
@@ -120,6 +130,10 @@ export async function login(
   const valid = await argon2.verify(user.passwordHash, input.password)
   if (!valid) throw Errors.INVALID_PASSWORD()
 
+  // Бан блокирует вход полностью.
+  const ban = await getActiveSanction(prisma, user.id, 'BAN')
+  if (ban) throw Errors.ACCOUNT_BANNED(banMessage(ban.reason, ban.expiresAt), ban.expiresAt)
+
   await prisma.user.update({
     where: { id: user.id },
     data: { lastSeenAt: new Date() },
@@ -144,6 +158,11 @@ export async function refresh(
   const session = await prisma.deviceSession.findUnique({ where: { refreshTokenHash: tokenHash } })
   if (!session) throw Errors.TOKEN_INVALID()
   if (session.revokedAt) throw Errors.SESSION_REVOKED()
+
+  // Бан, выданный во время активной сессии, отрезает доступ при следующем refresh
+  // (≤ 15 мин — срок жизни access-токена).
+  const ban = await getActiveSanction(prisma, session.userId, 'BAN')
+  if (ban) throw Errors.ACCOUNT_BANNED(banMessage(ban.reason, ban.expiresAt), ban.expiresAt)
 
   const newRawToken = generateRefreshToken()
   const newHash = hashRefreshToken(newRawToken)

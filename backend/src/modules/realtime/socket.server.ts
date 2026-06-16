@@ -4,7 +4,7 @@ import { createAdapter } from '@socket.io/redis-adapter'
 import Redis from 'ioredis'
 import { PrismaClient } from '@prisma/client'
 import { verifyAccessToken } from '../../lib/jwt.js'
-import { Errors } from '../../lib/errors.js'
+import { AppError } from '../../lib/errors.js'
 import { subscribeToChannel } from '../../lib/pubsub.js'
 import { setOnline, setOffline, refreshPresence, isOnline, getOnlineUserIds } from '../../lib/presence.js'
 import { sendPush } from '../../lib/webpush.js'
@@ -200,7 +200,7 @@ export function createSocketServer(
     // ── send_message ────────────────────────────────────────
     socket.on('send_message', async (
       payload: { chatId: string; content: string; type?: string },
-      ack?: (res: { ok: boolean; message?: unknown; error?: string }) => void,
+      ack?: (res: { ok: boolean; message?: unknown; error?: string; code?: string }) => void,
     ) => {
       try {
         const { chatId, content, type } = payload
@@ -221,7 +221,8 @@ export function createSocketServer(
         ack?.({ ok: true, message })
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Error'
-        ack?.({ ok: false, error: msg })
+        const code = err instanceof AppError ? err.code : undefined
+        ack?.({ ok: false, error: msg, code })
       }
     })
 

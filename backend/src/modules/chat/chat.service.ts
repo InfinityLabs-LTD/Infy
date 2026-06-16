@@ -1,6 +1,16 @@
 import { PrismaClient, MessageType, Prisma } from '@prisma/client'
 import { ulid } from 'ulid'
-import { AppError } from '../../lib/errors.js'
+import { AppError, Errors } from '../../lib/errors.js'
+import { getActiveSanction } from '../../lib/sanctions.js'
+
+// Человекочитаемое сообщение о муте.
+function muteMessage(reason: string, expiresAt: Date | null): string {
+  if (expiresAt) {
+    const until = expiresAt.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })
+    return `Вы не можете отправлять сообщения до ${until}. Причина: ${reason}`
+  }
+  return `Вы не можете отправлять сообщения. Причина: ${reason}`
+}
 
 // Максимум разных реакций от одного пользователя на одно сообщение
 const MAX_REACTIONS_PER_USER = 3
@@ -178,6 +188,12 @@ export async function sendMessage(
     where: { chatId_userId: { chatId, userId: senderId } },
   })
   if (!member) throw new AppError('CHAT_NOT_MEMBER', 'You are not a member of this chat', 403)
+
+  // Мут запрещает отправку сообщений (бан — тоже, на случай ещё валидного токена).
+  const mute = await getActiveSanction(prisma, senderId, 'MUTE')
+  if (mute) throw Errors.ACCOUNT_MUTED(muteMessage(mute.reason, mute.expiresAt), mute.expiresAt)
+  const ban = await getActiveSanction(prisma, senderId, 'BAN')
+  if (ban) throw Errors.ACCOUNT_BANNED('Аккаунт заблокирован', ban.expiresAt)
 
   if (!input.content && !input.attachment) {
     throw new AppError('MESSAGE_EMPTY', 'Message must have content or an attachment', 400)

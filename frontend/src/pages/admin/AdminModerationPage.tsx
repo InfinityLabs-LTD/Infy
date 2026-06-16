@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { adminApi, Sanction, SanctionType, SanctionsResponse } from '@/api/admin'
+import {
+  adminApi, Sanction, SanctionType, SanctionsResponse,
+  Report, ReportCategory, ReportStatus, ReportsResponse,
+} from '@/api/admin'
 import { profileApi } from '@/api/auth'
+import { useAuthStore } from '@/store/auth'
 import { Avatar } from '@/components/ui/Avatar'
 import { Spinner } from '@/components/ui/Spinner'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -23,6 +27,59 @@ const TYPE_META: Record<SanctionType, { label: string; color: string; bg: string
 }
 
 export function AdminModerationPage() {
+  const [tab, setTab] = useState<'sanctions' | 'reports'>('reports')
+  const [pendingCount, setPendingCount] = useState(0)
+
+  // Подгружаем счётчик неразобранных жалоб для бейджа на вкладке.
+  useEffect(() => {
+    adminApi.listReports('PENDING')
+      .then(r => setPendingCount(r.data.data.counts.pending))
+      .catch(() => {})
+  }, [tab])
+
+  return (
+    <div className="p-4 md:p-6">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: 'var(--grad-own)', boxShadow: 'var(--glow-primary)' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+        </div>
+        <div>
+          <h1 className="font-display text-xl font-bold text-white leading-tight">Infy Shield</h1>
+          <p className="text-xs" style={{ color: 'var(--text-low)' }}>Центр модерации и безопасности</p>
+        </div>
+      </div>
+
+      {/* Верхние вкладки */}
+      <div className="flex gap-1 mb-4">
+        {([['reports', 'Жалобы'], ['sanctions', 'Санкции']] as ['sanctions' | 'reports', string][]).map(([v, label]) => (
+          <button key={v} onClick={() => setTab(v)}
+            className="px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-2"
+            style={{
+              background: tab === v ? 'var(--glass-3)' : 'transparent',
+              color: tab === v ? '#fff' : 'rgba(255,255,255,0.5)',
+            }}>
+            {label}
+            {v === 'reports' && pendingCount > 0 && (
+              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full"
+                style={{ background: 'rgba(239,68,68,0.2)', color: '#fca5a5' }}>{pendingCount}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'sanctions'
+        ? <SanctionsView />
+        : <ReportsView onCountChange={setPendingCount} />}
+    </div>
+  )
+}
+
+// ── Вкладка: санкции ─────────────────────────────────────────
+
+function SanctionsView() {
   const [data, setData] = useState<SanctionsResponse | null>(null)
   const [statusFilter, setStatusFilter] = useState<'active' | 'all'>('active')
   const [error, setError] = useState<unknown>(null)
@@ -45,18 +102,8 @@ export function AdminModerationPage() {
   }
 
   return (
-    <div className="p-4 md:p-6">
-      <div className="flex items-center gap-3 mb-1.5">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-          style={{ background: 'var(--grad-own)', boxShadow: 'var(--glow-primary)' }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          </svg>
-        </div>
-        <div>
-          <h1 className="font-display text-xl font-bold text-white leading-tight">Infy Shield</h1>
-          <p className="text-xs" style={{ color: 'var(--text-low)' }}>Центр модерации и безопасности</p>
-        </div>
+    <div>
+      <div className="flex items-center mb-1.5">
         <button onClick={() => setShowIssue(true)} className="btn-primary text-sm ml-auto">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
             <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -384,5 +431,216 @@ export function IssueSanctionModal({ onClose, onIssued, presetUser }: {
         </div>
       </motion.div>
     </div>
+  )
+}
+
+// ── Вкладка: жалобы ──────────────────────────────────────────
+
+const CATEGORY_LABEL: Record<ReportCategory, string> = {
+  SPAM: 'Спам', HARASSMENT: 'Оскорбления', HATE: 'Ненависть', VIOLENCE: 'Угрозы',
+  SEXUAL: '18+', SCAM: 'Мошенничество', ILLEGAL: 'Запрещённое', OTHER: 'Другое',
+}
+
+const STATUS_META: Record<ReportStatus, { label: string; color: string; bg: string }> = {
+  PENDING:   { label: 'Ожидает',     color: '#F59E0B', bg: 'rgba(245,158,11,0.15)' },
+  REVIEWING: { label: 'В работе',    color: '#60A5FA', bg: 'rgba(96,165,250,0.15)' },
+  RESOLVED:  { label: 'Решено',      color: '#22C55E', bg: 'rgba(34,197,94,0.15)' },
+  DISMISSED: { label: 'Отклонено',   color: '#94A3B8', bg: 'rgba(148,163,184,0.15)' },
+}
+
+const REPORT_FILTERS: [ReportStatus | 'all', string][] = [
+  ['PENDING', 'Ожидают'], ['REVIEWING', 'В работе'],
+  ['RESOLVED', 'Решённые'], ['DISMISSED', 'Отклонённые'], ['all', 'Все'],
+]
+
+function evidenceUrl(storageKey: string): string {
+  const apiUrl = import.meta.env.VITE_API_URL ?? '/api'
+  const token = useAuthStore.getState().accessToken
+  const encoded = btoa(storageKey).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+  return `${apiUrl}/media/${encoded}${token ? `?token=${encodeURIComponent(token)}` : ''}`
+}
+
+function ReportsView({ onCountChange }: { onCountChange: (n: number) => void }) {
+  const [data, setData] = useState<ReportsResponse | null>(null)
+  const [filter, setFilter] = useState<ReportStatus | 'all'>('PENDING')
+  const [error, setError] = useState<unknown>(null)
+  const [lightbox, setLightbox] = useState<string | null>(null)
+  const [sanctionTarget, setSanctionTarget] = useState<Report | null>(null)
+
+  function load() {
+    adminApi.listReports(filter)
+      .then(r => { setData(r.data.data); onCountChange(r.data.data.counts.pending) })
+      .catch(e => setError(e))
+  }
+
+  useEffect(() => { setData(null); load() }, [filter])
+
+  async function setStatus(r: Report, status: ReportStatus, resolution?: string) {
+    try {
+      await adminApi.updateReport(r.id, { status, resolution })
+      load()
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <div>
+      {error !== null && <div className="my-4"><ErrorMessage error={error} /></div>}
+
+      <div className="flex flex-wrap gap-1 mb-3">
+        {REPORT_FILTERS.map(([v, label]) => (
+          <button key={v} onClick={() => setFilter(v)}
+            className="px-3.5 py-1.5 rounded-xl text-sm font-medium transition-colors"
+            style={{
+              background: filter === v ? 'var(--glass-3)' : 'transparent',
+              color: filter === v ? '#fff' : 'rgba(255,255,255,0.5)',
+            }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {!data && error === null ? (
+        <div className="space-y-2">
+          {[0, 1, 2].map(i => <div key={i} className="glass rounded-2xl h-[120px] animate-pulse" style={{ opacity: 1 - i * 0.2 }} />)}
+        </div>
+      ) : data && (
+        data.reports.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3"
+              style={{ background: 'rgba(34,197,94,0.12)' }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="1.5">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><polyline points="9 12 11 14 15 10" />
+              </svg>
+            </div>
+            <p className="text-sm" style={{ color: 'var(--text-low)' }}>Жалоб не найдено</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {data.reports.map((r, i) => (
+              <ReportRow key={r.id} report={r} index={i}
+                onEvidenceClick={setLightbox}
+                onTakeIntoWork={() => setStatus(r, 'REVIEWING')}
+                onDismiss={() => setStatus(r, 'DISMISSED', 'Нарушений не выявлено')}
+                onSanction={() => setSanctionTarget(r)}
+              />
+            ))}
+          </div>
+        )
+      )}
+
+      {/* Лайтбокс доказательства */}
+      {lightbox && (
+        <div className="fixed inset-0 z-[80] bg-black/90 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
+          <img src={lightbox} alt="" className="max-w-full max-h-full rounded-xl object-contain" onClick={e => e.stopPropagation()} />
+        </div>
+      )}
+
+      {/* Выдать санкцию по жалобе → после выдачи помечаем жалобу решённой */}
+      <AnimatePresence>
+        {sanctionTarget?.target && (
+          <IssueSanctionModal
+            presetUser={sanctionTarget.target}
+            onClose={() => setSanctionTarget(null)}
+            onIssued={() => {
+              const r = sanctionTarget
+              setSanctionTarget(null)
+              if (r) setStatus(r, 'RESOLVED', `Санкция выдана по жалобе (${CATEGORY_LABEL[r.category]})`)
+            }}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function ReportRow({ report: r, index, onEvidenceClick, onTakeIntoWork, onDismiss, onSanction }: {
+  report: Report; index: number
+  onEvidenceClick: (url: string) => void
+  onTakeIntoWork: () => void
+  onDismiss: () => void
+  onSanction: () => void
+}) {
+  const st = STATUS_META[r.status]
+  const open = r.status === 'PENDING' || r.status === 'REVIEWING'
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      transition={{ type: 'spring', stiffness: 380, damping: 32, delay: Math.min(index * 0.025, 0.3) }}
+      className="glass rounded-2xl p-4"
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
+          style={{ background: 'rgba(239,68,68,0.15)', color: '#fca5a5' }}>{CATEGORY_LABEL[r.category]}</span>
+        <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: st.bg, color: st.color }}>{st.label}</span>
+        <span className="text-[11px] ml-auto" style={{ color: 'var(--text-low)' }}>
+          {new Date(r.createdAt).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+        </span>
+      </div>
+
+      {/* Кто на кого */}
+      <div className="flex items-center gap-2 text-sm mb-2 flex-wrap">
+        {r.reporter && (
+          <Link to={`/admin/users/${r.reporter.id}`} className="flex items-center gap-1.5 group">
+            <Avatar url={r.reporter.avatarUrl} nickname={r.reporter.nickname} size={20} />
+            <span className="text-white group-hover:underline">{r.reporter.nickname}</span>
+          </Link>
+        )}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-low)" strokeWidth="2">
+          <line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" />
+        </svg>
+        {r.target && (
+          <Link to={`/admin/users/${r.target.id}`} className="flex items-center gap-1.5 group">
+            <Avatar url={r.target.avatarUrl} nickname={r.target.nickname} size={20} />
+            <span className="font-semibold group-hover:underline" style={{ color: '#fca5a5' }}>{r.target.nickname}</span>
+          </Link>
+        )}
+      </div>
+
+      {/* Текст жалобы */}
+      <p className="text-sm mb-2" style={{ color: 'var(--text-mid)' }}>{r.description}</p>
+
+      {/* Доказательства */}
+      {r.evidenceKeys.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {r.evidenceKeys.map((k, i) => (
+            <button key={i} onClick={() => onEvidenceClick(evidenceUrl(k))}
+              className="w-14 h-14 rounded-lg overflow-hidden bg-black/20 hover:opacity-85 transition-opacity">
+              <img src={evidenceUrl(k)} alt="" className="w-full h-full object-cover" loading="lazy" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Резолюция */}
+      {r.resolution && (
+        <p className="text-[11px] mb-2" style={{ color: 'var(--text-low)' }}>
+          Резолюция: {r.resolution}{r.reviewedBy ? ` · @${r.reviewedBy.username}` : ''}
+        </p>
+      )}
+
+      {/* Действия */}
+      {open && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {r.status === 'PENDING' && (
+            <button onClick={onTakeIntoWork}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+              style={{ background: 'rgba(96,165,250,0.15)', color: '#93C5FD' }}>
+              Взять в работу
+            </button>
+          )}
+          <button onClick={onSanction}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+            style={{ background: 'rgba(239,68,68,0.15)', color: '#fca5a5' }}>
+            Выдать санкцию
+          </button>
+          <button onClick={onDismiss}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-white/10"
+            style={{ color: 'var(--text-low)' }}>
+            Отклонить
+          </button>
+        </div>
+      )}
+    </motion.div>
   )
 }
