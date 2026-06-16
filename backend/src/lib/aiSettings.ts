@@ -1,5 +1,9 @@
-import { PrismaClient, AiProvider } from '@prisma/client'
+import { PrismaClient } from '@prisma/client'
 import { env } from './env.js'
+
+// Провайдер модели ИИ. Хранится строкой в app_settings (не enum-поле модели),
+// поэтому объявляем тип здесь, а не тянем из @prisma/client.
+export type AiProvider = 'ANTHROPIC' | 'OPENAI'
 
 // Ключи в таблице app_settings, относящиеся к ИИ-ассистенту.
 const KEYS = {

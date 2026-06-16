@@ -1,7 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
-import { AiProvider } from '@prisma/client'
-import { AiConfig } from '../../lib/aiSettings.js'
+import { AiConfig, AiProvider } from '../../lib/aiSettings.js'
 
 // ── Нейтральные типы инструментов ─────────────────────────────
 // Описание инструмента, которое транслируется в формат Anthropic или OpenAI.
