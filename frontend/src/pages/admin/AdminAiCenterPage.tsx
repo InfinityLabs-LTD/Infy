@@ -228,7 +228,9 @@ export function AdminAiCenterPage() {
   )
 }
 
-const inputCls = 'w-full px-3 py-2 rounded-xl text-sm text-white outline-none transition-colors'
+// bg задаём явно (а не полагаемся на обёртку Field) — иначе input рендерится
+// с белым системным фоном, и белый текст/автозаполнение на нём не видны.
+const inputCls = 'w-full px-3 py-2 rounded-xl text-sm text-white bg-transparent outline-none transition-colors'
 
 // Опции <select> рендерятся системно — задаём тёмный фон и белый текст явно,
 // иначе на белом системном фоне светлый текст сливается.

@@ -26,6 +26,20 @@
     --ease-fluid: cubic-bezier(0.32, 0.72, 0, 1);
   }
   html { -webkit-tap-highlight-color: transparent; }
+  /* Chrome/Safari красят автозаполненные поля сплошным белым/жёлтым фоном,
+     из-за чего белый текст на тёмной теме становится невидимым. Перебиваем:
+     прозрачный фон через inset-тень и принудительно белый текст. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-text-fill-color: #fff;
+    caret-color: #fff;
+    -webkit-box-shadow: 0 0 0 1000px #1a1530 inset;
+    box-shadow: 0 0 0 1000px #1a1530 inset;
+    transition: background-color 9999s ease-in-out 0s;
+  }
   /* Сама страница (body) прибита к вьюпорту и не может скроллиться/
      оттягиваться (rubber-band) на iOS — иначе шапка с поиском уезжает
      за верхний край. Весь скролл живёт внутри #root и его потомков. */
