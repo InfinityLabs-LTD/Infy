@@ -256,8 +256,16 @@ function UserRow({ user: u, index, isMe, onUpdated }: {
               initial={{ opacity: 0, scale: 0.92, y: -4 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               transition={{ type: 'spring', stiffness: 480, damping: 32 }}
-              className="glass-pop absolute right-0 top-11 z-40 w-56 rounded-2xl overflow-hidden"
-              style={{ transformOrigin: 'top right' }}
+              className="absolute right-0 top-11 z-40 w-56 rounded-2xl overflow-hidden"
+              style={{
+                transformOrigin: 'top right',
+                // Сплошной фон без backdrop-filter: внутри трансформируемой
+                // строки (framer-motion) backdrop-blur в WebKit ломается и
+                // меню выглядит как размытый прямоугольник без текста.
+                background: '#161a26',
+                border: '1px solid var(--glass-stroke)',
+                boxShadow: 'var(--shadow-float), inset 0 1px 0 rgba(255,255,255,0.08)',
+              }}
             >
               <MenuItem
                 label="Открыть профиль"
