@@ -3,16 +3,20 @@ import { getActiveSocket } from '@/lib/socket'
 import { callController } from '@/lib/callController'
 import { useCallStore, type CallPeer } from '@/store/call'
 import { useAuthStore } from '@/store/auth'
+import { useChatStore } from '@/store/chat'
 import type { CallMedia } from '@/api/calls'
 import type { Signal } from '@/lib/webrtc'
 
 // Подключает обработчики сигналинга звонков к активному сокету.
 // Монтируется один раз на уровне приложения (рядом с CallOverlay).
+// Завязан на socketReady — сокет создаётся асинхронно в useSocket(), поэтому
+// навешиваемся ТОЛЬКО когда соединение готово, и перенавешиваемся при реконнекте.
 export function useCallSignaling(): void {
   const accessToken = useAuthStore((s) => s.accessToken)
+  const socketReady = useChatStore((s) => s.socketReady)
 
   useEffect(() => {
-    if (!accessToken) return
+    if (!accessToken || !socketReady) return
     const socket = getActiveSocket()
     if (!socket) return
 
@@ -57,5 +61,5 @@ export function useCallSignaling(): void {
       socket.off('call:taken-elsewhere', onTakenElsewhere)
       socket.off('call:peer-busy', onPeerBusy)
     }
-  }, [accessToken])
+  }, [accessToken, socketReady])
 }
