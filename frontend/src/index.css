@@ -41,7 +41,10 @@
        над home-indicator снизу. Иначе шапка с поиском прячется под
        системную строку статуса на iPhone. */
     top: env(safe-area-inset-top);
-    bottom: env(safe-area-inset-bottom);
+    /* Снизу не резервируем всю безопасную зону — иначе нижняя навигация
+       и composer висят слишком высоко над краем. Контент доходит до низа,
+       а сами нижние панели сами отступают от home-indicator (см. ниже). */
+    bottom: 0;
     overflow: hidden;
     overscroll-behavior: none;
   }
