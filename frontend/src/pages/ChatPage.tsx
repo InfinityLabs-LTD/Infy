@@ -512,7 +512,9 @@ export function ChatPage() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText() }
+    // На мобильных (тач/сенсор) Enter переносит строку — отправка только кнопкой.
+    const isTouch = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+    if (e.key === 'Enter' && !e.shiftKey && !isTouch) { e.preventDefault(); sendText() }
   }
 
   function scrollToMessage(msgId: string) {

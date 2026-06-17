@@ -136,6 +136,14 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const movedRef = useRef(false)
 
+  // Свайп для ответа: свои сообщения тянем влево, чужие — вправо.
+  const [swipeX, setSwipeX] = useState(0)
+  const swipeStart = useRef<{ x: number; y: number } | null>(null)
+  const swipeActive = useRef(false)       // зафиксировали горизонтальный жест
+  const swipeTriggered = useRef(false)    // уже сработал виброотклик на пороге
+  const SWIPE_THRESHOLD = 56               // дистанция, после которой свайп засчитывается
+  const SWIPE_MAX = 80                     // максимальное визуальное смещение
+
   const time = new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const att = message.attachments?.[0]
   const isMediaOnly = !message.content && att
@@ -148,29 +156,76 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
 
   function openMenu() { setShowMenu(true) }
 
-  // Тап по сообщению открывает меню действий; долгое нажатие — тоже (на тач).
+  // Долгое нажатие (удержание) открывает меню на тач-устройствах + виброотклик.
+  function openMenuFromHold() {
+    holdTimer.current = null
+    // Виброотклик при появлении меню (если поддерживается)
+    try { navigator.vibrate?.(15) } catch {}
+    openMenu()
+  }
+
+  // Направление свайпа: свои — влево (-1), чужие — вправо (+1)
+  const swipeDir = isOwn ? -1 : 1
+
+  // На тач-устройствах меню открывается только по удержанию — короткий тап игнорируется.
   function onPointerDown(e: React.PointerEvent) {
     movedRef.current = false
     if (e.pointerType === 'touch') {
-      holdTimer.current = setTimeout(() => { holdTimer.current = null; openMenu() }, 450)
+      swipeStart.current = { x: e.clientX, y: e.clientY }
+      swipeActive.current = false
+      swipeTriggered.current = false
+      if (holdTimer.current) clearTimeout(holdTimer.current)
+      holdTimer.current = setTimeout(openMenuFromHold, 500)
     }
   }
 
-  function onPointerMove() {
+  function onPointerMove(e: React.PointerEvent) {
     movedRef.current = true
     if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null }
+
+    if (e.pointerType !== 'touch' || !swipeStart.current) return
+    const dx = e.clientX - swipeStart.current.x
+    const dy = e.clientY - swipeStart.current.y
+
+    // Пока не зафиксирован жест — определяем, горизонталь это или вертикальный скролл
+    if (!swipeActive.current) {
+      if (Math.abs(dy) > Math.abs(dx)) { swipeStart.current = null; return } // вертикальный скролл
+      if (Math.abs(dx) < 8) return
+      swipeActive.current = true
+    }
+
+    // Тянем только в «правильную» сторону
+    const dist = dx * swipeDir
+    if (dist <= 0) { setSwipeX(0); return }
+    const offset = Math.min(dist, SWIPE_MAX)
+    setSwipeX(offset * swipeDir)
+
+    // Виброотклик один раз при достижении порога
+    if (offset >= SWIPE_THRESHOLD && !swipeTriggered.current) {
+      swipeTriggered.current = true
+      try { navigator.vibrate?.(15) } catch {}
+    } else if (offset < SWIPE_THRESHOLD) {
+      swipeTriggered.current = false
+    }
   }
 
   // У медиа-сообщений тап оставляем самому медиа (плей/зум) — меню только по долгому нажатию
   const hasMedia = !!att
 
   function onPointerUp() {
+    // Палец отпустили раньше срабатывания таймера — это короткий тап, меню не открываем
     if (holdTimer.current) {
-      // короткое нажатие — считаем это тапом
       clearTimeout(holdTimer.current)
       holdTimer.current = null
-      if (!movedRef.current && !hasMedia) openMenu()
     }
+    // Свайп засчитан — открываем ответ на сообщение
+    if (swipeActive.current && Math.abs(swipeX) >= SWIPE_THRESHOLD) {
+      onReply?.(message)
+    }
+    swipeStart.current = null
+    swipeActive.current = false
+    swipeTriggered.current = false
+    setSwipeX(0)
   }
 
   // На десктопе открываем по обычному клику (если не было выделения текста и это не медиа)
@@ -333,21 +388,42 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
     return <AiMessage message={message} isOwn={isOwn} time={time} />
   }
 
+  const swipeProgress = Math.min(Math.abs(swipeX) / SWIPE_THRESHOLD, 1)
+
   return (
     <>
-      <div
-        ref={bubbleRef}
-        className={`group flex items-end gap-1.5 ${isOwn ? 'justify-end' : 'justify-start'} ${groupPos === 'first' || groupPos === 'single' ? 'mt-3' : 'mt-0.5'} msg-appear cursor-pointer`}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onClick={onClick}
-        onContextMenu={onContextMenu}
-      >
-        {isOwn && <>{reactBtn}{meta}</>}
-        {bubbleContent}
-        {!isOwn && <>{meta}{reactBtn}</>}
+      <div className="relative">
+        {/* Иконка ответа, проявляющаяся при свайпе */}
+        <div
+          className="absolute top-0 bottom-0 flex items-center pointer-events-none"
+          style={{
+            [isOwn ? 'right' : 'left']: 8,
+            opacity: swipeProgress,
+            transform: `scale(${0.6 + swipeProgress * 0.4})`,
+          }}
+        >
+          <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'var(--accent)' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 14 4 9 9 4" />
+              <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+            </svg>
+          </div>
+        </div>
+        <div
+          ref={bubbleRef}
+          className={`group flex items-end gap-1.5 ${isOwn ? 'justify-end' : 'justify-start'} ${groupPos === 'first' || groupPos === 'single' ? 'mt-3' : 'mt-0.5'} msg-appear cursor-pointer`}
+          style={{ transform: `translateX(${swipeX}px)`, transition: swipeX === 0 ? 'transform 0.18s ease-out' : 'none' }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onClick={onClick}
+          onContextMenu={onContextMenu}
+        >
+          {isOwn && <>{reactBtn}{meta}</>}
+          {bubbleContent}
+          {!isOwn && <>{meta}{reactBtn}</>}
+        </div>
       </div>
 
       {showMenu && createPortal(
