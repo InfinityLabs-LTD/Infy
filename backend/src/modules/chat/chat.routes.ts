@@ -60,6 +60,21 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
     return { data: ChatService.serializeChat(chat as Parameters<typeof ChatService.serializeChat>[0], userId) }
   })
 
+  // GET /chats/:id/info — single chat in list format (partner, lastMessage, unread)
+  app.get('/:id/info', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'Get a single chat (list-format) by id',
+      security: [{ bearerAuth: [] }],
+      params: { type: 'object', properties: { id: { type: 'string' } } },
+    },
+  }, async (request) => {
+    const { id } = request.params as { id: string }
+    const userId = BigInt(request.user.sub)
+    const chat = await ChatService.getChat(app.prisma, id, userId)
+    return { data: chat }
+  })
+
   // GET /chats/:id/media — paginated media messages (non-TEXT)
   app.get('/:id/media', {
     schema: {

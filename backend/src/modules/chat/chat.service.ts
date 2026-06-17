@@ -128,6 +128,40 @@ export async function listChats(prisma: PrismaClient, userId: bigint) {
   return memberships.map(m => serializeChat(m.chat, userId, unreadMap[m.chat.id] ?? 0))
 }
 
+// Один чат в том же формате, что и listChats (с partner, lastMessage, unread).
+// Используется фронтендом, когда пришло сообщение в чат, которого ещё нет
+// в локальном списке (новый диалог) — чтобы добавить его без перезагрузки.
+export async function getChat(prisma: PrismaClient, chatId: string, userId: bigint) {
+  const membership = await prisma.chatMember.findUnique({
+    where: { chatId_userId: { chatId, userId } },
+    include: {
+      chat: {
+        include: {
+          members: { include: { user: true } },
+          messages: {
+            where: { deletedAt: null },
+            orderBy: { id: 'desc' },
+            take: 1,
+          },
+        },
+      },
+    },
+  })
+  if (!membership) throw new AppError('CHAT_NOT_MEMBER', 'You are not a member of this chat', 403)
+
+  const unread = await prisma.$queryRaw<{ count: number }[]>`
+    SELECT CAST(COUNT(m.id) AS INTEGER) as count
+    FROM chat_members cm
+    LEFT JOIN messages m ON
+      m."chatId" = cm."chatId"
+      AND m."senderId" != ${userId}
+      AND m."deletedAt" IS NULL
+      AND (cm."lastReadMessageId" IS NULL OR m.id > cm."lastReadMessageId")
+    WHERE cm."chatId" = ${chatId} AND cm."userId" = ${userId}
+  `
+  return serializeChat(membership.chat, userId, Number(unread[0]?.count ?? 0))
+}
+
 export async function markAsRead(
   prisma: PrismaClient,
   chatId: string,

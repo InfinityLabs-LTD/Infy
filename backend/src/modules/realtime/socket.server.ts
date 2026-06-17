@@ -80,6 +80,37 @@ async function pushToOfflineMembers(
   } catch { /* non-critical */ }
 }
 
+// Доставка сообщения участникам, чьи сокеты ещё не подключены к комнате чата
+// (новый диалог / только что созданный чат). Для каждого участника:
+//   1) подключаем все его активные сокеты к комнате `chat:<id>`;
+//   2) если сокет ещё не получал это сообщение (не был в комнате) — шлём ему
+//      `message_new` напрямую, чтобы диалог появился в списке без перезагрузки.
+async function deliverToNewMembers(
+  io: SocketServer,
+  prisma: PrismaClient,
+  chatId: string,
+  data: unknown,
+): Promise<void> {
+  try {
+    const members = await prisma.chatMember.findMany({
+      where: { chatId },
+      select: { userId: true },
+    })
+
+    const roomSockets = await io.in(`chat:${chatId}`).fetchSockets()
+    const inRoom = new Set(roomSockets.map((s: { id: string }) => s.id))
+
+    for (const m of members) {
+      const sockets = await io.in(`user:${m.userId.toString()}`).fetchSockets()
+      for (const sock of sockets) {
+        if (inRoom.has(sock.id)) continue   // уже в комнате — получил через broadcast
+        sock.join(`chat:${chatId}`)
+        sock.emit('message_new', data)
+      }
+    }
+  } catch { /* non-critical */ }
+}
+
 export function createSocketServer(
   httpServer: HttpServer,
   redisUrl: string,
@@ -131,6 +162,11 @@ export function createSocketServer(
         const noPushTypes = new Set(['SYSTEM', 'AI', 'AI_QUERY'])
         if (p.event === 'message_new' && p.data.sender?.id && !noPushTypes.has(p.data.type ?? '')) {
           pushToOfflineMembers(pubClient, prisma, p.data as MessageForPush, p.data.sender.id).catch(() => {})
+          // Новое сообщение могло прийти в чат, в комнату которого получатель ещё
+          // не вошёл (например, первый диалог). Доставляем событие в персональные
+          // комнаты участников и подключаем их сокеты к комнате чата, чтобы
+          // последующие сообщения и новый диалог появлялись без перезагрузки.
+          deliverToNewMembers(io, prisma, p.data.chatId, p.data).catch(() => {})
         }
       }
     },
@@ -244,6 +280,7 @@ export function createSocketServer(
 
         io.to(`chat:${chatId}`).emit('message_new', message)
         pushToOfflineMembers(pubClient, prisma, message, userId).catch(() => {})
+        deliverToNewMembers(io, prisma, chatId, message).catch(() => {})
         ack?.({ ok: true, message })
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Error'

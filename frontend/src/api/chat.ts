@@ -13,6 +13,9 @@ export const chatApi = {
   getOrCreateChat: (partnerId: string) =>
     api.get<{ data: Chat }>(`/chats/partner/${partnerId}`),
 
+  getChat: (chatId: string) =>
+    api.get<{ data: Chat }>(`/chats/${chatId}/info`),
+
   deleteChat: (chatId: string) =>
     api.delete(`/chats/${chatId}`),
 

@@ -4,6 +4,7 @@ import { getSocket, disconnectSocket } from '@/lib/socket'
 import { useAuthStore } from '@/store/auth'
 import { useChatStore } from '@/store/chat'
 import { useReminderStore, type DueReminder } from '@/store/reminders'
+import { chatApi } from '@/api/chat'
 import type { Message } from '@/store/chat'
 
 export function useSocket(): Socket | null {
@@ -13,7 +14,7 @@ export function useSocket(): Socket | null {
   const {
     addMessage, updateMessage, removeMessage, removeChat,
     setUserOnline, setUserOffline, setSocketReady,
-    updatePartnerRead,
+    updatePartnerRead, upsertChat,
   } = useChatStore()
 
   useEffect(() => {
@@ -23,6 +24,14 @@ export function useSocket(): Socket | null {
     socketRef.current = socket
 
     const onMessageNew = (msg: Message) => {
+      // Сообщение в чат, которого ещё нет в локальном списке (новый диалог) —
+      // подтягиваем сам чат, чтобы он появился в сайдбаре без перезагрузки.
+      const known = useChatStore.getState().chats.some(c => c.id === msg.chatId)
+      if (!known) {
+        chatApi.getChat(msg.chatId)
+          .then(r => upsertChat(r.data.data))
+          .catch(() => { /* не критично */ })
+      }
       addMessage(msg)
       // Browser notification when tab is not focused
       const myId = useAuthStore.getState().user?.id
