@@ -62,7 +62,10 @@ export function useSwipeReply(dir: number, onReply?: () => void, onMoveAbort?: (
     }
   }
 
-  function onPointerUp() {
+  // Параметр события необязателен и не используется, но объявлен, чтобы сигнатура
+  // совпадала и при прямом спреде {...handlers} в JSX, и при ручном вызове
+  // onPointerUp(e) (например, из onPointerCancel в MessageBubble).
+  function onPointerUp(_e?: ReactPointerEvent) {
     if (active.current && Math.abs(swipeX) >= SWIPE_THRESHOLD) onReply?.()
     start.current = null
     active.current = false
