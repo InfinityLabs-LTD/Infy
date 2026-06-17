@@ -11,6 +11,7 @@ import { AudioMessage } from './AudioMessage'
 import { CircleVideoMessage } from './CircleVideoMessage'
 import { MarkdownText } from './MarkdownText'
 import { useSwipeReply } from '@/hooks/useSwipeReply'
+import { vibrate } from '@/lib/haptics'
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥']
 
@@ -135,14 +136,20 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
   const [showMenu, setShowMenu] = useState(false)
   const bubbleRef = useRef<HTMLDivElement>(null)
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const holdStart = useRef<{ x: number; y: number } | null>(null)
   const movedRef = useRef(false)
+
+  function cancelHold() {
+    if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null }
+    holdStart.current = null
+  }
 
   // Свайп для ответа: свои сообщения тянем влево, чужие — вправо.
   const swipeDir = isOwn ? -1 : 1
   const swipe = useSwipeReply(
     swipeDir,
     () => onReply?.(message),
-    () => { if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null } },
+    cancelHold,  // распознан свайп — снимаем hold-таймер меню
   )
 
   const time = new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -160,8 +167,9 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
   // Долгое нажатие (удержание) открывает меню на тач-устройствах + виброотклик.
   function openMenuFromHold() {
     holdTimer.current = null
+    holdStart.current = null
     // Виброотклик при появлении меню (если поддерживается)
-    try { navigator.vibrate?.(15) } catch {}
+    vibrate(15)
     openMenu()
   }
 
@@ -174,6 +182,7 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
     movedRef.current = false
     swipe.handlers.onPointerDown(e)
     if (e.pointerType === 'touch') {
+      holdStart.current = { x: e.clientX, y: e.clientY }
       if (holdTimer.current) clearTimeout(holdTimer.current)
       holdTimer.current = setTimeout(openMenuFromHold, 500)
     }
@@ -181,16 +190,19 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
 
   function onPointerMove(e: React.PointerEvent) {
     movedRef.current = true
-    if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null }
+    // Hold-таймер снимаем только при заметном движении пальца (>10px), иначе
+    // микро-дрожание во время удержания отменяло бы меню и его виброотклик.
+    if (holdStart.current) {
+      const dx = e.clientX - holdStart.current.x
+      const dy = e.clientY - holdStart.current.y
+      if (Math.hypot(dx, dy) > 10) cancelHold()
+    }
     swipe.handlers.onPointerMove(e)
   }
 
   function onPointerUp(e: React.PointerEvent) {
     // Палец отпустили раньше срабатывания таймера — это короткий тап, меню не открываем
-    if (holdTimer.current) {
-      clearTimeout(holdTimer.current)
-      holdTimer.current = null
-    }
+    cancelHold()
     swipe.handlers.onPointerUp(e)
   }
 

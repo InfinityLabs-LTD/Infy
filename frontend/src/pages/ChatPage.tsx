@@ -1000,7 +1000,7 @@ export function ChatPage() {
       )}
 
       {/* ── Input bar ── */}
-      <div className="shrink-0 px-2 pt-2 pb-[max(8px,calc(env(safe-area-inset-bottom)-12px))]" style={{
+      <div className="shrink-0 px-2 pt-2 pb-[max(4px,calc(env(safe-area-inset-bottom)-16px))]" style={{
         background: 'rgba(255,255,255,0.04)',
         backdropFilter: 'blur(24px) saturate(140%)',
         WebkitBackdropFilter: 'blur(24px) saturate(140%)',

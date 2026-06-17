@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
+import { vibrate } from '@/lib/haptics'
 
 const SWIPE_THRESHOLD = 52  // дистанция, после которой свайп засчитывается
 const SWIPE_MAX = 76        // максимальное визуальное смещение
@@ -56,7 +57,7 @@ export function useSwipeReply(dir: number, onReply?: () => void, onMoveAbort?: (
 
     if (offset >= SWIPE_THRESHOLD && !buzzed.current) {
       buzzed.current = true
-      try { navigator.vibrate?.(15) } catch {}
+      vibrate(15)   // тактильный отклик при достижении порога свайпа
     } else if (offset < SWIPE_THRESHOLD) {
       buzzed.current = false
     }
