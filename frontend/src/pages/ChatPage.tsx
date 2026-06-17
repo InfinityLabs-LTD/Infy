@@ -450,7 +450,7 @@ export function ChatPage() {
   async function runJob(job: PendingJob, optimistic: Message) {
     try {
       const uploads = await Promise.all(
-        job.locals.map(l => mediaApi.upload(l.file, l.hint).then(r => r.data.data)),
+        job.locals.map(l => mediaApi.upload(l.file, l.hint, l.durationMs).then(r => r.data.data)),
       )
       // Помечаем плейсхолдер реальными storageKey'ями: если широковещание
       // по сокету придёт раньше REST-ответа, addMessage сопоставит его с
@@ -617,7 +617,7 @@ export function ChatPage() {
     }
     const file = new File([blob], 'voice.webm', { type: blob.type })
     backgroundSendMedia(chatId, 'AUDIO', [
-      { file, kind: 'document', previewUrl: URL.createObjectURL(blob) },
+      { file, kind: 'document', previewUrl: URL.createObjectURL(blob), durationMs: elapsedMs },
     ])
   }
 

@@ -34,7 +34,18 @@ export async function probeMedia(filePath: string): Promise<MediaInfo> {
     const data = JSON.parse(stdout)
     const videoStream = data.streams?.find((s: { codec_type: string }) => s.codec_type === 'video')
     const audioStream = data.streams?.find((s: { codec_type: string }) => s.codec_type === 'audio')
-    const durationSec = parseFloat(data.format?.duration ?? '0')
+
+    // Длительность: сначала из контейнера (format.duration), затем из потоков.
+    // Для WebM/Opus от MediaRecorder контейнер часто не хранит длительность —
+    // тогда берём её из аудио/видео-потока, иначе короткие записи давали 0.
+    const parse = (v: unknown) => {
+      const n = parseFloat(String(v ?? ''))
+      return Number.isFinite(n) && n > 0 ? n : 0
+    }
+    const durationSec =
+      parse(data.format?.duration) ||
+      parse(audioStream?.duration) ||
+      parse(videoStream?.duration)
 
     return {
       durationMs: durationSec > 0 ? Math.round(durationSec * 1000) : undefined,
@@ -43,6 +54,28 @@ export async function probeMedia(filePath: string): Promise<MediaInfo> {
     }
   } catch {
     return {}
+  }
+}
+
+// Точная длительность аудио через декодирование (когда контейнер её не хранит).
+// Считаем количество семплов: надёжно для WebM/Opus из MediaRecorder.
+export async function probeAudioDurationMs(filePath: string): Promise<number | undefined> {
+  try {
+    const { stderr } = await execFileAsync(ffmpegPath(), [
+      '-i', filePath,
+      '-map', '0:a:0',
+      '-af', 'astats=metadata=1',
+      '-f', 'null',
+      '-',
+    ])
+    // ffmpeg печатает итоговое "time=HH:MM:SS.xx" в stderr по завершении.
+    const matches = [...stderr.matchAll(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/g)]
+    const last = matches.at(-1)
+    if (!last) return undefined
+    const ms = (parseInt(last[1], 10) * 3600 + parseInt(last[2], 10) * 60 + parseFloat(last[3])) * 1000
+    return ms > 0 ? Math.round(ms) : undefined
+  } catch {
+    return undefined
   }
 }
 

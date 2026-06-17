@@ -15,13 +15,20 @@ export interface UploadResult {
 }
 
 export const mediaApi = {
-  upload: (file: File | Blob, hint?: 'circle_video' | 'document') => {
+  upload: (
+    file: File | Blob,
+    hint?: 'circle_video' | 'document',
+    // Длительность медиа (мс), измеренная на клиенте — запасной вариант для
+    // бэкенда, если ffprobe не сможет определить её из контейнера.
+    durationMs?: number,
+  ) => {
     const form = new FormData()
     form.append('file', file)
     return api.post<{ data: UploadResult }>('/media/upload', form, {
       headers: {
         'Content-Type': 'multipart/form-data',
         ...(hint ? { 'x-media-type': hint } : {}),
+        ...(durationMs && durationMs > 0 ? { 'x-media-duration': String(Math.round(durationMs)) } : {}),
       },
     })
   },

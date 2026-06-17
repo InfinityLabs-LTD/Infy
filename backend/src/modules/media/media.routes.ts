@@ -42,9 +42,14 @@ const mediaRoutes: FastifyPluginAsync = async (app) => {
     }
     const buffer = Buffer.concat(chunks)
 
+    // Клиентская длительность (мс) — запасной вариант для аудио/видео,
+    // когда ffprobe не может определить её из контейнера.
+    const durHeader = parseInt((request.headers['x-media-duration'] as string | undefined) ?? '', 10)
+    const clientDurationMs = Number.isFinite(durHeader) && durHeader > 0 ? durHeader : undefined
+
     let result
     try {
-      result = await uploadMedia(app.minio, buffer, data.mimetype, fileType, request.user.sub, data.filename)
+      result = await uploadMedia(app.minio, buffer, data.mimetype, fileType, request.user.sub, data.filename, clientDurationMs)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Upload failed'
       throw new AppError('MEDIA_UPLOAD_FAILED', msg, 500)

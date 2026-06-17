@@ -10,6 +10,9 @@ export interface PendingLocal {
   kind: PendingKind
   hint?: 'circle_video' | 'document'
   previewUrl?: string
+  // Длительность (мс), измеренная на клиенте — для аудио/кружков, чтобы бэкенд
+  // имел запасной вариант, если ffprobe не определит её из контейнера.
+  durationMs?: number
 }
 
 export interface PendingJob {

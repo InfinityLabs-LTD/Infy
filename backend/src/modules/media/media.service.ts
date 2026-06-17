@@ -6,6 +6,7 @@ import * as Minio from 'minio'
 import { env } from '../../lib/env.js'
 import {
   probeMedia,
+  probeAudioDurationMs,
   transcodeVideo,
   transcodeCircleVideo,
   transcodeAudio,
@@ -59,6 +60,9 @@ export async function uploadMedia(
   fileType: UploadedFileType,
   userId: string,
   originalName?: string,
+  // Клиентская длительность (мс) — запасной вариант, если ffprobe её не отдаёт
+  // (короткие WebM/Opus от MediaRecorder часто без длительности в контейнере).
+  clientDurationMs?: number,
 ): Promise<UploadResult> {
   const sizeBytes = buffer.length
   const limit = SIZE_LIMITS[fileType]
@@ -125,6 +129,13 @@ export async function uploadMedia(
         generateWaveform(tmpInput),
       ])
 
+      // Длительность: ffprobe → точный подсчёт декодированием → клиентская оценка.
+      let durationMs = info.durationMs
+      if (!durationMs) durationMs = await probeAudioDurationMs(outPath)
+      if (!durationMs && clientDurationMs && clientDurationMs > 0) {
+        durationMs = Math.round(clientDurationMs)
+      }
+
       const key = `${prefix}/audio.opus`
       await minio.putObject(bucket, key, Readable.from(outBuf), outBuf.length, {
         'Content-Type': 'audio/ogg; codecs=opus',
@@ -135,7 +146,7 @@ export async function uploadMedia(
         storageKey: key,
         mimeType: 'audio/ogg; codecs=opus',
         sizeBytes: outBuf.length,
-        durationMs: info.durationMs,
+        durationMs,
         waveform,
         publicUrl: buildUrl(bucket, key),
       }
