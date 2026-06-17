@@ -85,7 +85,7 @@ async function pushIncomingCall(
     if (subs.length === 0) return
     const body = media === 'VIDEO' ? '📹 Входящий видеозвонок' : '📞 Входящий звонок'
     await Promise.allSettled(subs.map(sub =>
-      sendPush(sub, { title: callerName, body, icon: callerAvatar ?? '/icon.jpg', tag: 'call', url: '/' }),
+      sendPush(sub, { title: callerName, body, icon: callerAvatar ?? '/logo.png', tag: 'call', url: '/' }),
     ))
   } catch { /* push некритичен */ }
 }

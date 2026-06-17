@@ -28,7 +28,7 @@ export function useCallSignaling(): void {
       // Браузерное уведомление, если вкладка свёрнута.
       if (document.hidden && Notification.permission === 'granted') {
         const body = p.media === 'VIDEO' ? '📹 Входящий видеозвонок' : '📞 Входящий звонок'
-        new Notification(p.from.nickname, { body, icon: p.from.avatarUrl ?? '/icon.jpg', tag: 'call' })
+        new Notification(p.from.nickname, { body, icon: p.from.avatarUrl ?? '/logo.png', tag: 'call' })
       }
     }
 

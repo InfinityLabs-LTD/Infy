@@ -38,7 +38,7 @@ export function useSocket(): Socket | null {
       if (document.hidden && msg.type !== 'SYSTEM' && msg.sender.id !== myId && Notification.permission === 'granted') {
         new Notification(msg.sender.nickname, {
           body: msg.type === 'TEXT' ? (msg.content ?? '') : '📎 Вложение',
-          icon: msg.sender.avatarUrl ?? '/icon.jpg',
+          icon: msg.sender.avatarUrl ?? '/logo.png',
           tag: msg.chatId,  // replaces previous notification for same chat
         })
       }
@@ -66,7 +66,7 @@ export function useSocket(): Socket | null {
       if (document.hidden && Notification.permission === 'granted') {
         new Notification(`📅 ${r.title}`, {
           body: `${r.categoryName}${r.notes ? ` — ${r.notes}` : ''}`,
-          icon: '/icon.jpg',
+          icon: '/logo.png',
           tag: `reminder:${r.reminderId}`,
         })
       }

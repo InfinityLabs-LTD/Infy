@@ -4,8 +4,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title || 'Infy', {
       body: data.body || '',
-      icon: data.icon || '/icon.jpg',
-      badge: '/icon.jpg',
+      icon: data.icon || '/logo.png',
+      badge: '/logo.png',
       tag: data.tag,
       data: { url: data.url || '/' },
       renotify: true,

@@ -55,7 +55,7 @@ async function pushToOfflineMembers(
     })
 
     const senderName = msg.sender?.nickname ?? 'Infy'
-    const senderAvatar = msg.sender?.avatarUrl ?? '/icon.jpg'
+    const senderAvatar = msg.sender?.avatarUrl ?? '/logo.png'
     const body = msg.type === 'TEXT' ? (msg.content ?? '') : '📎 Вложение'
 
     const results = await Promise.allSettled(

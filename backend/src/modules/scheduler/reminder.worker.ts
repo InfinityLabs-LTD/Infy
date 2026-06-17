@@ -124,7 +124,7 @@ async function deliverOne(
         return sendPush(sub, {
           title: `📅 ${event.title}`,
           body: `${categoryName} · ${when}${event.notes ? ` — ${event.notes}` : ''}`,
-          icon: event.createdBy.avatarUrl ?? '/icon.jpg',
+          icon: event.createdBy.avatarUrl ?? '/logo.png',
           tag: `reminder:${reminder.id}`,
           url: '/',
         })
