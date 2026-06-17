@@ -863,7 +863,7 @@ export function ChatPage() {
               >
                 {/* Пульсирующее кольцо-ореол */}
                 <span className="puls-ring" aria-hidden />
-                <span className="relative z-[1] flex items-center justify-center text-white">
+                <span className="relative z-[1] flex items-center justify-center text-white" style={{ transform: 'translateY(1.5px)' }}>
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/>
                   </svg>

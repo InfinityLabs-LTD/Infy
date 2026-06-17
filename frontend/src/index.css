@@ -206,12 +206,13 @@
 /* Иконка-искра внутри слегка «дышит» вместе с кнопкой */
 .puls-btn > span:last-child { animation: pulsGlow 2.8s ease-in-out infinite; }
 
-/* Пульсирующее кольцо-ореол вокруг кнопки */
+/* Пульсирующее кольцо-ореол вокруг кнопки (тоньше, но шире по радиусу) */
 .puls-ring {
   position: absolute;
   inset: 0;
   border-radius: 9999px;
-  background: radial-gradient(circle, rgba(168, 85, 247, 0.55) 0%, rgba(168, 85, 247, 0) 70%);
+  /* Обводка в 2 раза тоньше: меньше непрозрачность и более узкий «ободок». */
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.28) 0%, rgba(168, 85, 247, 0) 72%);
   animation: pulsRing 2.8s ease-out infinite;
   pointer-events: none;
   z-index: 0;
@@ -222,9 +223,9 @@
   50%      { box-shadow: 0 6px 22px rgba(168, 85, 247, 0.70); transform: scale(1.06); }
 }
 @keyframes pulsRing {
-  0%   { transform: scale(0.85); opacity: 0.7; }
-  70%  { transform: scale(1.9);  opacity: 0; }
-  100% { transform: scale(1.9);  opacity: 0; }
+  0%   { transform: scale(0.8); opacity: 0.6; }
+  70%  { transform: scale(2.6); opacity: 0; }
+  100% { transform: scale(2.6); opacity: 0; }
 }
 @keyframes pulsGlow {
   0%, 100% { filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
@@ -247,13 +248,14 @@
   border-color: rgba(168, 85, 247, 0.65) !important;
   animation: composerFocus 2.2s ease-in-out infinite;
 }
+/* Обводка тоньше (spread в 2 раза меньше), свечение шире по радиусу. */
 @keyframes composerIdle {
-  0%, 100% { box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.10), 0 0 0 rgba(168,85,247,0); }
-  50%      { box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.28), 0 0 14px rgba(168,85,247,0.18); }
+  0%, 100% { box-shadow: 0 0 0 0.5px rgba(168, 85, 247, 0.10), 0 0 0 rgba(168,85,247,0); }
+  50%      { box-shadow: 0 0 0 0.5px rgba(168, 85, 247, 0.26), 0 0 22px rgba(168,85,247,0.20); }
 }
 @keyframes composerFocus {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.30), 0 0 16px rgba(168,85,247,0.25); }
-  50%      { box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.55), 0 0 26px rgba(168,85,247,0.45); }
+  0%, 100% { box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.30), 0 0 24px rgba(168,85,247,0.28); }
+  50%      { box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.55), 0 0 40px rgba(168,85,247,0.50); }
 }
 @media (prefers-reduced-motion: reduce) {
   .composer-input:not(:focus), .composer-input:focus { animation: none; }

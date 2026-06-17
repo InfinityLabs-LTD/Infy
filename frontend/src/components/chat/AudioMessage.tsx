@@ -65,7 +65,9 @@ export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
     setSpeedIdx(i => (i + 1) % SPEEDS.length)
   }
 
-  const bars = waveform ?? Array(40).fill(0.5)
+  // Плейсхолдер-дорожка той же плотности, что и реальная (≈сэмплов), чтобы
+  // она занимала всю ширину и в момент отправки (pending), а не была короткой.
+  const bars = waveform ?? Array(48).fill(0.45)
   const activeBars = Math.round(progress * bars.length)
 
   return (
@@ -96,9 +98,12 @@ export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
               key={i}
               className="rounded-full transition-colors"
               style={{
-                width: 2,
+                // Бары тянутся, заполняя всю дорожку при любом их количестве
+                // (и плейсхолдер, и реальная волна одинаково «полные»).
+                flex: '1 1 0',
+                minWidth: 0,
+                maxWidth: 3,
                 height: `${Math.max(4, amp * 28)}px`,
-                flex: '0 0 auto',
                 background: i < activeBars
                   ? (isOwn ? 'white' : '#A855F7')
                   : (isOwn ? 'rgba(255,255,255,0.35)' : 'rgba(168,85,247,0.3)'),
