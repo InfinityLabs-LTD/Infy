@@ -889,7 +889,7 @@ export function ChatPage() {
       )}
 
       {/* ── Messages ── */}
-      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto px-2 py-2 chat-bg">
+      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2 py-2 chat-bg">
         {resolving ? (
           <div className="flex justify-center py-12"><Spinner size={28} /></div>
         ) : (
