@@ -190,6 +190,9 @@ export function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const holdStartY = useRef(0)
+  const holdStartX = useRef(0)
+  // Жест отмены: свайп влево по незафиксированной записи удаляет её.
+  const [recordCancelHint, setRecordCancelHint] = useState(0)  // 0..1 прогресс свайпа влево
   const isHoldingRef = useRef(false)
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Рефы для актуального состояния в нативных обработчиках (без stale closure)
@@ -629,6 +632,7 @@ export function ChatPage() {
     else { setShowCircle(false); setCircleAutoSend(false) }
     recordLockedRef.current = false
     setRecordLocked(false)
+    setRecordCancelHint(0)
   }
 
   function onRecordPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
@@ -636,6 +640,7 @@ export function ChatPage() {
     e.preventDefault()
     isHoldingRef.current = true
     holdStartY.current = e.clientY
+    holdStartX.current = e.clientX
 
     // Запускаем запись только через 250мс — до этого считается одиночным нажатием
     holdTimerRef.current = setTimeout(() => {
@@ -645,18 +650,39 @@ export function ChatPage() {
       else setShowCircle(true)
     }, 250)
 
+    // Порог свайпа влево для отмены (удаления) незафиксированной записи.
+    const CANCEL_DX = 120
+
     // Нативные обработчики на document — надёжно на мобильном
     function onMove(ev: PointerEvent) {
       if (!isHoldingRef.current || recordLockedRef.current) return
       const dy = holdStartY.current - ev.clientY
-      if (dy > 120) {
+      const dx = holdStartX.current - ev.clientX  // >0 — влево
+
+      // Свайп влево — отмена/удаление записи. Показываем прогресс-подсказку.
+      if (dx > 0) {
+        setRecordCancelHint(Math.min(1, dx / CANCEL_DX))
+        if (dx > CANCEL_DX) {
+          setRecordCancelHint(0)
+          cleanup()
+          cancelRecord()
+          return
+        }
+      } else if (dx <= 0) {
+        if (recordCancelHint !== 0) setRecordCancelHint(0)
+      }
+
+      // Свайп вверх — фиксация (только если не уводим влево заметно).
+      if (dy > 120 && dx < 60) {
         recordLockedRef.current = true
         setRecordLocked(true)
+        setRecordCancelHint(0)
       }
     }
 
     function onUp() {
       cleanup()
+      setRecordCancelHint(0)
       if (!isHoldingRef.current) return
       isHoldingRef.current = false
 
@@ -1230,10 +1256,24 @@ export function ChatPage() {
         {/* Запись голосового — индикатор (не зафиксировано) */}
         {isRecording && !recordLocked && (
           <div className="flex items-center gap-2 px-3 py-1.5 mb-2 rounded-xl"
-            style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.2)' }}>
+            style={{
+              background: 'rgba(239,68,68,0.12)',
+              border: '1px solid rgba(239,68,68,0.2)',
+              // Сдвигаем строку влево по мере свайпа отмены — визуальный отклик.
+              transform: `translateX(-${recordCancelHint * 24}px)`,
+              opacity: 1 - recordCancelHint * 0.5,
+              transition: recordCancelHint === 0 ? 'transform 0.15s, opacity 0.15s' : 'none',
+            }}>
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
             <span className="text-xs text-red-300 flex-1">
               Запись · {Math.floor(voiceRecorder.duration / 60)}:{String(voiceRecorder.duration % 60).padStart(2, '0')}
+            </span>
+            {/* Подсказка: смахните влево для отмены (на тач), плюс фиксация вверх */}
+            <span className="text-xs flex items-center gap-1" style={{ color: '#f87171', opacity: 0.5 + recordCancelHint * 0.5 }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+              отмена
             </span>
             <span className="text-xs flex items-center gap-1 opacity-40">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
@@ -1265,7 +1305,21 @@ export function ChatPage() {
               <rect x="3" y="11" width="18" height="11" rx="2"/>
               <path d="M7 11V7a5 5 0 0110 0v4"/>
             </svg>
-            {/* Кнопка отправки — единственная, справа в композере (см. ниже) */}
+            {/* Кнопка отправки справа от дорожки */}
+            <button
+              onClick={sendVoiceBlob}
+              disabled={sending}
+              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all disabled:opacity-40 active:scale-95 ml-1"
+              style={{ background: 'var(--grad-own)', boxShadow: 'var(--glow-primary)' }}
+            >
+              {sending ? <Spinner size={12} /> : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"
+                  style={{ transform: 'rotate(45deg)', marginLeft: '2px' }}>
+                  <line x1="22" y1="2" x2="11" y2="13"/>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                </svg>
+              )}
+            </button>
           </div>
         )}
 
@@ -1385,23 +1439,9 @@ export function ChatPage() {
             </button>
           )}
 
-          {/* Кнопка записи / отправки зафиксированного */}
-          {recordLocked ? (
-            <button
-              onClick={sendVoiceBlob}
-              disabled={sending}
-              className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-all disabled:opacity-40 active:scale-95"
-              style={{ background: 'var(--grad-own)', boxShadow: 'var(--glow-primary)' }}
-            >
-              {sending ? <Spinner size={14} /> : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"
-                  style={{ transform: 'rotate(45deg)', marginLeft: '2px' }}>
-                  <line x1="22" y1="2" x2="11" y2="13"/>
-                  <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                </svg>
-              )}
-            </button>
-          ) : (text.trim() || staged.length > 0) ? null : (
+          {/* Кнопка записи. При зафиксированной записи отправка — в полоске
+              выше (см. блок «Запись голосового — зафиксировано»), здесь ничего. */}
+          {recordLocked ? null : (text.trim() || staged.length > 0) ? null : (
             <button
               onPointerDown={onRecordPointerDown}
               disabled={sending}

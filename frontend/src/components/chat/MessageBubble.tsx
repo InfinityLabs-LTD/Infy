@@ -10,7 +10,7 @@ import { VideoMessage } from './VideoMessage'
 import { AudioMessage } from './AudioMessage'
 import { CircleVideoMessage } from './CircleVideoMessage'
 import { MarkdownText } from './MarkdownText'
-import { TranscriptButton } from './TranscriptButton'
+import { TranscriptButton, AudioWithTranscript } from './TranscriptButton'
 import { useSwipeReply } from '@/hooks/useSwipeReply'
 import { vibrate } from '@/lib/haptics'
 
@@ -332,13 +332,11 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
         thumbnailUrl={att.thumbnailKey ? mediaUrl(null, att.thumbnailKey) : null}
         durationMs={att.durationMs}
       />
-      {!message.pending && !message.failed && (
-        <TranscriptButton message={message} align={isOwn ? 'end' : 'start'} />
-      )}
+      <TranscriptButton message={message} isOwn={isOwn} />
       {reactions.length > 0 && <ReactionBar reactions={reactions} myId={myId} onReact={handleReact} />}
     </div>
   ) : (
-    <div className="flex flex-col gap-0.5 min-w-0" style={{ maxWidth: '78%', alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
+    <div className="flex flex-col gap-0.5 min-w-0" style={{ maxWidth: '78%', width: isAudio ? 260 : undefined, alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
       <div
         className={`text-sm overflow-hidden w-full ${isMediaOnly ? '' : 'px-3 py-2'} ${isOwn ? 'bubble-own' : 'bubble-other'}`}
         style={{ borderRadius: bubbleRadius(isOwn, groupPos) }}
@@ -380,12 +378,14 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
               />
             )}
             {message.type === 'AUDIO' && (
-              <AudioMessage
-                url={mediaUrl(att.publicUrl, att.storageKey)}
-                durationMs={att.durationMs}
-                waveform={att.waveform as number[] | null}
-                isOwn={isOwn}
-              />
+              <AudioWithTranscript message={message} isOwn={isOwn}>
+                <AudioMessage
+                  url={mediaUrl(att.publicUrl, att.storageKey)}
+                  durationMs={att.durationMs}
+                  waveform={att.waveform as number[] | null}
+                  isOwn={isOwn}
+                />
+              </AudioWithTranscript>
             )}
             {message.type === 'FILE' && (
               <FileAttachment att={att} />
@@ -398,9 +398,6 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
           </p>
         )}
       </div>
-      {isAudio && !message.pending && !message.failed && (
-        <TranscriptButton message={message} align={isOwn ? 'end' : 'start'} />
-      )}
       {reactions.length > 0 && <ReactionBar reactions={reactions} myId={myId} onReact={handleReact} />}
     </div>
   )
