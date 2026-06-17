@@ -262,15 +262,32 @@
 }
 
 /* === Поле ввода сообщения — фиолетовое свечение ===
-   Без анимированной обводки: на мобильных пульсирующий box-shadow вызывал
-   «дрожание» курсора (iOS) и мерцающую полоску (Android). Оставляем статичный
-   мягкий фокус-стиль. */
+   Пульсация сохранена, но анимируем ТОЛЬКО размытое внешнее свечение (blur),
+   без spread-кольца (0 0 0 Npx) и без анимации border. Именно spread-кольцо
+   рисовалось «полоской» на Android, а перерисовка по краю поля каждый кадр
+   дёргала каретку на iOS. Размытый glow этих артефактов не даёт. */
 .composer-input {
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.25s, box-shadow 0.25s;
 }
+/* В покое — едва заметное «дыхание» свечения. */
+.composer-input:not(:focus) {
+  animation: composerIdle 4s ease-in-out infinite;
+}
+/* В фокусе — более яркая пульсация акцентом + статичная тонкая обводка. */
 .composer-input:focus {
   border-color: rgba(168, 85, 247, 0.55) !important;
-  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.30), 0 0 18px rgba(168, 85, 247, 0.20);
+  animation: composerFocus 2.2s ease-in-out infinite;
+}
+@keyframes composerIdle {
+  0%, 100% { box-shadow: 0 0 0 rgba(168, 85, 247, 0); }
+  50%      { box-shadow: 0 0 22px rgba(168, 85, 247, 0.20); }
+}
+@keyframes composerFocus {
+  0%, 100% { box-shadow: 0 0 24px rgba(168, 85, 247, 0.28); }
+  50%      { box-shadow: 0 0 40px rgba(168, 85, 247, 0.50); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer-input:not(:focus), .composer-input:focus { animation: none; }
 }
 
 /* ============================================================
