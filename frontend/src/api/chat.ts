@@ -75,6 +75,9 @@ export const chatApi = {
   pinMessage: (messageId: string) =>
     api.post<{ data: Message }>(`/chats/messages/${messageId}/pin`),
 
+  transcribe: (messageId: string) =>
+    api.post<{ data: Message }>(`/chats/messages/${messageId}/transcribe`),
+
   getPinned: (chatId: string) =>
     api.get<{ data: Message | null }>(`/chats/${chatId}/pinned`),
 }

@@ -48,6 +48,8 @@ export interface MessageAttachment {
   waveform: number[] | null
   publicUrl?: string
   thumbnailUrl?: string
+  // Распознанный текст голосового/кружка (заполняется по запросу).
+  transcript?: string | null
 }
 
 export interface MessageReaction {

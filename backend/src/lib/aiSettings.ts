@@ -107,6 +107,25 @@ export async function aiAvailable(prisma: PrismaClient): Promise<boolean> {
   return c.enabled && !!c.apiKey
 }
 
+// Учётные данные для распознавания речи (Whisper) — это всегда OpenAI,
+// независимо от активного чат-провайдера. Берём ключ/baseUrl OpenAI.
+export interface SttConfig {
+  apiKey: string | null
+  baseUrl: string | null
+  model: string
+}
+export async function getSttConfig(prisma: PrismaClient): Promise<SttConfig> {
+  const map = await readAll(prisma)
+  const apiKey = pick(map, KEYS.openaiKey, env.OPENAI_API_KEY ?? '') || null
+  const baseUrlRaw = pick(map, KEYS.openaiBaseUrl, env.OPENAI_BASE_URL ?? '') || null
+  return {
+    apiKey,
+    baseUrl: normalizeBaseUrl('OPENAI', baseUrlRaw),
+    // Модель распознавания. whisper-1 — стандартная STT-модель OpenAI.
+    model: 'whisper-1',
+  }
+}
+
 // Безопасные настройки для админки.
 export async function getAiSettingsPublic(prisma: PrismaClient): Promise<AiSettingsPublic> {
   const map = await readAll(prisma)

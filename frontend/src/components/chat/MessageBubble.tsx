@@ -10,6 +10,7 @@ import { VideoMessage } from './VideoMessage'
 import { AudioMessage } from './AudioMessage'
 import { CircleVideoMessage } from './CircleVideoMessage'
 import { MarkdownText } from './MarkdownText'
+import { TranscriptButton } from './TranscriptButton'
 import { useSwipeReply } from '@/hooks/useSwipeReply'
 import { vibrate } from '@/lib/haptics'
 
@@ -331,6 +332,9 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
         thumbnailUrl={att.thumbnailKey ? mediaUrl(null, att.thumbnailKey) : null}
         durationMs={att.durationMs}
       />
+      {!message.pending && !message.failed && (
+        <TranscriptButton message={message} align={isOwn ? 'end' : 'start'} />
+      )}
       {reactions.length > 0 && <ReactionBar reactions={reactions} myId={myId} onReact={handleReact} />}
     </div>
   ) : (
@@ -394,6 +398,9 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
           </p>
         )}
       </div>
+      {isAudio && !message.pending && !message.failed && (
+        <TranscriptButton message={message} align={isOwn ? 'end' : 'start'} />
+      )}
       {reactions.length > 0 && <ReactionBar reactions={reactions} myId={myId} onReact={handleReact} />}
     </div>
   )

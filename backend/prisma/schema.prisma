@@ -326,6 +326,7 @@ model Attachment {
   durationMs   Int?            // audio / video
   thumbnailKey String?         // MinIO key for generated thumbnail
   waveform     Json?           // Float[] for audio waveform visualization
+  transcript   String?         // распознанный текст голосового/кружка (по запросу, кэшируется)
 
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 

@@ -1,7 +1,12 @@
 import { PrismaClient, MessageType, Prisma } from '@prisma/client'
+import { Readable } from 'stream'
+import * as Minio from 'minio'
 import { ulid } from 'ulid'
 import { AppError, Errors } from '../../lib/errors.js'
 import { getActiveSanction } from '../../lib/sanctions.js'
+import { getSttConfig } from '../../lib/aiSettings.js'
+import { transcribeAudio } from '../../lib/transcribe.js'
+import { env } from '../../lib/env.js'
 
 // Человекочитаемое сообщение о муте.
 function muteMessage(reason: string, expiresAt: Date | null): string {
@@ -338,6 +343,80 @@ export async function toggleReaction(
   return serializeMessage(updated!)
 }
 
+// Читает объект MinIO целиком в буфер.
+async function readObject(minio: Minio.Client, bucket: string, key: string): Promise<Buffer> {
+  const stream = await minio.getObject(bucket, key)
+  const chunks: Buffer[] = []
+  for await (const chunk of stream as Readable) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  }
+  return Buffer.concat(chunks)
+}
+
+// Распознаёт речь в голосовом сообщении или кружке и сохраняет результат на
+// вложении (кэш). Повторный вызов вернёт уже сохранённый текст.
+export async function transcribeMessageAudio(
+  prisma: PrismaClient,
+  minio: Minio.Client,
+  messageId: string,
+  userId: bigint,
+) {
+  const msg = await prisma.message.findUnique({
+    where: { id: messageId },
+    include: { chat: { include: { members: true } }, attachments: true },
+  })
+  if (!msg || msg.deletedAt) throw new AppError('MESSAGE_NOT_FOUND', 'Message not found', 404)
+  if (!msg.chat.members.some(m => m.userId === userId)) {
+    throw new AppError('CHAT_NOT_MEMBER', 'Not a member', 403)
+  }
+  if (msg.type !== 'AUDIO' && msg.type !== 'CIRCLE_VIDEO') {
+    throw new AppError('TRANSCRIBE_UNSUPPORTED', 'Сообщение не содержит голосовой записи', 400)
+  }
+
+  const att = msg.attachments[0]
+  if (!att) throw new AppError('MESSAGE_NOT_FOUND', 'Вложение не найдено', 404)
+
+  // Уже распознано — отдаём из кэша.
+  if (att.transcript != null && att.transcript !== '') {
+    return serializeMessageById(prisma, messageId)
+  }
+
+  const stt = await getSttConfig(prisma)
+  if (!stt.apiKey) {
+    throw new AppError('TRANSCRIBE_DISABLED', 'Распознавание речи недоступно: не настроен ключ OpenAI', 503)
+  }
+
+  const bucket = env.MINIO_BUCKET_MEDIA
+  let buffer: Buffer
+  try {
+    buffer = await readObject(minio, bucket, att.storageKey)
+  } catch {
+    throw new AppError('TRANSCRIBE_FAILED', 'Не удалось прочитать файл записи', 500)
+  }
+
+  const fileName = att.fileName ?? (msg.type === 'CIRCLE_VIDEO' ? 'circle.mp4' : 'audio.opus')
+  let text: string
+  try {
+    text = await transcribeAudio(stt, buffer, fileName, att.mimeType)
+  } catch (e) {
+    throw new AppError('TRANSCRIBE_FAILED', `Ошибка распознавания: ${e instanceof Error ? e.message : 'неизвестно'}`, 502)
+  }
+
+  const result = text || '(речь не распознана)'
+  await prisma.attachment.update({ where: { id: att.id }, data: { transcript: result } })
+
+  return serializeMessageById(prisma, messageId)
+}
+
+// Перечитывает сообщение с полным include и сериализует.
+async function serializeMessageById(prisma: PrismaClient, messageId: string) {
+  const updated = await prisma.message.findUnique({
+    where: { id: messageId },
+    include: messageInclude,
+  })
+  return serializeMessage(updated!)
+}
+
 export async function getChatMedia(
   prisma: PrismaClient,
   chatId: string,
@@ -597,6 +676,7 @@ type MessageWithSender = {
     height: number | null
     durationMs: number | null
     waveform: unknown
+    transcript?: string | null
   }>
   reactions?: Array<{
     id: string
@@ -652,6 +732,7 @@ export function serializeMessage(msg: MessageWithSender) {
       height: a.height,
       durationMs: a.durationMs,
       waveform: a.waveform,
+      transcript: a.transcript ?? null,
     })),
     reactions: Object.values(reactionsMap),
   }

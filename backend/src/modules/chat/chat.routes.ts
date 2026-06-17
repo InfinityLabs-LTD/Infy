@@ -252,6 +252,23 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
     return { data: message }
   })
 
+  // POST /messages/:id/transcribe — распознать речь в голосовом/кружке
+  app.post('/messages/:id/transcribe', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'Transcribe a voice message or video circle to text',
+      security: [{ bearerAuth: [] }],
+      params: { type: 'object', properties: { id: { type: 'string' } } },
+    },
+  }, async (request) => {
+    const { id } = request.params as { id: string }
+    const userId = BigInt(request.user.sub)
+    const message = await ChatService.transcribeMessageAudio(app.prisma, app.minio, id, userId)
+    // Транскрипт виден обоим участникам — рассылаем обновление.
+    await publishMessage(app.redis, 'chat:message', { event: 'message_updated', data: message })
+    return { data: message }
+  })
+
   // POST /messages/:id/pin — toggle pin (one pinned message per chat)
   app.post('/messages/:id/pin', {
     schema: {
