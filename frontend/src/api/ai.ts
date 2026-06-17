@@ -1,5 +1,7 @@
 import { api } from './client'
 
+export type SummaryPeriod = 'hour' | 'day' | 'week' | 'month' | 'year' | 'all'
+
 export interface AiConvoMessage {
   id: string
   role: 'USER' | 'ASSISTANT'
@@ -12,8 +14,9 @@ export const aiApi = {
   status: () =>
     api.get<{ data: { enabled: boolean } }>('/ai/status'),
 
-  summary: (chatId: string) =>
-    api.post<{ data: { summary: string; messageCount: number } }>(`/ai/chats/${chatId}/summary`),
+  summary: (chatId: string, period: SummaryPeriod = 'all') =>
+    api.post<{ data: { summary: string; messageCount: number; period: SummaryPeriod } }>(
+      `/ai/chats/${chatId}/summary`, { period }),
 
   replies: (chatId: string) =>
     api.post<{ data: { replies: string[] } }>(`/ai/chats/${chatId}/replies`),

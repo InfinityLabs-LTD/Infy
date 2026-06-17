@@ -21,13 +21,26 @@ const aiRoutes: FastifyPluginAsync = async (app) => {
     return { data: { enabled: await aiAvailable(app.prisma) } }
   })
 
-  // POST /ai/chats/:chatId/summary — сводка
+  // POST /ai/chats/:chatId/summary — сводка (с выбором периода)
   app.post('/chats/:chatId/summary', {
-    schema: { tags: ['AI'], summary: 'Summarize chat (AI)', security: [{ bearerAuth: [] }] },
+    schema: {
+      tags: ['AI'],
+      summary: 'Summarize chat (AI)',
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        properties: {
+          period: { type: 'string', enum: ['hour', 'day', 'week', 'month', 'year', 'all'] },
+        },
+      },
+    },
   }, async (request) => {
     const { chatId } = request.params as { chatId: string }
+    const { period } = z
+      .object({ period: z.enum(['hour', 'day', 'week', 'month', 'year', 'all']).default('all') })
+      .parse(request.body ?? {})
     const userId = BigInt(request.user.sub)
-    return { data: await summarizeChat(app.prisma, chatId, userId) }
+    return { data: await summarizeChat(app.prisma, chatId, userId, period) }
   })
 
   // POST /ai/chats/:chatId/replies — умные варианты ответа

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { aiApi, AiConvoMessage } from '@/api/ai'
+import { aiApi, AiConvoMessage, SummaryPeriod } from '@/api/ai'
 import { Spinner } from '@/components/ui/Spinner'
 
 interface Props {
@@ -26,6 +26,7 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
   const [summary, setSummary] = useState<string | null>(null)
   const [summaryCount, setSummaryCount] = useState(0)
   const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryPeriod, setSummaryPeriod] = useState<SummaryPeriod>('all')
   const [replies, setReplies] = useState<string[] | null>(null)
   const [repliesLoading, setRepliesLoading] = useState(false)
 
@@ -73,12 +74,18 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
   }
 
   // ── Сводка / Ответы ──
-  async function loadSummary() {
+  async function loadSummary(period: SummaryPeriod = summaryPeriod) {
     setSummaryLoading(true); setError(null)
     try {
-      const r = await aiApi.summary(chatId)
+      const r = await aiApi.summary(chatId, period)
       setSummary(r.data.data.summary); setSummaryCount(r.data.data.messageCount)
     } catch (e) { setError(describeError(e)) } finally { setSummaryLoading(false) }
+  }
+
+  function selectPeriod(period: SummaryPeriod) {
+    if (period === summaryPeriod && summary !== null) return
+    setSummaryPeriod(period)
+    loadSummary(period)
   }
   async function loadReplies() {
     setRepliesLoading(true); setError(null)
@@ -238,6 +245,23 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
         {/* ── Вкладка: Сводка ── */}
         {tab === 'summary' && (
           <div className="flex-1 min-h-0 overflow-y-auto p-3">
+            {/* Выбор периода сводки */}
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {([
+                ['hour', 'Час'], ['day', 'День'], ['week', 'Неделя'],
+                ['month', 'Месяц'], ['year', 'Год'], ['all', 'Весь чат'],
+              ] as [SummaryPeriod, string][]).map(([p, label]) => (
+                <button key={p} onClick={() => selectPeriod(p)} disabled={summaryLoading}
+                  className="px-3 py-1 rounded-full text-[12px] font-medium transition-colors disabled:opacity-50"
+                  style={{
+                    background: summaryPeriod === p ? 'var(--grad-own)' : 'var(--glass-3)',
+                    color: summaryPeriod === p ? '#fff' : 'rgba(255,255,255,0.6)',
+                    boxShadow: summaryPeriod === p ? 'var(--glow-primary)' : 'none',
+                  }}>
+                  {label}
+                </button>
+              ))}
+            </div>
             {summaryLoading ? (
               <div className="flex flex-col items-center justify-center py-12 gap-2">
                 <Spinner size={22} /><p className="text-xs" style={{ color: 'var(--text-low)' }}>Анализирую переписку…</p>
@@ -249,7 +273,7 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
                 </div>
                 <div className="flex items-center justify-between mt-3 px-1">
                   <span className="text-[11px]" style={{ color: 'var(--text-low)' }}>{summaryCount} сообщ. проанализировано</span>
-                  <button onClick={loadSummary} className="text-xs transition-colors hover:text-white" style={{ color: '#C084FC' }}>Обновить</button>
+                  <button onClick={() => loadSummary()} className="text-xs transition-colors hover:text-white" style={{ color: '#C084FC' }}>Обновить</button>
                 </div>
               </motion.div>
             ) : null}

@@ -32,9 +32,15 @@ async function buildTranscript(
   chatId: string,
   userId: bigint,
   limit: number,
+  since?: Date | null,
 ): Promise<{ transcript: string; count: number; myNickname: string }> {
   const rows = await prisma.message.findMany({
-    where: { chatId, deletedAt: null, type: { not: 'SYSTEM' } },
+    where: {
+      chatId,
+      deletedAt: null,
+      type: { not: 'SYSTEM' },
+      ...(since ? { createdAt: { gte: since } } : {}),
+    },
     include: { sender: { select: { id: true, nickname: true } } },
     orderBy: { id: 'desc' },
     take: limit,
@@ -361,15 +367,38 @@ export async function askInChat(
 
 // ── Лёгкие фичи без диалога: сводка и умные ответы ────────────
 
+// Период сводки и соответствующая граница «с какого момента» брать сообщения.
+export type SummaryPeriod = 'hour' | 'day' | 'week' | 'month' | 'year' | 'all'
+
+function periodSince(period: SummaryPeriod): Date | null {
+  if (period === 'all') return null
+  const now = Date.now()
+  const ms: Record<Exclude<SummaryPeriod, 'all'>, number> = {
+    hour: 3600_000,
+    day: 86_400_000,
+    week: 7 * 86_400_000,
+    month: 30 * 86_400_000,
+    year: 365 * 86_400_000,
+  }
+  return new Date(now - ms[period])
+}
+
 export async function summarizeChat(
   prisma: PrismaClient,
   chatId: string,
   userId: bigint,
-): Promise<{ summary: string; messageCount: number }> {
+  period: SummaryPeriod = 'all',
+): Promise<{ summary: string; messageCount: number; period: SummaryPeriod }> {
   await assertMember(prisma, chatId, userId)
   const config = await requireConfig(prisma)
-  const { transcript, count } = await buildTranscript(prisma, chatId, userId, 200)
-  if (count === 0) return { summary: 'В этом чате пока нет сообщений.', messageCount: 0 }
+  const since = periodSince(period)
+  // Для коротких окон сообщений мало; для «всего чата» поднимаем потолок.
+  const limit = period === 'all' || period === 'year' ? 500 : 300
+  const { transcript, count } = await buildTranscript(prisma, chatId, userId, limit, since)
+  if (count === 0) {
+    const empty = since ? 'За выбранный период нет сообщений.' : 'В этом чате пока нет сообщений.'
+    return { summary: empty, messageCount: 0, period }
+  }
 
   const result = await runAgent({
     config,
@@ -381,7 +410,7 @@ export async function summarizeChat(
     handlers: {},
     webSearch: false,
   })
-  return { summary: result.text || 'Не удалось составить сводку.', messageCount: count }
+  return { summary: result.text || 'Не удалось составить сводку.', messageCount: count, period }
 }
 
 export async function suggestReplies(
