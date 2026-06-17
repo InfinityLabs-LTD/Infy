@@ -20,6 +20,10 @@ import { Spinner } from '@/components/ui/Spinner'
 import { useMediaRecorder } from '@/hooks/useMediaRecorder'
 import { callController } from '@/lib/callController'
 import { useCallStore } from '@/store/call'
+import {
+  addPendingJob, getPendingJob, removePendingJob, setPendingExpireHandler,
+  startPendingSweeper, sweepExpired, type PendingJob, type PendingLocal,
+} from '@/lib/pendingMedia'
 
 const TYPING_DEBOUNCE_MS = 1500
 const GROUP_WINDOW_MS = 60_000
@@ -108,7 +112,7 @@ export function ChatPage() {
   const myUser = useAuthStore(s => s.user)
   const myUsername = myUser?.username
 
-  const { chats, messages, nextCursor, socketReady, setMessages, prependMessages, setTyping, upsertChat, resetUnread, updateMessage, removeChat, addMessage, replaceMessage, setMessageFailed } = useChatStore()
+  const { chats, messages, nextCursor, socketReady, setMessages, prependMessages, setTyping, upsertChat, resetUnread, updateMessage, removeChat, addMessage, replaceMessage, setMessageFailed, setMessageStatus, removeMessage } = useChatStore()
 
   // ── Resolve partnerId → chatId ──────────────────────────────
   const [chatId, setChatId] = useState<string | null>(() => {
@@ -218,6 +222,16 @@ export function ChatPage() {
   useEffect(() => {
     return () => { setStaged(prev => { prev.forEach(s => s.previewUrl && URL.revokeObjectURL(s.previewUrl)); return [] }) }
   }, [chatId])
+
+  // Реестр оптимистичных отправок: если задание истекло (прошло больше суток),
+  // убираем неотправленное сообщение из ленты. Чистку запускаем на маунте.
+  useEffect(() => {
+    setPendingExpireHandler((job) => {
+      useChatStore.getState().removeMessage(job.chatId, job.tempId)
+    })
+    startPendingSweeper()
+    sweepExpired()
+  }, [])
 
   // Mark read when new messages arrive while chat is open
   const chatMessagesLen = chatMessages.length
@@ -410,15 +424,10 @@ export function ChatPage() {
   // Сообщение сразу появляется у отправителя (со значком таймера), поле
   // ввода остаётся доступным, а файл(ы) грузятся в фоне. По завершении
   // оптимистичный плейсхолдер заменяется реальным сообщением с сервера.
+  // При ошибке сообщение помечается как неотправленное — повтор по тапу;
+  // исходные файлы хранятся в памяти сутки (см. lib/pendingMedia).
 
-  type LocalAttachment = {
-    file: File
-    kind: 'image' | 'video' | 'document'
-    hint?: 'circle_video' | 'document'
-    previewUrl?: string
-  }
-
-  function buildOptimisticAttachment(la: LocalAttachment, idx: number): MessageAttachment {
+  function buildOptimisticAttachment(la: PendingLocal, idx: number): MessageAttachment {
     return {
       id: `temp-att-${idx}`,
       storageKey: '',
@@ -435,12 +444,46 @@ export function ChatPage() {
     }
   }
 
-  // Создаёт оптимистичное сообщение, добавляет его в ленту и запускает фоновую
-  // загрузку + отправку. Не блокирует композер.
+  // Загружает файлы задания и отправляет сообщение. На успехе — заменяет
+  // плейсхолдер реальным сообщением и снимает задание из реестра; на ошибке —
+  // помечает сообщение как неотправленное (задание остаётся для повтора).
+  async function runJob(job: PendingJob, optimistic: Message) {
+    try {
+      const uploads = await Promise.all(
+        job.locals.map(l => mediaApi.upload(l.file, l.hint).then(r => r.data.data)),
+      )
+      // Помечаем плейсхолдер реальными storageKey'ями: если широковещание
+      // по сокету придёт раньше REST-ответа, addMessage сопоставит его с
+      // плейсхолдером и не покажет дубль.
+      updateMessage({
+        ...optimistic,
+        pending: true,
+        failed: false,
+        attachments: (optimistic.attachments ?? []).map((a, i) => ({
+          ...a, storageKey: uploads[i]?.storageKey ?? a.storageKey,
+        })),
+      })
+      let real: Message
+      if (job.msgType === 'ALBUM') {
+        const res = await chatApi.sendAlbum(job.chatId, uploads, job.caption || undefined, job.replyToId)
+        real = res.data.data
+      } else {
+        const res = await chatApi.sendMedia(job.chatId, job.msgType, uploads[0])
+        real = res.data.data
+      }
+      replaceMessage(job.chatId, job.tempId, real)
+      removePendingJob(job.tempId)  // освобождает и object URL'ы предпросмотра
+    } catch (err) {
+      setMessageFailed(job.chatId, job.tempId, true)
+      handleSendError(err)
+    }
+  }
+
+  // Создаёт оптимистичное сообщение, регистрирует задание и запускает отправку.
   function backgroundSendMedia(
     targetChatId: string,
-    msgType: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'CIRCLE_VIDEO' | 'FILE' | 'ALBUM',
-    locals: LocalAttachment[],
+    msgType: PendingJob['msgType'],
+    locals: PendingLocal[],
     opts?: { caption?: string; replyToId?: string },
   ) {
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -462,37 +505,24 @@ export function ChatPage() {
     }
     addMessage(optimistic)
 
-    const revokePreviews = () => locals.forEach(l => l.previewUrl && URL.revokeObjectURL(l.previewUrl))
+    const job: PendingJob = {
+      tempId, chatId: targetChatId, msgType, locals,
+      caption: opts?.caption, replyToId: opts?.replyToId, createdAt: Date.now(),
+    }
+    addPendingJob(job)
+    void runJob(job, optimistic)
+  }
 
-    ;(async () => {
-      try {
-        const uploads = await Promise.all(
-          locals.map(l => mediaApi.upload(l.file, l.hint).then(r => r.data.data)),
-        )
-        // Помечаем плейсхолдер реальными storageKey'ями: если широковещание
-        // по сокету придёт раньше REST-ответа, addMessage сопоставит его с
-        // плейсхолдером и не покажет дубль.
-        updateMessage({
-          ...optimistic,
-          attachments: (optimistic.attachments ?? []).map((a, i) => ({
-            ...a, storageKey: uploads[i]?.storageKey ?? a.storageKey,
-          })),
-        })
-        let real: Message
-        if (msgType === 'ALBUM') {
-          const res = await chatApi.sendAlbum(targetChatId, uploads, opts?.caption || undefined, opts?.replyToId)
-          real = res.data.data
-        } else {
-          const res = await chatApi.sendMedia(targetChatId, msgType, uploads[0])
-          real = res.data.data
-        }
-        replaceMessage(targetChatId, tempId, real)
-        revokePreviews()
-      } catch (err) {
-        setMessageFailed(targetChatId, tempId, true)
-        handleSendError(err)
-      }
-    })()
+  // Повтор отправки по тапу на неотправленном сообщении.
+  function retrySend(msg: Message) {
+    const job = getPendingJob(msg.id)
+    if (!job) {
+      // Задание истекло (прошло больше суток) — просто убираем плашку.
+      removeMessage(msg.chatId, msg.id)
+      return
+    }
+    setMessageStatus(msg.chatId, msg.id, { pending: true, failed: false })
+    void runJob(job, msg)
   }
 
   function sendMediaFile(file: File, msgType: 'IMAGE' | 'VIDEO') {
@@ -539,7 +569,7 @@ export function ChatPage() {
     const replyToId = replyTo?.id
     const items = staged
 
-    const locals: LocalAttachment[] = items.map(s => ({
+    const locals: PendingLocal[] = items.map(s => ({
       file: s.file,
       kind: s.kind,
       hint: s.kind === 'document' ? 'document' : undefined,
@@ -1054,6 +1084,7 @@ export function ChatPage() {
                         partnerReadAt={chat?.partnerReadAt ?? null}
                         onReply={startReply}
                         onEdit={startEdit}
+                        onRetry={retrySend}
                         onJumpTo={scrollToMessage}
                         onReactError={() => {
                           setReactLimitToast(true)

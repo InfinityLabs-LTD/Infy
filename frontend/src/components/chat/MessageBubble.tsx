@@ -113,6 +113,7 @@ interface Props {
   onEdit?: (msg: Message) => void
   onReactError?: () => void
   onJumpTo?: (msgId: string) => void
+  onRetry?: (msg: Message) => void
 }
 
 // Каскадные радиусы группы: внешние углы 20px, примыкающие и «хвост» — 6px.
@@ -128,7 +129,7 @@ function bubbleRadius(isOwn: boolean, pos: GroupPos): string {
   return `${tl} ${R} ${R} ${r}`
 }
 
-export function MessageBubble({ message, showSenderName, groupPos = 'single', partnerLastReadMessageId, partnerReadAt, onReply, onEdit, onReactError, onJumpTo }: Props) {
+export function MessageBubble({ message, showSenderName, groupPos = 'single', partnerLastReadMessageId, partnerReadAt, onReply, onEdit, onReactError, onJumpTo, onRetry }: Props) {
   const myId = useAuthStore((s) => s.user?.id)
   const isOwn = message.sender.id === myId
   const { updateMessage, removeMessage } = useChatStore()
@@ -208,6 +209,8 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
 
   // На десктопе открываем по обычному клику (если не было выделения текста и это не медиа)
   function onClick() {
+    // Неотправленное сообщение — тап повторяет отправку.
+    if (message.failed) { onRetry?.(message); return }
     if (hasMedia) return
     if (window.matchMedia('(pointer: fine)').matches && !window.getSelection()?.toString()) {
       openMenu()
@@ -275,11 +278,18 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
       )}
       <span className="text-[11px]" style={{ color: 'var(--text-low)' }}>{time}</span>
       {isOwn && message.failed ? (
-        // Отправка не удалась
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.2"
-          strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
+        // Отправка не удалась — тап по значку повторяет отправку
+        <button
+          onClick={(e) => { e.stopPropagation(); onRetry?.(message) }}
+          title="Не отправлено — нажмите, чтобы повторить"
+          className="flex items-center justify-center active:scale-90 transition-transform"
+          style={{ color: '#f87171' }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"
+            strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </button>
       ) : isOwn && message.pending ? (
         // Загружается в фоне — значок таймера (как в Telegram)
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="2"

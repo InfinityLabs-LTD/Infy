@@ -108,6 +108,8 @@ interface ChatState {
   replaceMessage: (chatId: string, tempId: string, msg: Message) => void
   // Помечает оптимистичное сообщение как ошибочное (отправка не удалась).
   setMessageFailed: (chatId: string, tempId: string, failed: boolean) => void
+  // Меняет локальный статус отправки (для повтора: failed → pending).
+  setMessageStatus: (chatId: string, tempId: string, status: { pending?: boolean; failed?: boolean }) => void
   removeMessage: (chatId: string, id: string) => void
   resetUnread: (chatId: string) => void
   updatePartnerRead: (chatId: string, messageId: string, readAt?: string) => void
@@ -293,6 +295,16 @@ export const useChatStore = create<ChatState>((set) => ({
         ...s.messages,
         [chatId]: (s.messages[chatId] ?? []).map((m) =>
           m.id === tempId ? { ...m, failed, pending: failed ? false : m.pending } : m,
+        ),
+      },
+    })),
+
+  setMessageStatus: (chatId, tempId, status) =>
+    set((s) => ({
+      messages: {
+        ...s.messages,
+        [chatId]: (s.messages[chatId] ?? []).map((m) =>
+          m.id === tempId ? { ...m, ...status } : m,
         ),
       },
     })),
