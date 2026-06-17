@@ -6,7 +6,7 @@ import { useAuthStore } from '@/store/auth'
 import { Avatar } from '@/components/ui/Avatar'
 import { Spinner } from '@/components/ui/Spinner'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
-import { ImageMessage } from '@/components/chat/ImageMessage'
+import { createPortal } from 'react-dom'
 import { VideoMessage } from '@/components/chat/VideoMessage'
 import { AudioMessage } from '@/components/chat/AudioMessage'
 import { CircleVideoMessage } from '@/components/chat/CircleVideoMessage'
@@ -246,7 +246,7 @@ function AttachmentView({ att, type, isOwner }: { att: AdminAttachment; type: st
   const thumb = att.thumbnailKey ? mediaUrl(att.thumbnailKey) : null
 
   if (type === 'IMAGE' || att.mimeType.startsWith('image/')) {
-    return <div className="max-w-[260px]"><ImageMessage url={url} width={att.width} height={att.height} /></div>
+    return <div className="max-w-[260px]"><AdminImage url={url} thumb={thumb ?? url} width={att.width} height={att.height} /></div>
   }
   if (type === 'CIRCLE_VIDEO') {
     return <CircleVideoMessage url={url} thumbnailUrl={thumb} durationMs={att.durationMs} />
@@ -273,5 +273,52 @@ function AttachmentView({ att, type, isOwner }: { att: AdminAttachment; type: st
       </div>
       <Download size={15} className="shrink-0" style={{ color: 'var(--text-low)' }} />
     </a>
+  )
+}
+
+// ── Фото с полноэкранным просмотром (с крестиком) ────────────
+function AdminImage({ url, thumb, width, height }: {
+  url: string
+  thumb: string
+  width: number | null
+  height: number | null
+}) {
+  const [open, setOpen] = useState(false)
+  const aspect = width && height ? width / height : 1
+  const displayW = 240
+  const displayH = Math.round(displayW / aspect)
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="block rounded-xl overflow-hidden hover:opacity-90 transition-opacity"
+        style={{ width: displayW, height: Math.min(displayH, 320) }}
+      >
+        <img src={thumb} alt="" className="w-full h-full object-cover" loading="lazy" />
+      </button>
+
+      {open && createPortal(
+        <div className="fixed inset-0 z-[60] bg-black/95 flex flex-col" onClick={() => setOpen(false)}>
+          <div className="flex items-center justify-end px-4 py-3 shrink-0"
+            style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+            onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setOpen(false)}
+              title="Закрыть"
+              className="w-11 h-11 rounded-full flex items-center justify-center text-white bg-white/10 hover:bg-white/20 active:scale-90 transition-all"
+            >
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+          <div className="flex-1 flex items-center justify-center px-2 pb-4 min-h-0" onClick={(e) => e.stopPropagation()}>
+            <img src={url} alt="" className="max-w-full max-h-full object-contain rounded-lg" />
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
   )
 }

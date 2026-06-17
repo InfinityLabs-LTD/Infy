@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Message, MessageAttachment } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { chatApi } from '@/api/chat'
@@ -10,6 +10,7 @@ import { VideoMessage } from './VideoMessage'
 import { AudioMessage } from './AudioMessage'
 import { CircleVideoMessage } from './CircleVideoMessage'
 import { MarkdownText } from './MarkdownText'
+import { useSwipeReply } from '@/hooks/useSwipeReply'
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥']
 
@@ -137,12 +138,12 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
   const movedRef = useRef(false)
 
   // Свайп для ответа: свои сообщения тянем влево, чужие — вправо.
-  const [swipeX, setSwipeX] = useState(0)
-  const swipeStart = useRef<{ x: number; y: number } | null>(null)
-  const swipeActive = useRef(false)       // зафиксировали горизонтальный жест
-  const swipeTriggered = useRef(false)    // уже сработал виброотклик на пороге
-  const SWIPE_THRESHOLD = 56               // дистанция, после которой свайп засчитывается
-  const SWIPE_MAX = 80                     // максимальное визуальное смещение
+  const swipeDir = isOwn ? -1 : 1
+  const swipe = useSwipeReply(
+    swipeDir,
+    () => onReply?.(message),
+    () => { if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null } },
+  )
 
   const time = new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const att = message.attachments?.[0]
@@ -164,16 +165,15 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
     openMenu()
   }
 
-  // Направление свайпа: свои — влево (-1), чужие — вправо (+1)
-  const swipeDir = isOwn ? -1 : 1
+  // У медиа-сообщений тап оставляем самому медиа (плей/зум) — меню только по долгому нажатию
+  const hasMedia = !!att
 
   // На тач-устройствах меню открывается только по удержанию — короткий тап игнорируется.
+  // Сам свайп-жест обрабатывает хук useSwipeReply; здесь — только hold-таймер меню.
   function onPointerDown(e: React.PointerEvent) {
     movedRef.current = false
+    swipe.handlers.onPointerDown(e)
     if (e.pointerType === 'touch') {
-      swipeStart.current = { x: e.clientX, y: e.clientY }
-      swipeActive.current = false
-      swipeTriggered.current = false
       if (holdTimer.current) clearTimeout(holdTimer.current)
       holdTimer.current = setTimeout(openMenuFromHold, 500)
     }
@@ -182,50 +182,16 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
   function onPointerMove(e: React.PointerEvent) {
     movedRef.current = true
     if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null }
-
-    if (e.pointerType !== 'touch' || !swipeStart.current) return
-    const dx = e.clientX - swipeStart.current.x
-    const dy = e.clientY - swipeStart.current.y
-
-    // Пока не зафиксирован жест — определяем, горизонталь это или вертикальный скролл
-    if (!swipeActive.current) {
-      if (Math.abs(dy) > Math.abs(dx)) { swipeStart.current = null; return } // вертикальный скролл
-      if (Math.abs(dx) < 8) return
-      swipeActive.current = true
-    }
-
-    // Тянем только в «правильную» сторону
-    const dist = dx * swipeDir
-    if (dist <= 0) { setSwipeX(0); return }
-    const offset = Math.min(dist, SWIPE_MAX)
-    setSwipeX(offset * swipeDir)
-
-    // Виброотклик один раз при достижении порога
-    if (offset >= SWIPE_THRESHOLD && !swipeTriggered.current) {
-      swipeTriggered.current = true
-      try { navigator.vibrate?.(15) } catch {}
-    } else if (offset < SWIPE_THRESHOLD) {
-      swipeTriggered.current = false
-    }
+    swipe.handlers.onPointerMove(e)
   }
 
-  // У медиа-сообщений тап оставляем самому медиа (плей/зум) — меню только по долгому нажатию
-  const hasMedia = !!att
-
-  function onPointerUp() {
+  function onPointerUp(e: React.PointerEvent) {
     // Палец отпустили раньше срабатывания таймера — это короткий тап, меню не открываем
     if (holdTimer.current) {
       clearTimeout(holdTimer.current)
       holdTimer.current = null
     }
-    // Свайп засчитан — открываем ответ на сообщение
-    if (swipeActive.current && Math.abs(swipeX) >= SWIPE_THRESHOLD) {
-      onReply?.(message)
-    }
-    swipeStart.current = null
-    swipeActive.current = false
-    swipeTriggered.current = false
-    setSwipeX(0)
+    swipe.handlers.onPointerUp(e)
   }
 
   // На десктопе открываем по обычному клику (если не было выделения текста и это не медиа)
@@ -358,7 +324,7 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
         {att && message.type !== 'ALBUM' && (
           <div className={isMediaOnly ? '' : 'mb-1.5'}>
             {message.type === 'IMAGE' && (
-              <ImageMessage url={mediaUrl(att.publicUrl, att.storageKey)} width={att.width} height={att.height} />
+              <ImageMessage att={att} />
             )}
             {message.type === 'VIDEO' && (
               <VideoMessage
@@ -392,11 +358,12 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
 
   // ── AI-сообщения: вопрос к ИИ (AI_QUERY) и ответ ИИ (AI) ──
   // Рендерятся как сообщения (видят оба), но с явной стилизацией под Infy AI.
+  // На них тоже можно отвечать (свайпом) — это комментирование, на вызов ИИ не влияет.
   if (message.type === 'AI' || message.type === 'AI_QUERY') {
-    return <AiMessage message={message} isOwn={isOwn} time={time} />
+    return <AiMessage message={message} isOwn={isOwn} time={time} onReply={onReply} onJumpTo={onJumpTo} />
   }
 
-  const swipeProgress = Math.min(Math.abs(swipeX) / SWIPE_THRESHOLD, 1)
+  const swipeProgress = swipe.progress
 
   return (
     <>
@@ -421,11 +388,9 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
           ref={bubbleRef}
           className={`group flex items-end gap-1.5 select-none ${isOwn ? 'justify-end' : 'justify-start'} cursor-pointer`}
           style={{
-            transform: `translateX(${swipeX}px)`,
-            transition: swipeX === 0 ? 'transform 0.18s ease-out' : 'none',
+            ...swipe.transformStyle,
             WebkitUserSelect: 'none',
             WebkitTouchCallout: 'none',
-            touchAction: 'pan-y',
           }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -466,31 +431,85 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
 // Оба видны обоим участникам; вопрос помечен как обращение к ИИ, чтобы
 // собеседник не принял его за обычное сообщение.
 
-function AiMessage({ message, isOwn, time }: { message: Message; isOwn: boolean; time: string }) {
+function AiMessage({ message, isOwn, time, onReply, onJumpTo }: {
+  message: Message
+  isOwn: boolean
+  time: string
+  onReply?: (msg: Message) => void
+  onJumpTo?: (msgId: string) => void
+}) {
   const isQuery = message.type === 'AI_QUERY'
+  // Вопрос к ИИ висит на стороне автора, ответ ИИ — всегда слева.
+  const swipeDir = isQuery ? (isOwn ? -1 : 1) : 1
+  const swipe = useSwipeReply(swipeDir, () => onReply?.(message))
+
+  // Превью цитируемого сообщения (если на это AI-сообщение отвечают через replyTo, оно
+  // показывается в обычном пузыре; здесь — если уже сам AI-вопрос был ответом).
+  const replyPreview = message.replyTo && (
+    <button
+      onClick={(e) => { e.stopPropagation(); onJumpTo?.(message.replyTo!.id) }}
+      className="flex flex-col items-start text-left w-full mb-1.5 pl-2 pr-2 py-1 rounded-lg"
+      style={{ background: 'rgba(0,0,0,0.18)', borderLeft: '2px solid var(--accent)' }}
+    >
+      <span className="text-[11px] font-semibold leading-tight" style={{ color: '#C084FC' }}>
+        {message.replyTo.sender.nickname}
+      </span>
+      <span className="text-[12px] truncate max-w-full opacity-80" style={{ color: 'rgba(255,255,255,0.75)' }}>
+        {replyPreviewText(message.replyTo)}
+      </span>
+    </button>
+  )
+
+  // Индикатор «ответить», проявляющийся при свайпе
+  const replyHint = (
+    <div
+      className="absolute top-0 bottom-0 flex items-center pointer-events-none"
+      style={{
+        [swipeDir < 0 ? 'right' : 'left']: 8,
+        opacity: swipe.progress,
+        transform: `scale(${0.6 + swipe.progress * 0.4})`,
+      }}
+    >
+      <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'var(--accent)' }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 14 4 9 9 4" />
+          <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+        </svg>
+      </div>
+    </div>
+  )
 
   if (isQuery) {
     // Вопрос к ИИ — на стороне автора, с бейджем «Вопрос Infy AI».
     return (
-      <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mt-3 msg-appear`}>
-        <div className="flex flex-col gap-0.5" style={{ maxWidth: '78%', alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
-          <div
-            className="px-3 py-2 text-sm"
-            style={{
-              borderRadius: isOwn ? '20px 6px 6px 20px' : '6px 20px 20px 6px',
-              background: 'rgba(168,85,247,0.10)',
-              border: '1px solid rgba(168,85,247,0.35)',
-            }}
-          >
-            <div className="flex items-center gap-1.5 mb-1" style={{ color: '#C084FC' }}>
-              <AiGlyph />
-              <span className="text-[11px] font-semibold tracking-wide">Вопрос Infy AI</span>
+      <div className="relative msg-appear mt-3">
+        {replyHint}
+        <div
+          className={`flex ${isOwn ? 'justify-end' : 'justify-start'} select-none`}
+          style={swipe.transformStyle}
+          {...swipe.handlers}
+          onPointerCancel={swipe.handlers.onPointerUp}
+        >
+          <div className="flex flex-col gap-0.5" style={{ maxWidth: '78%', alignItems: isOwn ? 'flex-end' : 'flex-start' }}>
+            <div
+              className="px-3 py-2 text-sm"
+              style={{
+                borderRadius: isOwn ? '20px 6px 6px 20px' : '6px 20px 20px 6px',
+                background: 'rgba(168,85,247,0.10)',
+                border: '1px solid rgba(168,85,247,0.35)',
+              }}
+            >
+              {replyPreview}
+              <div className="flex items-center gap-1.5 mb-1" style={{ color: '#C084FC' }}>
+                <AiGlyph />
+                <span className="text-[11px] font-semibold tracking-wide">Вопрос Infy AI</span>
+              </div>
+              <p className="whitespace-pre-wrap break-words leading-relaxed" style={{ color: 'rgba(255,255,255,0.92)' }}>
+                {message.content}
+              </p>
             </div>
-            <p className="whitespace-pre-wrap break-words leading-relaxed" style={{ color: 'rgba(255,255,255,0.92)' }}>
-              {message.content}
-            </p>
+            <span className="text-[11px] px-1" style={{ color: 'var(--text-low)' }}>{time}</span>
           </div>
-          <span className="text-[11px] px-1" style={{ color: 'var(--text-low)' }}>{time}</span>
         </div>
       </div>
     )
@@ -499,33 +518,42 @@ function AiMessage({ message, isOwn, time }: { message: Message; isOwn: boolean;
   // Ответ ИИ — пузырь Infy AI слева, с аватаркой-иконкой и markdown.
   const pending = !message.content
   return (
-    <div className="flex justify-start mt-2 msg-appear">
-      <div className="flex items-end gap-2" style={{ maxWidth: '85%' }}>
-        <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mb-0.5"
-          style={{ background: 'linear-gradient(135deg, #A855F7, #7C3AED)' }}>
-          <AiGlyph color="white" />
-        </div>
-        <div className="flex flex-col gap-0.5 min-w-0">
-          <div
-            className="px-3 py-2 text-sm w-full overflow-hidden"
-            style={{
-              borderRadius: '6px 18px 18px 18px',
-              background: 'var(--glass-2, rgba(255,255,255,0.06))',
-              border: '1px solid rgba(168,85,247,0.25)',
-            }}
-          >
-            <div className="flex items-center gap-1.5 mb-1" style={{ color: '#C084FC' }}>
-              <span className="text-[11px] font-semibold tracking-wide">Infy AI</span>
-            </div>
-            {pending ? (
-              <TypingDots />
-            ) : (
-              <div className="text-sm" style={{ color: 'rgba(255,255,255,0.92)' }}>
-                <MarkdownText text={message.content ?? ''} />
-              </div>
-            )}
+    <div className="relative msg-appear mt-2">
+      {replyHint}
+      <div
+        className="flex justify-start select-none"
+        style={swipe.transformStyle}
+        {...swipe.handlers}
+        onPointerCancel={swipe.handlers.onPointerUp}
+      >
+        <div className="flex items-end gap-2" style={{ maxWidth: '85%' }}>
+          <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mb-0.5"
+            style={{ background: 'linear-gradient(135deg, #A855F7, #7C3AED)' }}>
+            <AiGlyph color="white" />
           </div>
-          <span className="text-[11px] px-1" style={{ color: 'var(--text-low)' }}>{time}</span>
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <div
+              className="px-3 py-2 text-sm w-full overflow-hidden"
+              style={{
+                borderRadius: '6px 18px 18px 18px',
+                background: 'var(--glass-2, rgba(255,255,255,0.06))',
+                border: '1px solid rgba(168,85,247,0.25)',
+              }}
+            >
+              {replyPreview}
+              <div className="flex items-center gap-1.5 mb-1" style={{ color: '#C084FC' }}>
+                <span className="text-[11px] font-semibold tracking-wide">Infy AI</span>
+              </div>
+              {pending ? (
+                <TypingDots />
+              ) : (
+                <div className="text-sm" style={{ color: 'rgba(255,255,255,0.92)' }}>
+                  <MarkdownText text={message.content ?? ''} />
+                </div>
+              )}
+            </div>
+            <span className="text-[11px] px-1" style={{ color: 'var(--text-low)' }}>{time}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -874,7 +902,7 @@ function replyPreviewText(reply: NonNullable<Message['replyTo']>): string {
   return labels[reply.type] ?? 'Вложение'
 }
 
-function mediaUrl(publicUrl: string | null | undefined, storageKey: string): string {
+export function mediaUrl(publicUrl: string | null | undefined, storageKey: string): string {
   if (publicUrl && !publicUrl.includes('minio:') && !publicUrl.includes('localhost:9000')) {
     if (publicUrl.startsWith('/')) return withToken(publicUrl)
     return publicUrl
@@ -944,8 +972,12 @@ function AlbumGrid({ attachments }: { attachments: MessageAttachment[] }) {
       )}
       {docs.map(a => <FileAttachment key={a.id} att={a} />)}
 
-      {lightbox !== null && createPortal(
-        <MediaLightbox items={media} index={lightbox} onClose={() => setLightbox(null)} onIndex={setLightbox} />,
+      {createPortal(
+        <AnimatePresence>
+          {lightbox !== null && (
+            <MediaLightbox items={media} index={lightbox} onClose={() => setLightbox(null)} onIndex={setLightbox} />
+          )}
+        </AnimatePresence>,
         document.body,
       )}
     </div>
@@ -981,7 +1013,8 @@ function FileAttachment({ att }: { att: MessageAttachment }) {
 }
 
 // ── Лайтбокс на почти весь экран с навигацией по альбому ──
-function MediaLightbox({ items, index, onClose, onIndex }: {
+// Используется и альбомом (несколько вложений), и одиночным фото/видео.
+export function MediaLightbox({ items, index, onClose, onIndex }: {
   items: MessageAttachment[]
   index: number
   onClose: () => void
@@ -995,13 +1028,24 @@ function MediaLightbox({ items, index, onClose, onIndex }: {
   const hasNext = index < items.length - 1
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/95 flex flex-col" onClick={onClose}>
-      {/* Верхняя панель с крестиком */}
-      <div className="flex items-center justify-between px-4 py-3 shrink-0" onClick={(e) => e.stopPropagation()}>
-        <span className="text-sm text-white/70">{items.length > 1 ? `${index + 1} / ${items.length}` : ''}</span>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="fixed inset-0 z-[60] bg-black/95 flex flex-col"
+      onClick={onClose}
+    >
+      {/* Верхняя панель с крестиком (учитываем вырез/safe-area сверху) */}
+      <div
+        className="flex items-center justify-between px-4 py-3 shrink-0"
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="text-sm text-white/70 select-none">{items.length > 1 ? `${index + 1} / ${items.length}` : ''}</span>
         <button
           onClick={onClose}
-          className="w-10 h-10 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+          className="w-11 h-11 rounded-full flex items-center justify-center text-white bg-white/10 hover:bg-white/20 active:scale-90 transition-all"
           title="Закрыть"
         >
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1035,6 +1079,6 @@ function MediaLightbox({ items, index, onClose, onIndex }: {
           </button>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }
