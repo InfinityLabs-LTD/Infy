@@ -31,16 +31,22 @@ const aiRoutes: FastifyPluginAsync = async (app) => {
         type: 'object',
         properties: {
           period: { type: 'string', enum: ['hour', 'day', 'week', 'month', 'year', 'all'] },
+          from: { type: 'string', format: 'date-time' },
+          to: { type: 'string', format: 'date-time' },
         },
       },
     },
   }, async (request) => {
     const { chatId } = request.params as { chatId: string }
-    const { period } = z
-      .object({ period: z.enum(['hour', 'day', 'week', 'month', 'year', 'all']).default('all') })
+    const range = z
+      .object({
+        period: z.enum(['hour', 'day', 'week', 'month', 'year', 'all']).optional(),
+        from: z.string().datetime().optional(),
+        to: z.string().datetime().optional(),
+      })
       .parse(request.body ?? {})
     const userId = BigInt(request.user.sub)
-    return { data: await summarizeChat(app.prisma, chatId, userId, period) }
+    return { data: await summarizeChat(app.prisma, chatId, userId, range) }
   })
 
   // POST /ai/chats/:chatId/replies — умные варианты ответа

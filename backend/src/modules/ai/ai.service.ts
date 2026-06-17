@@ -33,13 +33,17 @@ async function buildTranscript(
   userId: bigint,
   limit: number,
   since?: Date | null,
+  until?: Date | null,
 ): Promise<{ transcript: string; count: number; myNickname: string }> {
+  const createdAt = since || until
+    ? { ...(since ? { gte: since } : {}), ...(until ? { lte: until } : {}) }
+    : undefined
   const rows = await prisma.message.findMany({
     where: {
       chatId,
       deletedAt: null,
       type: { not: 'SYSTEM' },
-      ...(since ? { createdAt: { gte: since } } : {}),
+      ...(createdAt ? { createdAt } : {}),
     },
     include: { sender: { select: { id: true, nickname: true } } },
     orderBy: { id: 'desc' },
@@ -383,21 +387,39 @@ function periodSince(period: SummaryPeriod): Date | null {
   return new Date(now - ms[period])
 }
 
+// Параметры периода: либо пресет, либо произвольный диапазон from/to (ISO).
+export interface SummaryRange {
+  period?: SummaryPeriod
+  from?: string | null
+  to?: string | null
+}
+
 export async function summarizeChat(
   prisma: PrismaClient,
   chatId: string,
   userId: bigint,
-  period: SummaryPeriod = 'all',
-): Promise<{ summary: string; messageCount: number; period: SummaryPeriod }> {
+  range: SummaryRange = {},
+): Promise<{ summary: string; messageCount: number; period: SummaryPeriod | 'custom' }> {
   await assertMember(prisma, chatId, userId)
   const config = await requireConfig(prisma)
-  const since = periodSince(period)
-  // Для коротких окон сообщений мало; для «всего чата» поднимаем потолок.
-  const limit = period === 'all' || period === 'year' ? 500 : 300
-  const { transcript, count } = await buildTranscript(prisma, chatId, userId, limit, since)
+
+  // Произвольный диапазон имеет приоритет над пресетом.
+  const fromDate = range.from ? new Date(range.from) : null
+  const toDate = range.to ? new Date(range.to) : null
+  const custom = Boolean(fromDate || toDate)
+  const period: SummaryPeriod = range.period ?? 'all'
+
+  const since = custom ? fromDate : periodSince(period)
+  const until = custom ? toDate : null
+  const filtered = custom || period !== 'all'
+  // Для коротких окон сообщений мало; для широких периодов поднимаем потолок.
+  const wide = custom || period === 'year' || period === 'all'
+  const limit = wide ? 500 : 300
+  const { transcript, count } = await buildTranscript(prisma, chatId, userId, limit, since, until)
+  const resultPeriod = custom ? 'custom' as const : period
   if (count === 0) {
-    const empty = since ? 'За выбранный период нет сообщений.' : 'В этом чате пока нет сообщений.'
-    return { summary: empty, messageCount: 0, period }
+    const empty = filtered ? 'За выбранный период нет сообщений.' : 'В этом чате пока нет сообщений.'
+    return { summary: empty, messageCount: 0, period: resultPeriod }
   }
 
   const result = await runAgent({
@@ -410,7 +432,7 @@ export async function summarizeChat(
     handlers: {},
     webSearch: false,
   })
-  return { summary: result.text || 'Не удалось составить сводку.', messageCount: count, period }
+  return { summary: result.text || 'Не удалось составить сводку.', messageCount: count, period: resultPeriod }
 }
 
 export async function suggestReplies(

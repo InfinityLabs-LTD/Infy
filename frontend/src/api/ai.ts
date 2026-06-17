@@ -2,6 +2,13 @@ import { api } from './client'
 
 export type SummaryPeriod = 'hour' | 'day' | 'week' | 'month' | 'year' | 'all'
 
+// Параметры периода сводки: пресет либо произвольный диапазон from/to (ISO).
+export interface SummaryRange {
+  period?: SummaryPeriod
+  from?: string
+  to?: string
+}
+
 export interface AiConvoMessage {
   id: string
   role: 'USER' | 'ASSISTANT'
@@ -14,9 +21,9 @@ export const aiApi = {
   status: () =>
     api.get<{ data: { enabled: boolean } }>('/ai/status'),
 
-  summary: (chatId: string, period: SummaryPeriod = 'all') =>
-    api.post<{ data: { summary: string; messageCount: number; period: SummaryPeriod } }>(
-      `/ai/chats/${chatId}/summary`, { period }),
+  summary: (chatId: string, range: SummaryRange = {}) =>
+    api.post<{ data: { summary: string; messageCount: number; period: SummaryPeriod | 'custom' } }>(
+      `/ai/chats/${chatId}/summary`, range),
 
   replies: (chatId: string) =>
     api.post<{ data: { replies: string[] } }>(`/ai/chats/${chatId}/replies`),

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { aiApi, AiConvoMessage, SummaryPeriod } from '@/api/ai'
+import { aiApi, AiConvoMessage, SummaryPeriod, SummaryRange } from '@/api/ai'
 import { Spinner } from '@/components/ui/Spinner'
 
 interface Props {
@@ -26,7 +26,10 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
   const [summary, setSummary] = useState<string | null>(null)
   const [summaryCount, setSummaryCount] = useState(0)
   const [summaryLoading, setSummaryLoading] = useState(false)
-  const [summaryPeriod, setSummaryPeriod] = useState<SummaryPeriod>('all')
+  // Выбор периода: пресет или произвольный диапазон. Анализ запускается кнопкой.
+  const [summaryPeriod, setSummaryPeriod] = useState<SummaryPeriod | 'custom'>('all')
+  const [customFrom, setCustomFrom] = useState('') // datetime-local: YYYY-MM-DDTHH:mm
+  const [customTo, setCustomTo] = useState('')
   const [replies, setReplies] = useState<string[] | null>(null)
   const [repliesLoading, setRepliesLoading] = useState(false)
 
@@ -74,18 +77,23 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
   }
 
   // ── Сводка / Ответы ──
-  async function loadSummary(period: SummaryPeriod = summaryPeriod) {
+  // Запуск анализа по кнопке. Берёт текущий выбор периода (пресет или свой диапазон).
+  async function runSummary() {
+    let range: SummaryRange
+    if (summaryPeriod === 'custom') {
+      if (!customFrom && !customTo) { setError('Укажите начало или конец периода'); return }
+      const from = customFrom ? new Date(customFrom).toISOString() : undefined
+      const to = customTo ? new Date(customTo).toISOString() : undefined
+      if (from && to && new Date(from) > new Date(to)) { setError('Начало периода позже конца'); return }
+      range = { from, to }
+    } else {
+      range = { period: summaryPeriod }
+    }
     setSummaryLoading(true); setError(null)
     try {
-      const r = await aiApi.summary(chatId, period)
+      const r = await aiApi.summary(chatId, range)
       setSummary(r.data.data.summary); setSummaryCount(r.data.data.messageCount)
     } catch (e) { setError(describeError(e)) } finally { setSummaryLoading(false) }
-  }
-
-  function selectPeriod(period: SummaryPeriod) {
-    if (period === summaryPeriod && summary !== null) return
-    setSummaryPeriod(period)
-    loadSummary(period)
   }
   async function loadReplies() {
     setRepliesLoading(true); setError(null)
@@ -96,9 +104,9 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
   }
 
   // Ленивая загрузка содержимого активной вкладки.
+  // Сводка НЕ загружается автоматически — пользователь выбирает период и жмёт кнопку.
   useEffect(() => {
     if (tab === 'assistant' && convo === null) loadConvo()
-    if (tab === 'summary' && summary === null && !summaryLoading) loadSummary()
     if (tab === 'replies' && replies === null && !repliesLoading) loadReplies()
   }, [tab]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -245,13 +253,13 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
         {/* ── Вкладка: Сводка ── */}
         {tab === 'summary' && (
           <div className="flex-1 min-h-0 overflow-y-auto p-3">
-            {/* Выбор периода сводки */}
-            <div className="flex flex-wrap gap-1.5 mb-3">
+            {/* Выбор периода сводки (анализ запускается кнопкой ниже) */}
+            <div className="flex flex-wrap gap-1.5 mb-2.5">
               {([
                 ['hour', 'Час'], ['day', 'День'], ['week', 'Неделя'],
-                ['month', 'Месяц'], ['year', 'Год'], ['all', 'Весь чат'],
-              ] as [SummaryPeriod, string][]).map(([p, label]) => (
-                <button key={p} onClick={() => selectPeriod(p)} disabled={summaryLoading}
+                ['month', 'Месяц'], ['year', 'Год'], ['all', 'Весь чат'], ['custom', 'Свой период'],
+              ] as [SummaryPeriod | 'custom', string][]).map(([p, label]) => (
+                <button key={p} onClick={() => setSummaryPeriod(p)} disabled={summaryLoading}
                   className="px-3 py-1 rounded-full text-[12px] font-medium transition-colors disabled:opacity-50"
                   style={{
                     background: summaryPeriod === p ? 'var(--grad-own)' : 'var(--glass-3)',
@@ -262,6 +270,35 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
                 </button>
               ))}
             </div>
+
+            {/* Поля произвольного диапазона (дата + время от/до) */}
+            {summaryPeriod === 'custom' && (
+              <div className="glass rounded-2xl p-3 mb-2.5 space-y-2.5">
+                <label className="block">
+                  <span className="text-[11px]" style={{ color: 'var(--text-low)' }}>С</span>
+                  <input type="datetime-local" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+                    disabled={summaryLoading}
+                    className="mt-1 w-full px-2.5 py-1.5 rounded-lg text-[13px] text-white outline-none disabled:opacity-50"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', colorScheme: 'dark' }} />
+                </label>
+                <label className="block">
+                  <span className="text-[11px]" style={{ color: 'var(--text-low)' }}>По</span>
+                  <input type="datetime-local" value={customTo} onChange={e => setCustomTo(e.target.value)}
+                    disabled={summaryLoading}
+                    className="mt-1 w-full px-2.5 py-1.5 rounded-lg text-[13px] text-white outline-none disabled:opacity-50"
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', colorScheme: 'dark' }} />
+                </label>
+                <p className="text-[10px]" style={{ color: 'var(--text-low)' }}>Можно указать только одну границу.</p>
+              </div>
+            )}
+
+            {/* Кнопка запуска анализа */}
+            <button onClick={runSummary} disabled={summaryLoading}
+              className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-white transition-opacity disabled:opacity-50 mb-3"
+              style={{ background: 'var(--grad-own)', boxShadow: 'var(--glow-primary)' }}>
+              {summary === null ? 'Проанализировать' : 'Проанализировать заново'}
+            </button>
+
             {summaryLoading ? (
               <div className="flex flex-col items-center justify-center py-12 gap-2">
                 <Spinner size={22} /><p className="text-xs" style={{ color: 'var(--text-low)' }}>Анализирую переписку…</p>
@@ -271,12 +308,15 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
                 <div className="glass rounded-2xl p-4">
                   <p className="text-[13px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-mid)' }}>{summary}</p>
                 </div>
-                <div className="flex items-center justify-between mt-3 px-1">
+                <div className="mt-3 px-1">
                   <span className="text-[11px]" style={{ color: 'var(--text-low)' }}>{summaryCount} сообщ. проанализировано</span>
-                  <button onClick={() => loadSummary()} className="text-xs transition-colors hover:text-white" style={{ color: '#C084FC' }}>Обновить</button>
                 </div>
               </motion.div>
-            ) : null}
+            ) : (
+              <p className="text-sm text-center py-10 px-4" style={{ color: 'var(--text-low)' }}>
+                Выберите период и нажмите «Проанализировать».
+              </p>
+            )}
           </div>
         )}
 
