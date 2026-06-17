@@ -477,13 +477,30 @@ export async function suggestReplies(
     webSearch: false,
   })
 
-  let replies: string[] = []
-  try {
-    const match = result.text.match(/\[[\s\S]*\]/)
-    if (match) {
+  return { replies: parseReplies(result.text) }
+}
+
+// Извлекает 3 варианта ответа из текста модели. Основной путь — JSON-массив;
+// запасные — на случай, когда модель обернула ответ в markdown или выдала
+// варианты построчно/нумерованным списком (иначе кнопка «молчит» при промахе).
+function parseReplies(text: string): string[] {
+  const clean = (s: string) => s.replace(/^["'\s]+|["'\s]+$/g, '').trim()
+
+  const match = text.match(/\[[\s\S]*\]/)
+  if (match) {
+    try {
       const parsed = JSON.parse(match[0])
-      if (Array.isArray(parsed)) replies = parsed.filter((x): x is string => typeof x === 'string').slice(0, 3)
-    }
-  } catch { /* ignore */ }
-  return { replies }
+      if (Array.isArray(parsed)) {
+        const arr = parsed.filter((x): x is string => typeof x === 'string').map(clean).filter(Boolean)
+        if (arr.length) return arr.slice(0, 3)
+      }
+    } catch { /* перейдём к построчному разбору */ }
+  }
+
+  // Запасной разбор: строки, в т.ч. с маркерами списка («1.», «-», «•»).
+  const lines = text
+    .split('\n')
+    .map(l => clean(l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '')))
+    .filter(l => l.length > 0 && !/^```/.test(l))
+  return lines.slice(0, 3)
 }

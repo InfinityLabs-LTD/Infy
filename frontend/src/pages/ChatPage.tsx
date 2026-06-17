@@ -443,9 +443,12 @@ export function ChatPage() {
     setSuggestLoading(true)
     try {
       const r = await aiApi.replies(chatId)
-      setSuggestions(r.data.data.replies)
+      const got = r.data.data.replies
+      // Пусто (модель не вернула вариантов / промах парсинга) — оставляем кнопку
+      // видимой (suggestions = null), чтобы можно было повторить, а не «глухой» экран.
+      setSuggestions(got.length > 0 ? got : null)
     } catch {
-      setSuggestions([])
+      setSuggestions(null)
     } finally { setSuggestLoading(false) }
   }
 
@@ -1224,7 +1227,7 @@ export function ChatPage() {
         {/* Infy Puls — подсказки ответов над полем ввода.
             Видны, когда последним писал собеседник, поле пустое и подсказки включены. */}
         {canSuggest && !isRecording && suggestions !== null && suggestions.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-2 px-0.5">
+          <div className="flex flex-wrap justify-center gap-2.5 mb-2.5 px-0.5">
             {suggestions.map((s, i) => (
               <button key={i} onClick={() => applySuggestion(s)}
                 className="suggest-chip text-left text-[13px] leading-snug px-3.5 py-2 rounded-2xl transition-transform active:scale-[0.98]"

@@ -120,12 +120,13 @@ interface ChatState {
   setTyping: (chatId: string, username: string, isTyping: boolean) => void
 }
 
+// Сортировка списка диалогов по убыванию времени последнего сообщения
+// (свежие — сверху). Сравниваем по числовому времени, а не строкой: форматы
+// дат из REST и сокета могут отличаться (миллисекунды/смещение), и lexicographic
+// localeCompare тогда переставлял бы чаты неверно.
 function sortChats(chats: Chat[]): Chat[] {
-  return [...chats].sort((a, b) => {
-    const ta = a.lastMessage?.createdAt ?? a.createdAt
-    const tb = b.lastMessage?.createdAt ?? b.createdAt
-    return tb.localeCompare(ta)
-  })
+  const ts = (c: Chat) => new Date(c.lastMessage?.createdAt ?? c.createdAt).getTime()
+  return [...chats].sort((a, b) => ts(b) - ts(a))
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -210,7 +211,7 @@ export const useChatStore = create<ChatState>((set) => ({
                 ? { ...c, lastMessage: { id: msg.id, content: msg.content, type: msg.type, createdAt: msg.createdAt, isOwn } }
                 : c,
             )
-            return { messages: { ...s.messages, [msg.chatId]: merged }, chats }
+            return { messages: { ...s.messages, [msg.chatId]: merged }, chats: sortChats(chats) }
           }
         }
       }
