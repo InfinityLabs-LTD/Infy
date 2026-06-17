@@ -221,6 +221,11 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
 
   async function handleDelete() {
     setShowMenu(false)
+    // Оптимистичное (ещё не отправленное) сообщение — удаляем только локально.
+    if (message.pending || message.failed || message.id.startsWith('temp-')) {
+      removeMessage(message.chatId, message.id)
+      return
+    }
     try {
       await chatApi.deleteMessage(message.id)
       removeMessage(message.chatId, message.id)
@@ -269,12 +274,24 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
         <span className="text-[10px] italic" style={{ color: 'var(--text-low)' }}>изм.</span>
       )}
       <span className="text-[11px]" style={{ color: 'var(--text-low)' }}>{time}</span>
-      {isOwn && (
+      {isOwn && message.failed ? (
+        // Отправка не удалась
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.2"
+          strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      ) : isOwn && message.pending ? (
+        // Загружается в фоне — значок таймера (как в Telegram)
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+        </svg>
+      ) : isOwn ? (
         <svg width="16" height="9" viewBox="0 0 18 10" fill="none">
           <path d="M1 5l3 3L11 1" stroke={tickColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           <path d="M5 5l3 3L15 1" stroke={tickColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
-      )}
+      ) : null}
     </span>
   )
 

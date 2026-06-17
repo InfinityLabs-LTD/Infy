@@ -76,6 +76,11 @@ export interface Message {
   sender: MessageSender
   attachments?: MessageAttachment[]
   reactions?: MessageReaction[]
+  // Локальный статус отправки медиа (только клиент): сообщение уже видно
+  // отправителю, но файл ещё грузится в фоне.
+  pending?: boolean
+  // Отправка не удалась — показываем значок ошибки и кнопку повтора.
+  failed?: boolean
 }
 
 interface TypingState {
@@ -99,6 +104,10 @@ interface ChatState {
   prependMessages: (chatId: string, messages: Message[], nextCursor: string | null) => void
   addMessage: (msg: Message) => void
   updateMessage: (msg: Message) => void
+  // Заменяет оптимистичное сообщение (tempId) на реальное (с сервера).
+  replaceMessage: (chatId: string, tempId: string, msg: Message) => void
+  // Помечает оптимистичное сообщение как ошибочное (отправка не удалась).
+  setMessageFailed: (chatId: string, tempId: string, failed: boolean) => void
   removeMessage: (chatId: string, id: string) => void
   resetUnread: (chatId: string) => void
   updatePartnerRead: (chatId: string, messageId: string, readAt?: string) => void
@@ -174,9 +183,35 @@ export const useChatStore = create<ChatState>((set) => ({
       const existing = s.messages[msg.chatId] ?? []
       if (existing.some((m) => m.id === msg.id)) return s
 
-      const updated = [...existing, msg]
       const myId = useAuthStore.getState().user?.id
       const isOwn = msg.sender.id === myId
+
+      // Реконсиляция оптимистичной отправки: своё медиа-сообщение приходит
+      // и REST-ответом, и широковещанием по сокету. Если в списке уже есть
+      // pending-плейсхолдер с тем же storageKey вложения — заменяем его
+      // реальным сообщением, а не добавляем дубль.
+      if (isOwn) {
+        const incomingKeys = (msg.attachments ?? []).map((a) => a.storageKey).filter(Boolean)
+        if (incomingKeys.length > 0) {
+          const idx = existing.findIndex((m) =>
+            m.pending &&
+            (m.attachments ?? []).some((a) => incomingKeys.includes(a.storageKey)),
+          )
+          if (idx >= 0) {
+            const tempId = existing[idx].id
+            const merged = [...existing]
+            merged[idx] = msg
+            const chats = s.chats.map((c) =>
+              c.id === msg.chatId && (c.lastMessage?.id === tempId || c.lastMessage?.id === msg.id)
+                ? { ...c, lastMessage: { id: msg.id, content: msg.content, type: msg.type, createdAt: msg.createdAt, isOwn } }
+                : c,
+            )
+            return { messages: { ...s.messages, [msg.chatId]: merged }, chats }
+          }
+        }
+      }
+
+      const updated = [...existing, msg]
 
       const chats = s.chats.map((c) => {
         if (c.id !== msg.chatId) return c
@@ -225,6 +260,42 @@ export const useChatStore = create<ChatState>((set) => ({
         chats,
       }
     }),
+
+  replaceMessage: (chatId, tempId, msg) =>
+    set((s) => {
+      const existing = s.messages[chatId] ?? []
+      // Реальное сообщение могло уже прийти по сокету и заменить плейсхолдер —
+      // тогда tempId отсутствует, а msg.id уже в списке: ничего не делаем.
+      if (!existing.some((m) => m.id === tempId)) return s
+      if (existing.some((m) => m.id === msg.id)) {
+        return { messages: { ...s.messages, [chatId]: existing.filter((m) => m.id !== tempId) } }
+      }
+      const myId = useAuthStore.getState().user?.id
+      const chats = s.chats.map((c) => {
+        if (c.id !== chatId || c.lastMessage?.id !== tempId) return c
+        return {
+          ...c,
+          lastMessage: {
+            id: msg.id, content: msg.content, type: msg.type,
+            createdAt: msg.createdAt, isOwn: msg.sender.id === myId,
+          },
+        }
+      })
+      return {
+        messages: { ...s.messages, [chatId]: existing.map((m) => (m.id === tempId ? msg : m)) },
+        chats,
+      }
+    }),
+
+  setMessageFailed: (chatId, tempId, failed) =>
+    set((s) => ({
+      messages: {
+        ...s.messages,
+        [chatId]: (s.messages[chatId] ?? []).map((m) =>
+          m.id === tempId ? { ...m, failed, pending: failed ? false : m.pending } : m,
+        ),
+      },
+    })),
 
   removeMessage: (chatId, id) =>
     set((s) => ({

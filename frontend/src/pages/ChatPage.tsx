@@ -4,7 +4,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { chatApi } from '@/api/chat'
 import { aiApi } from '@/api/ai'
 import { mediaApi } from '@/api/media'
-import { useChatStore, type Message } from '@/store/chat'
+import { useChatStore, type Message, type MessageAttachment } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { getActiveSocket, joinChatRoom } from '@/lib/socket'
 import { Avatar } from '@/components/ui/Avatar'
@@ -108,7 +108,7 @@ export function ChatPage() {
   const myUser = useAuthStore(s => s.user)
   const myUsername = myUser?.username
 
-  const { chats, messages, nextCursor, socketReady, setMessages, prependMessages, setTyping, upsertChat, resetUnread, updateMessage, removeChat } = useChatStore()
+  const { chats, messages, nextCursor, socketReady, setMessages, prependMessages, setTyping, upsertChat, resetUnread, updateMessage, removeChat, addMessage, replaceMessage, setMessageFailed } = useChatStore()
 
   // ── Resolve partnerId → chatId ──────────────────────────────
   const [chatId, setChatId] = useState<string | null>(() => {
@@ -406,13 +406,99 @@ export function ChatPage() {
     if (editing) { setEditing(null); setText('') }
   }
 
-  async function sendMediaFile(file: File, msgType: 'IMAGE' | 'VIDEO') {
+  // ── Фоновая отправка медиа ──────────────────────────────────
+  // Сообщение сразу появляется у отправителя (со значком таймера), поле
+  // ввода остаётся доступным, а файл(ы) грузятся в фоне. По завершении
+  // оптимистичный плейсхолдер заменяется реальным сообщением с сервера.
+
+  type LocalAttachment = {
+    file: File
+    kind: 'image' | 'video' | 'document'
+    hint?: 'circle_video' | 'document'
+    previewUrl?: string
+  }
+
+  function buildOptimisticAttachment(la: LocalAttachment, idx: number): MessageAttachment {
+    return {
+      id: `temp-att-${idx}`,
+      storageKey: '',
+      fileName: la.kind === 'document' ? la.file.name : undefined,
+      thumbnailKey: null,
+      mimeType: la.file.type,
+      sizeBytes: la.file.size,
+      width: null,
+      height: null,
+      durationMs: null,
+      waveform: null,
+      // Локальный object URL — мгновенный предпросмотр до завершения загрузки.
+      publicUrl: la.previewUrl,
+    }
+  }
+
+  // Создаёт оптимистичное сообщение, добавляет его в ленту и запускает фоновую
+  // загрузку + отправку. Не блокирует композер.
+  function backgroundSendMedia(
+    targetChatId: string,
+    msgType: 'IMAGE' | 'VIDEO' | 'AUDIO' | 'CIRCLE_VIDEO' | 'FILE' | 'ALBUM',
+    locals: LocalAttachment[],
+    opts?: { caption?: string; replyToId?: string },
+  ) {
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const optimistic: Message = {
+      id: tempId,
+      chatId: targetChatId,
+      content: opts?.caption || null,
+      type: msgType,
+      createdAt: new Date().toISOString(),
+      editedAt: null,
+      sender: {
+        id: myUser?.id ?? '',
+        username: myUser?.username ?? '',
+        nickname: myUser?.nickname ?? '',
+        avatarUrl: myUser?.avatarUrl ?? null,
+      },
+      attachments: locals.map(buildOptimisticAttachment),
+      pending: true,
+    }
+    addMessage(optimistic)
+
+    const revokePreviews = () => locals.forEach(l => l.previewUrl && URL.revokeObjectURL(l.previewUrl))
+
+    ;(async () => {
+      try {
+        const uploads = await Promise.all(
+          locals.map(l => mediaApi.upload(l.file, l.hint).then(r => r.data.data)),
+        )
+        // Помечаем плейсхолдер реальными storageKey'ями: если широковещание
+        // по сокету придёт раньше REST-ответа, addMessage сопоставит его с
+        // плейсхолдером и не покажет дубль.
+        updateMessage({
+          ...optimistic,
+          attachments: (optimistic.attachments ?? []).map((a, i) => ({
+            ...a, storageKey: uploads[i]?.storageKey ?? a.storageKey,
+          })),
+        })
+        let real: Message
+        if (msgType === 'ALBUM') {
+          const res = await chatApi.sendAlbum(targetChatId, uploads, opts?.caption || undefined, opts?.replyToId)
+          real = res.data.data
+        } else {
+          const res = await chatApi.sendMedia(targetChatId, msgType, uploads[0])
+          real = res.data.data
+        }
+        replaceMessage(targetChatId, tempId, real)
+        revokePreviews()
+      } catch (err) {
+        setMessageFailed(targetChatId, tempId, true)
+        handleSendError(err)
+      }
+    })()
+  }
+
+  function sendMediaFile(file: File, msgType: 'IMAGE' | 'VIDEO') {
     if (!chatId) return
-    setSending(true)
-    try {
-      const { data: { data: upload } } = await mediaApi.upload(file)
-      await chatApi.sendMedia(chatId, msgType, upload)
-    } finally { setSending(false) }
+    const kind = msgType === 'IMAGE' ? 'image' : 'video'
+    backgroundSendMedia(chatId, msgType, [{ file, kind, previewUrl: URL.createObjectURL(file) }])
   }
 
   // Добавляет выбранные файлы в очередь отправки (альбом). Лимит — 10.
@@ -446,41 +532,43 @@ export function ChatPage() {
   }
 
   // Отправляет очередь файлов одним сообщением-альбомом (или одиночным медиа, если файл один).
-  // Текст из композера идёт общей подписью.
-  async function sendStaged() {
-    if (!chatId || staged.length === 0 || sending) return
+  // Текст из композера идёт общей подписью. Отправка — в фоне, композер сразу свободен.
+  function sendStaged() {
+    if (!chatId || staged.length === 0) return
     const caption = text.trim()
     const replyToId = replyTo?.id
     const items = staged
-    setSending(true)
-    try {
-      const uploads = await Promise.all(
-        items.map(s => mediaApi.upload(s.file, s.kind === 'document' ? 'document' : undefined)
-          .then(r => r.data.data)),
-      )
-      if (uploads.length === 1 && !caption) {
-        const u = uploads[0]
-        const type = items[0].kind === 'image' ? 'IMAGE' : items[0].kind === 'video' ? 'VIDEO' : 'FILE'
-        await chatApi.sendMedia(chatId, type, u)
-      } else {
-        await chatApi.sendAlbum(chatId, uploads, caption || undefined, replyToId)
-      }
-      clearStaged()
-      setText('')
-      setReplyTo(null)
-    } catch (err) {
-      handleSendError(err)
-    } finally { setSending(false) }
+
+    const locals: LocalAttachment[] = items.map(s => ({
+      file: s.file,
+      kind: s.kind,
+      hint: s.kind === 'document' ? 'document' : undefined,
+      previewUrl: s.previewUrl,  // переносим владение object URL оптимистичному сообщению
+    }))
+
+    if (locals.length === 1 && !caption) {
+      const k = locals[0].kind
+      const type = k === 'image' ? 'IMAGE' : k === 'video' ? 'VIDEO' : 'FILE'
+      backgroundSendMedia(chatId, type, locals, { replyToId })
+    } else {
+      backgroundSendMedia(chatId, 'ALBUM', locals, { caption, replyToId })
+    }
+
+    // Очищаем очередь, НЕ освобождая object URL'ы — ими теперь владеет
+    // оптимистичное сообщение (revoke после успешной отправки).
+    setStaged([])
+    setText('')
+    setReplyTo(null)
+    setMutedNotice(null)
   }
 
-  async function sendCircle(blob: Blob) {
+  function sendCircle(blob: Blob) {
     if (!chatId) return
-    setShowCircle(false); setCircleAutoSend(false); setSending(true)
-    try {
-      const file = new File([blob], 'circle.webm', { type: blob.type })
-      const { data: { data: upload } } = await mediaApi.upload(file, 'circle_video')
-      await chatApi.sendMedia(chatId, 'CIRCLE_VIDEO', upload)
-    } finally { setSending(false) }
+    setShowCircle(false); setCircleAutoSend(false)
+    const file = new File([blob], 'circle.webm', { type: blob.type })
+    backgroundSendMedia(chatId, 'CIRCLE_VIDEO', [
+      { file, kind: 'video', hint: 'circle_video', previewUrl: URL.createObjectURL(blob) },
+    ])
   }
 
   async function sendVoiceBlob() {
@@ -495,12 +583,10 @@ export function ChatPage() {
       setTimeout(() => setShortRecordToast(false), 2500)
       return
     }
-    setSending(true)
-    try {
-      const file = new File([blob], 'voice.webm', { type: blob.type })
-      const { data: { data: upload } } = await mediaApi.upload(file)
-      await chatApi.sendMedia(chatId, 'AUDIO', upload)
-    } finally { setSending(false) }
+    const file = new File([blob], 'voice.webm', { type: blob.type })
+    backgroundSendMedia(chatId, 'AUDIO', [
+      { file, kind: 'document', previewUrl: URL.createObjectURL(blob) },
+    ])
   }
 
   function cancelRecord() {
