@@ -38,6 +38,7 @@ export interface MessageSender {
 export interface MessageAttachment {
   id: string
   storageKey: string
+  fileName?: string | null
   thumbnailKey: string | null
   mimeType: string
   sizeBytes: number | null

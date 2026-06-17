@@ -23,6 +23,8 @@ enum MessageType {
   VIDEO
   AUDIO
   CIRCLE_VIDEO
+  FILE        // одиночный документ/файл
+  ALBUM       // несколько вложений (фото/видео/документы) в одном сообщении
   SYSTEM
   AI_QUERY    // вопрос пользователя к Infy AI (видят оба, помечен как обращение к ИИ)
   AI          // ответ Infy AI (видят оба)
@@ -316,6 +318,7 @@ model Attachment {
   id           String  @id @default(cuid())
   messageId    String
   storageKey   String          // MinIO object key
+  fileName     String?         // оригинальное имя файла (для документов)
   mimeType     String
   sizeBytes    BigInt?
   width        Int?

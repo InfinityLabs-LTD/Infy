@@ -14,7 +14,7 @@ import {
   withTempFile,
 } from '../../lib/transcode.js'
 
-export type UploadedFileType = 'image' | 'video' | 'audio' | 'circle_video'
+export type UploadedFileType = 'image' | 'video' | 'audio' | 'circle_video' | 'document'
 
 const IMAGE_MIME = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 const VIDEO_MIME = new Set(['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska'])
@@ -25,18 +25,22 @@ const SIZE_LIMITS: Record<UploadedFileType, number> = {
   video:       200 * 1024 * 1024,
   audio:        30 * 1024 * 1024,
   circle_video: 50 * 1024 * 1024,
+  document:    100 * 1024 * 1024,
 }
 
 export function detectFileType(mime: string, hint?: string): UploadedFileType {
   if (hint === 'circle_video') return 'circle_video'
+  if (hint === 'document') return 'document'
   if (IMAGE_MIME.has(mime)) return 'image'
   if (VIDEO_MIME.has(mime)) return 'video'
   if (AUDIO_MIME.has(mime)) return 'audio'
-  throw new Error(`Unsupported MIME type: ${mime}`)
+  // Любой прочий тип сохраняем как документ (без транскодинга)
+  return 'document'
 }
 
 export interface UploadResult {
   storageKey: string
+  fileName?: string
   thumbnailKey?: string
   mimeType: string
   sizeBytes: number
@@ -54,6 +58,7 @@ export async function uploadMedia(
   originalMime: string,
   fileType: UploadedFileType,
   userId: string,
+  originalName?: string,
 ): Promise<UploadResult> {
   const sizeBytes = buffer.length
   const limit = SIZE_LIMITS[fileType]
@@ -64,6 +69,22 @@ export async function uploadMedia(
   const now = Date.now()
   const prefix = `${userId}/${now}`
   const bucket = env.MINIO_BUCKET_MEDIA
+
+  // Документ: сохраняем как есть, без транскодинга, сохраняя оригинальное имя.
+  if (fileType === 'document') {
+    const safeName = (originalName ?? 'file').replace(/[^\w.\-]+/g, '_').slice(-120)
+    const key = `${prefix}/${safeName}`
+    await minio.putObject(bucket, key, Readable.from(buffer), sizeBytes, {
+      'Content-Type': originalMime || 'application/octet-stream',
+    })
+    return {
+      storageKey: key,
+      fileName: originalName,
+      mimeType: originalMime || 'application/octet-stream',
+      sizeBytes,
+      publicUrl: buildUrl(bucket, key),
+    }
+  }
 
   // Write buffer to temp file for ffmpeg processing
   const inputExt = originalMime.includes('webm') ? '.webm'

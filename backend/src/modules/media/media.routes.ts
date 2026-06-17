@@ -44,7 +44,7 @@ const mediaRoutes: FastifyPluginAsync = async (app) => {
 
     let result
     try {
-      result = await uploadMedia(app.minio, buffer, data.mimetype, fileType, request.user.sub)
+      result = await uploadMedia(app.minio, buffer, data.mimetype, fileType, request.user.sub, data.filename)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Upload failed'
       throw new AppError('MEDIA_UPLOAD_FAILED', msg, 500)

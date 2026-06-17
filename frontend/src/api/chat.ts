@@ -2,7 +2,21 @@ import { api } from './client'
 import type { Chat, Message } from '@/store/chat'
 import type { UploadResult } from './media'
 
-type MediaMessageType = 'IMAGE' | 'VIDEO' | 'AUDIO' | 'CIRCLE_VIDEO'
+type MediaMessageType = 'IMAGE' | 'VIDEO' | 'AUDIO' | 'CIRCLE_VIDEO' | 'FILE'
+
+function toAttachment(upload: UploadResult) {
+  return {
+    storageKey:   upload.storageKey,
+    fileName:     upload.fileName,
+    thumbnailKey: upload.thumbnailKey,
+    mimeType:     upload.mimeType,
+    sizeBytes:    upload.sizeBytes,
+    width:        upload.width,
+    height:       upload.height,
+    durationMs:   upload.durationMs,
+    waveform:     upload.waveform,
+  }
+}
 
 export const chatApi = {
   listChats: () => api.get<{ data: Chat[] }>('/chats'),
@@ -31,16 +45,16 @@ export const chatApi = {
   sendMedia: (chatId: string, type: MediaMessageType, upload: UploadResult) =>
     api.post<{ data: Message }>(`/chats/${chatId}/messages`, {
       type,
-      attachment: {
-        storageKey:   upload.storageKey,
-        thumbnailKey: upload.thumbnailKey,
-        mimeType:     upload.mimeType,
-        sizeBytes:    upload.sizeBytes,
-        width:        upload.width,
-        height:       upload.height,
-        durationMs:   upload.durationMs,
-        waveform:     upload.waveform,
-      },
+      attachment: toAttachment(upload),
+    }),
+
+  // Альбом: несколько вложений (фото/видео/документы) в одном сообщении + общая подпись.
+  // Если файл один — отправляем как обычное медиа-сообщение соответствующего типа.
+  sendAlbum: (chatId: string, uploads: UploadResult[], content?: string, replyToId?: string) =>
+    api.post<{ data: Message }>(`/chats/${chatId}/messages`, {
+      ...(content ? { content } : {}),
+      ...(replyToId ? { replyToId } : {}),
+      attachments: uploads.map(toAttachment),
     }),
 
   getChatMedia: (chatId: string, cursor?: string, limit = 30) =>

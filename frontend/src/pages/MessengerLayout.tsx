@@ -30,6 +30,7 @@ function mediaLabel(type: string): string {
   const m: Record<string, string> = {
     IMAGE: '🖼 Фото', VIDEO: '🎥 Видео',
     AUDIO: '🎤 Голосовое', CIRCLE_VIDEO: '⭕ Кружок',
+    FILE: '📎 Файл', ALBUM: '🖼 Альбом',
   }
   return m[type] ?? type
 }

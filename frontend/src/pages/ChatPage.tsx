@@ -26,6 +26,20 @@ const GROUP_WINDOW_MS = 60_000
 const ALLOWED_IMAGE = 'image/jpeg,image/png,image/gif,image/webp'
 const ALLOWED_VIDEO = 'video/mp4,video/webm,video/quicktime'
 const ALLOWED_FILE = '*/*'
+const MAX_ALBUM = 10
+
+interface StagedFile {
+  id: string
+  file: File
+  previewUrl?: string  // object URL для фото/видео
+  kind: 'image' | 'video' | 'document'
+}
+
+function stagedKind(file: File): StagedFile['kind'] {
+  if (file.type.startsWith('image/')) return 'image'
+  if (file.type.startsWith('video/')) return 'video'
+  return 'document'
+}
 
 function formatDateLabel(iso: string): string {
   const d = new Date(iso)
@@ -42,6 +56,7 @@ function formatDateLabel(iso: string): string {
 function pinnedLabel(type: string): string {
   const m: Record<string, string> = {
     IMAGE: '🖼 Фото', VIDEO: '🎥 Видео', AUDIO: '🎤 Голосовое', CIRCLE_VIDEO: '⭕ Кружок',
+    FILE: '📎 Файл', ALBUM: '🖼 Альбом',
   }
   return m[type] ?? 'Вложение'
 }
@@ -153,6 +168,8 @@ export function ChatPage() {
   const [reactLimitToast, setReactLimitToast] = useState(false)
   // Сообщение о муте — показывается в композере, если отправка отклонена санкцией.
   const [mutedNotice, setMutedNotice] = useState<string | null>(null)
+  // Файлы, выбранные для отправки альбомом (до 10). Превью показывается над композером.
+  const [staged, setStaged] = useState<StagedFile[]>([])
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [recordMode, setRecordMode] = useState<'voice' | 'circle'>('voice')
   const [recordLocked, setRecordLocked] = useState(false)
@@ -195,6 +212,11 @@ export function ChatPage() {
         }
       })
       .finally(() => setLoading(false))
+  }, [chatId])
+
+  // Сбрасываем выбранные файлы при смене чата и освобождаем object URL'ы
+  useEffect(() => {
+    return () => { setStaged(prev => { prev.forEach(s => s.previewUrl && URL.revokeObjectURL(s.previewUrl)); return [] }) }
   }, [chatId])
 
   // Mark read when new messages arrive while chat is open
@@ -390,6 +412,64 @@ export function ChatPage() {
     try {
       const { data: { data: upload } } = await mediaApi.upload(file)
       await chatApi.sendMedia(chatId, msgType, upload)
+    } finally { setSending(false) }
+  }
+
+  // Добавляет выбранные файлы в очередь отправки (альбом). Лимит — 10.
+  function stageFiles(files: FileList | File[]) {
+    const list = Array.from(files)
+    setStaged(prev => {
+      const room = MAX_ALBUM - prev.length
+      const next = list.slice(0, Math.max(0, room)).map(file => {
+        const kind = stagedKind(file)
+        return {
+          id: `${file.name}-${file.size}-${Math.random().toString(36).slice(2, 8)}`,
+          file,
+          kind,
+          previewUrl: kind === 'document' ? undefined : URL.createObjectURL(file),
+        } satisfies StagedFile
+      })
+      return [...prev, ...next]
+    })
+  }
+
+  function removeStaged(id: string) {
+    setStaged(prev => {
+      const item = prev.find(s => s.id === id)
+      if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl)
+      return prev.filter(s => s.id !== id)
+    })
+  }
+
+  function clearStaged() {
+    setStaged(prev => { prev.forEach(s => s.previewUrl && URL.revokeObjectURL(s.previewUrl)); return [] })
+  }
+
+  // Отправляет очередь файлов одним сообщением-альбомом (или одиночным медиа, если файл один).
+  // Текст из композера идёт общей подписью.
+  async function sendStaged() {
+    if (!chatId || staged.length === 0 || sending) return
+    const caption = text.trim()
+    const replyToId = replyTo?.id
+    const items = staged
+    setSending(true)
+    try {
+      const uploads = await Promise.all(
+        items.map(s => mediaApi.upload(s.file, s.kind === 'document' ? 'document' : undefined)
+          .then(r => r.data.data)),
+      )
+      if (uploads.length === 1 && !caption) {
+        const u = uploads[0]
+        const type = items[0].kind === 'image' ? 'IMAGE' : items[0].kind === 'video' ? 'VIDEO' : 'FILE'
+        await chatApi.sendMedia(chatId, type, u)
+      } else {
+        await chatApi.sendAlbum(chatId, uploads, caption || undefined, replyToId)
+      }
+      clearStaged()
+      setText('')
+      setReplyTo(null)
+    } catch (err) {
+      handleSendError(err)
     } finally { setSending(false) }
   }
 
@@ -979,6 +1059,55 @@ export function ChatPage() {
           </div>
         )}
 
+        {/* Превью выбранных файлов (альбом) */}
+        {staged.length > 0 && !isRecording && (
+          <div className="mb-2">
+            <div className="flex items-center justify-between mb-1.5 px-1">
+              <span className="text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                Выбрано {staged.length} из {MAX_ALBUM}
+              </span>
+              <button onClick={clearStaged} className="text-xs text-white/50 hover:text-white transition-colors">
+                Очистить
+              </button>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {staged.map(s => (
+                <div key={s.id} className="relative shrink-0 w-20 h-20 rounded-xl overflow-hidden"
+                  style={{ background: 'var(--glass-2)', border: '1px solid var(--glass-stroke)' }}>
+                  {s.kind === 'image' && s.previewUrl && (
+                    <img src={s.previewUrl} alt="" className="w-full h-full object-cover" />
+                  )}
+                  {s.kind === 'video' && s.previewUrl && (
+                    <video src={s.previewUrl} className="w-full h-full object-cover" muted />
+                  )}
+                  {s.kind === 'document' && (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-1 px-1.5">
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="1.8">
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                      <span className="text-[9px] text-white/70 text-center leading-tight truncate w-full">{s.file.name}</span>
+                    </div>
+                  )}
+                  {s.kind === 'video' && (
+                    <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(255,255,255,0.85)"><polygon points="8,5 19,12 8,19"/></svg>
+                    </span>
+                  )}
+                  <button
+                    onClick={() => removeStaged(s.id)}
+                    className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full flex items-center justify-center bg-black/60 text-white hover:bg-black/80 transition-colors"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Запись голосового — индикатор (не зафиксировано) */}
         {isRecording && !recordLocked && (
           <div className="flex items-center gap-2 px-3 py-1.5 mb-2 rounded-xl"
@@ -1133,10 +1262,10 @@ export function ChatPage() {
             />
           )}
 
-          {/* Кнопка отправки текста — слева от записи, только когда есть текст */}
-          {text.trim() && !isRecording && (
+          {/* Кнопка отправки — когда есть текст или выбранные файлы */}
+          {(text.trim() || staged.length > 0) && !isRecording && (
             <button
-              onClick={sendText}
+              onClick={staged.length > 0 ? sendStaged : sendText}
               disabled={sending}
               className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-all disabled:opacity-40 active:scale-95"
               style={{ background: 'var(--grad-own)', boxShadow: 'var(--glow-primary)' }}
@@ -1167,7 +1296,7 @@ export function ChatPage() {
                 </svg>
               )}
             </button>
-          ) : (
+          ) : (text.trim() || staged.length > 0) ? null : (
             <button
               onPointerDown={onRecordPointerDown}
               disabled={sending}
@@ -1198,12 +1327,12 @@ export function ChatPage() {
        </div>
       </div>
 
-      <input ref={imageInputRef} type="file" accept={ALLOWED_IMAGE} className="hidden"
-        onChange={e => { const f = e.target.files?.[0]; if (f) sendMediaFile(f, 'IMAGE'); e.target.value = '' }} />
-      <input ref={videoInputRef} type="file" accept={ALLOWED_VIDEO} className="hidden"
-        onChange={e => { const f = e.target.files?.[0]; if (f) sendMediaFile(f, 'VIDEO'); e.target.value = '' }} />
-      <input ref={fileInputRef} type="file" accept={ALLOWED_FILE} className="hidden"
-        onChange={e => { const f = e.target.files?.[0]; if (f) sendMediaFile(f, 'VIDEO'); e.target.value = '' }} />
+      <input ref={imageInputRef} type="file" accept={ALLOWED_IMAGE} multiple className="hidden"
+        onChange={e => { if (e.target.files?.length) stageFiles(e.target.files); e.target.value = '' }} />
+      <input ref={videoInputRef} type="file" accept={ALLOWED_VIDEO} multiple className="hidden"
+        onChange={e => { if (e.target.files?.length) stageFiles(e.target.files); e.target.value = '' }} />
+      <input ref={fileInputRef} type="file" accept={ALLOWED_FILE} multiple className="hidden"
+        onChange={e => { if (e.target.files?.length) stageFiles(e.target.files); e.target.value = '' }} />
       <input ref={cameraInputRef} type="file" accept="image/*,video/*" capture="environment" className="hidden"
         onChange={e => {
           const f = e.target.files?.[0]

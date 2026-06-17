@@ -2,6 +2,7 @@ import { api } from './client'
 
 export interface UploadResult {
   storageKey: string
+  fileName?: string
   thumbnailKey?: string
   mimeType: string
   sizeBytes: number
@@ -14,7 +15,7 @@ export interface UploadResult {
 }
 
 export const mediaApi = {
-  upload: (file: File | Blob, hint?: 'circle_video') => {
+  upload: (file: File | Blob, hint?: 'circle_video' | 'document') => {
     const form = new FormData()
     form.append('file', file)
     return api.post<{ data: UploadResult }>('/media/upload', form, {

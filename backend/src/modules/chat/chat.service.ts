@@ -26,6 +26,7 @@ const messageInclude = {
 
 export interface AttachmentInput {
   storageKey: string
+  fileName?: string
   thumbnailKey?: string
   mimeType: string
   sizeBytes: number
@@ -38,8 +39,19 @@ export interface AttachmentInput {
 export interface SendMessageInput {
   content?: string
   type?: MessageType
-  attachment?: AttachmentInput
+  attachment?: AttachmentInput          // одиночное вложение (обратная совместимость)
+  attachments?: AttachmentInput[]       // альбом: несколько вложений
   replyToId?: string
+}
+
+const MAX_ALBUM_ATTACHMENTS = 10
+
+// Тип одиночного вложения по mime: image → IMAGE, video → VIDEO, audio → AUDIO, иначе FILE
+function attachmentMessageType(a: AttachmentInput): MessageType {
+  if (a.mimeType.startsWith('image/')) return 'IMAGE'
+  if (a.mimeType.startsWith('video/')) return 'VIDEO'
+  if (a.mimeType.startsWith('audio/')) return 'AUDIO'
+  return 'FILE'
 }
 
 export async function getOrCreateDirectChat(
@@ -229,8 +241,18 @@ export async function sendMessage(
   const ban = await getActiveSanction(prisma, senderId, 'BAN')
   if (ban) throw Errors.ACCOUNT_BANNED('Аккаунт заблокирован', ban.expiresAt)
 
-  if (!input.content && !input.attachment) {
+  // Нормализуем вход: одиночное вложение и массив — к единому списку
+  const attList: AttachmentInput[] = input.attachments?.length
+    ? input.attachments
+    : input.attachment
+      ? [input.attachment]
+      : []
+
+  if (!input.content && attList.length === 0) {
     throw new AppError('MESSAGE_EMPTY', 'Message must have content or an attachment', 400)
+  }
+  if (attList.length > MAX_ALBUM_ATTACHMENTS) {
+    throw new AppError('ATTACHMENT_LIMIT', `Maximum ${MAX_ALBUM_ATTACHMENTS} attachments per message`, 400)
   }
 
   // Проверяем, что отвечаем на существующее сообщение из этого же чата
@@ -241,6 +263,11 @@ export async function sendMessage(
     }
   }
 
+  // Тип сообщения: явно заданный, либо выводим из числа/типа вложений
+  const resolvedType: MessageType =
+    input.type ??
+    (attList.length > 1 ? 'ALBUM' : attList.length === 1 ? attachmentMessageType(attList[0]) : 'TEXT')
+
   const id = ulid()
   const message = await prisma.message.create({
     data: {
@@ -248,21 +275,22 @@ export async function sendMessage(
       chatId,
       senderId,
       content: input.content ?? null,
-      type: input.type ?? 'TEXT',
+      type: resolvedType,
       replyToId: input.replyToId ?? null,
-      ...(input.attachment
+      ...(attList.length
         ? {
             attachments: {
-              create: {
-                storageKey:   input.attachment.storageKey,
-                thumbnailKey: input.attachment.thumbnailKey,
-                mimeType:     input.attachment.mimeType,
-                sizeBytes:    BigInt(input.attachment.sizeBytes),
-                width:        input.attachment.width,
-                height:       input.attachment.height,
-                durationMs:   input.attachment.durationMs,
-                waveform:     input.attachment.waveform ?? undefined,
-              },
+              create: attList.map(a => ({
+                storageKey:   a.storageKey,
+                fileName:     a.fileName,
+                thumbnailKey: a.thumbnailKey,
+                mimeType:     a.mimeType,
+                sizeBytes:    BigInt(a.sizeBytes),
+                width:        a.width,
+                height:       a.height,
+                durationMs:   a.durationMs,
+                waveform:     a.waveform ?? undefined,
+              })),
             },
           }
         : {}),
@@ -326,7 +354,7 @@ export async function getChatMedia(
     where: {
       chatId,
       deletedAt: null,
-      type: { in: ['IMAGE', 'VIDEO', 'AUDIO', 'CIRCLE_VIDEO'] },
+      type: { in: ['IMAGE', 'VIDEO', 'AUDIO', 'CIRCLE_VIDEO', 'ALBUM', 'FILE'] },
       ...(cursor ? { id: { lt: cursor } } : {}),
     },
     include: { sender: true, attachments: true },
@@ -561,6 +589,7 @@ type MessageWithSender = {
   attachments?: Array<{
     id: string
     storageKey: string
+    fileName: string | null
     thumbnailKey: string | null
     mimeType: string
     sizeBytes: bigint | null
@@ -615,6 +644,7 @@ export function serializeMessage(msg: MessageWithSender) {
     attachments: (msg.attachments ?? []).map(a => ({
       id: a.id,
       storageKey: a.storageKey,
+      fileName: a.fileName,
       thumbnailKey: a.thumbnailKey,
       mimeType: a.mimeType,
       sizeBytes: a.sizeBytes ? Number(a.sizeBytes) : null,

@@ -138,12 +138,13 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
         type: 'object',
         properties: {
           content: { type: 'string', minLength: 1, maxLength: 4000 },
-          type: { type: 'string', enum: ['TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'CIRCLE_VIDEO'] },
+          type: { type: 'string', enum: ['TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'CIRCLE_VIDEO', 'FILE', 'ALBUM'] },
           replyToId: { type: 'string' },
           attachment: {
             type: 'object',
             properties: {
               storageKey:   { type: 'string' },
+              fileName:     { type: 'string' },
               thumbnailKey: { type: 'string' },
               mimeType:     { type: 'string' },
               sizeBytes:    { type: 'number' },
@@ -153,6 +154,24 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
               waveform:     { type: 'array', items: { type: 'number' } },
             },
           },
+          attachments: {
+            type: 'array',
+            maxItems: 10,
+            items: {
+              type: 'object',
+              properties: {
+                storageKey:   { type: 'string' },
+                fileName:     { type: 'string' },
+                thumbnailKey: { type: 'string' },
+                mimeType:     { type: 'string' },
+                sizeBytes:    { type: 'number' },
+                width:        { type: 'number' },
+                height:       { type: 'number' },
+                durationMs:   { type: 'number' },
+                waveform:     { type: 'array', items: { type: 'number' } },
+              },
+            },
+          },
         },
       },
     },
@@ -160,6 +179,7 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
     const { id } = request.params as { id: string }
     const attachmentSchema = z.object({
       storageKey:   z.string(),
+      fileName:     z.string().optional(),
       thumbnailKey: z.string().optional(),
       mimeType:     z.string(),
       sizeBytes:    z.number(),
@@ -170,9 +190,10 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
     })
     const input = z.object({
       content: z.string().min(1).max(4000).optional(),
-      type: z.enum(['TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'CIRCLE_VIDEO']).optional(),
+      type: z.enum(['TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'CIRCLE_VIDEO', 'FILE', 'ALBUM']).optional(),
       replyToId: z.string().optional(),
       attachment: attachmentSchema.optional(),
+      attachments: z.array(attachmentSchema).max(10).optional(),
     }).parse(request.body)
 
     const userId = BigInt(request.user.sub)

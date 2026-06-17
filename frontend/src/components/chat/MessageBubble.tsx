@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { Message } from '@/store/chat'
+import { Message, MessageAttachment } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { chatApi } from '@/api/chat'
 import { useChatStore } from '@/store/chat'
@@ -350,7 +350,12 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
             </span>
           </button>
         )}
-        {att && (
+        {message.type === 'ALBUM' && message.attachments && message.attachments.length > 0 && (
+          <div className={isMediaOnly ? '' : 'mb-1.5'}>
+            <AlbumGrid attachments={message.attachments} />
+          </div>
+        )}
+        {att && message.type !== 'ALBUM' && (
           <div className={isMediaOnly ? '' : 'mb-1.5'}>
             {message.type === 'IMAGE' && (
               <ImageMessage url={mediaUrl(att.publicUrl, att.storageKey)} width={att.width} height={att.height} />
@@ -369,6 +374,9 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
                 waveform={att.waveform as number[] | null}
                 isOwn={isOwn}
               />
+            )}
+            {message.type === 'FILE' && (
+              <FileAttachment att={att} />
             )}
           </div>
         )}
@@ -392,7 +400,7 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
 
   return (
     <>
-      <div className="relative">
+      <div className={`relative msg-appear ${groupPos === 'first' || groupPos === 'single' ? 'mt-3' : 'mt-0.5'}`}>
         {/* Иконка ответа, проявляющаяся при свайпе */}
         <div
           className="absolute top-0 bottom-0 flex items-center pointer-events-none"
@@ -411,8 +419,14 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
         </div>
         <div
           ref={bubbleRef}
-          className={`group flex items-end gap-1.5 ${isOwn ? 'justify-end' : 'justify-start'} ${groupPos === 'first' || groupPos === 'single' ? 'mt-3' : 'mt-0.5'} msg-appear cursor-pointer`}
-          style={{ transform: `translateX(${swipeX}px)`, transition: swipeX === 0 ? 'transform 0.18s ease-out' : 'none' }}
+          className={`group flex items-end gap-1.5 select-none ${isOwn ? 'justify-end' : 'justify-start'} cursor-pointer`}
+          style={{
+            transform: `translateX(${swipeX}px)`,
+            transition: swipeX === 0 ? 'transform 0.18s ease-out' : 'none',
+            WebkitUserSelect: 'none',
+            WebkitTouchCallout: 'none',
+            touchAction: 'pan-y',
+          }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -855,6 +869,7 @@ function replyPreviewText(reply: NonNullable<Message['replyTo']>): string {
   if (reply.content) return reply.content
   const labels: Record<string, string> = {
     IMAGE: '🖼 Фото', VIDEO: '🎥 Видео', AUDIO: '🎤 Голосовое', CIRCLE_VIDEO: '⭕ Кружок',
+    FILE: '📎 Файл', ALBUM: '🖼 Альбом',
   }
   return labels[reply.type] ?? 'Вложение'
 }
@@ -873,4 +888,153 @@ function withToken(url: string): string {
   const token = useAuthStore.getState().accessToken
   if (!token) return url
   return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
+}
+
+function attKind(a: MessageAttachment): 'image' | 'video' | 'document' {
+  if (a.mimeType.startsWith('image/')) return 'image'
+  if (a.mimeType.startsWith('video/')) return 'video'
+  return 'document'
+}
+
+function formatBytes(bytes: number | null): string {
+  if (!bytes) return ''
+  if (bytes < 1024) return `${bytes} Б`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} КБ`
+  return `${(bytes / 1024 / 1024).toFixed(1)} МБ`
+}
+
+// ── Альбом: сетка вложений (фото/видео/документы) в одном сообщении ──
+function AlbumGrid({ attachments }: { attachments: MessageAttachment[] }) {
+  const media = attachments.filter(a => attKind(a) !== 'document')
+  const docs = attachments.filter(a => attKind(a) === 'document')
+  const [lightbox, setLightbox] = useState<number | null>(null)
+
+  const n = media.length
+  const cols = n === 1 ? 1 : n === 2 ? 2 : n <= 4 ? 2 : 3
+
+  return (
+    <div className="flex flex-col gap-1.5" style={{ width: 260, maxWidth: '100%' }}>
+      {n > 0 && (
+        <div className="grid gap-0.5 rounded-xl overflow-hidden" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+          {media.map((a, i) => {
+            const kind = attKind(a)
+            const thumb = a.thumbnailKey ? mediaUrl(null, a.thumbnailKey) : mediaUrl(a.publicUrl, a.storageKey)
+            // Последняя ячейка в неполном ряду из одного элемента растягивается
+            const span = n === 3 && i === 0 ? 'col-span-2 row-span-2' : ''
+            return (
+              <button
+                key={a.id}
+                onClick={(e) => { e.stopPropagation(); setLightbox(i) }}
+                className={`relative overflow-hidden bg-black/20 ${span}`}
+                style={{ aspectRatio: n === 1 ? undefined : '1 / 1', minHeight: n === 1 ? undefined : 0 }}
+              >
+                <img src={thumb} alt="" className="w-full h-full object-cover" loading="lazy"
+                  style={n === 1 ? { maxHeight: 320, width: '100%', objectFit: 'cover' } : undefined} />
+                {kind === 'video' && (
+                  <span className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <span className="w-9 h-9 rounded-full bg-black/50 flex items-center justify-center">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><polygon points="8,5 19,12 8,19"/></svg>
+                    </span>
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
+      {docs.map(a => <FileAttachment key={a.id} att={a} />)}
+
+      {lightbox !== null && createPortal(
+        <MediaLightbox items={media} index={lightbox} onClose={() => setLightbox(null)} onIndex={setLightbox} />,
+        document.body,
+      )}
+    </div>
+  )
+}
+
+// ── Одиночный документ/файл ──
+function FileAttachment({ att }: { att: MessageAttachment }) {
+  const url = mediaUrl(att.publicUrl, att.storageKey)
+  const name = att.fileName ?? 'Файл'
+  return (
+    <a
+      href={url}
+      download={name}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/5 transition-colors"
+      style={{ minWidth: 200, maxWidth: 280 }}
+    >
+      <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'rgba(251,191,36,0.18)' }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="1.8">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm truncate text-white">{name}</p>
+        {att.sizeBytes ? <p className="text-[11px]" style={{ color: 'var(--text-low)' }}>{formatBytes(att.sizeBytes)}</p> : null}
+      </div>
+    </a>
+  )
+}
+
+// ── Лайтбокс на почти весь экран с навигацией по альбому ──
+function MediaLightbox({ items, index, onClose, onIndex }: {
+  items: MessageAttachment[]
+  index: number
+  onClose: () => void
+  onIndex: (i: number) => void
+}) {
+  const a = items[index]
+  if (!a) return null
+  const url = mediaUrl(a.publicUrl, a.storageKey)
+  const kind = attKind(a)
+  const hasPrev = index > 0
+  const hasNext = index < items.length - 1
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/95 flex flex-col" onClick={onClose}>
+      {/* Верхняя панель с крестиком */}
+      <div className="flex items-center justify-between px-4 py-3 shrink-0" onClick={(e) => e.stopPropagation()}>
+        <span className="text-sm text-white/70">{items.length > 1 ? `${index + 1} / ${items.length}` : ''}</span>
+        <button
+          onClick={onClose}
+          className="w-10 h-10 rounded-full flex items-center justify-center text-white/80 hover:text-white hover:bg-white/10 transition-colors"
+          title="Закрыть"
+        >
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      {/* Контент */}
+      <div className="flex-1 flex items-center justify-center px-2 pb-4 min-h-0 relative" onClick={(e) => e.stopPropagation()}>
+        {kind === 'video' ? (
+          <video src={url} controls autoPlay className="max-w-full max-h-full rounded-lg" />
+        ) : (
+          <img src={url} alt="" className="max-w-full max-h-full object-contain rounded-lg" />
+        )}
+
+        {hasPrev && (
+          <button
+            onClick={() => onIndex(index - 1)}
+            className="absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center bg-black/40 text-white hover:bg-black/60 transition-colors"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+        )}
+        {hasNext && (
+          <button
+            onClick={() => onIndex(index + 1)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center bg-black/40 text-white hover:bg-black/60 transition-colors"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        )}
+      </div>
+    </div>
+  )
 }
