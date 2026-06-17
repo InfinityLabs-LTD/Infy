@@ -11,7 +11,7 @@ interface Props {
 
 type Tab = 'assistant' | 'summary' | 'replies'
 
-// Infy AI — AI-помощник по чату: приватный диалог (поиск/веб/планы/подсказки),
+// Infy Puls — AI-помощник по чату: приватный диалог (поиск/веб/планы/подсказки),
 // сводка диалога и умные ответы. Вкладка «Ассистент» приватна — собеседник её не видит.
 export function AiPanel({ chatId, onClose, onUseReply }: Props) {
   const [tab, setTab] = useState<Tab>('assistant')
@@ -146,7 +146,7 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
             </svg>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-display text-sm font-bold text-white leading-tight">Infy AI</p>
+            <p className="font-display text-sm font-bold text-white leading-tight">Infy Puls</p>
             <p className="text-[11px]" style={{ color: 'var(--text-low)' }}>AI-помощник чата</p>
           </div>
           <button onClick={onClose}
@@ -234,7 +234,7 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-                  placeholder="Сообщение для Infy AI…"
+                  placeholder="Сообщение для Infy Puls…"
                   rows={1}
                   className="flex-1 resize-none px-3 py-2.5 rounded-xl text-sm text-white outline-none max-h-32"
                   style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }} />

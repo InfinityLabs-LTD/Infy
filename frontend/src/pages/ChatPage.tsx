@@ -331,7 +331,7 @@ export function ChatPage() {
     if (!text.trim() || !chatId || sending) return
     const content = text.trim()
 
-    // Команда /ask <вопрос> — вызов Infy AI в чате (вопрос и ответ видны обоим).
+    // Команда /ask <вопрос> — вызов Infy Puls в чате (вопрос и ответ видны обоим).
     // Не блокируем поле ввода: вопрос публикуется сразу, ответ ИИ придёт
     // асинхронно по сокету как отдельное сообщение.
     if (/^\/ask\b/i.test(content) && !editing) {
@@ -855,12 +855,20 @@ export function ChatPage() {
             </button>
 
             <div className="flex items-center shrink-0">
-              {/* Infy Pulse — AI (отдельная акцентная кнопка) */}
-              <IconBtn onClick={() => chatId && setShowAi(true)} title="Infy Pulse — AI" color="#C084FC">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/>
-                </svg>
-              </IconBtn>
+              {/* Infy Puls — AI: акцентная кнопка с плавной пульсацией */}
+              <button
+                onClick={() => chatId && setShowAi(true)}
+                title="Infy Puls — AI"
+                className="puls-btn relative w-9 h-9 mr-0.5 flex items-center justify-center rounded-full shrink-0 active:scale-90 transition-transform"
+              >
+                {/* Пульсирующее кольцо-ореол */}
+                <span className="puls-ring" aria-hidden />
+                <span className="relative z-[1] flex items-center justify-center text-white">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"/>
+                  </svg>
+                </span>
+              </button>
 
               {/* Сэндвич-меню действий чата */}
               <div className="relative">
@@ -1406,7 +1414,7 @@ export function ChatPage() {
             <textarea
               ref={inputRef}
               rows={1}
-              className="flex-1 resize-none rounded-2xl px-4 py-2.5 text-sm text-white placeholder-white/30 outline-none leading-relaxed max-h-32 transition-none"
+              className="composer-input flex-1 resize-none rounded-2xl px-4 py-2.5 text-sm text-white placeholder-white/30 outline-none leading-relaxed max-h-32"
               style={{ background: 'var(--glass-2)', border: '1px solid var(--glass-stroke)', caretColor: '#A855F7' }}
               placeholder="Сообщение…"
               value={text}

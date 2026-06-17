@@ -109,7 +109,7 @@ export function AdminAiCenterPage() {
         </div>
         <div>
           <h1 className="font-display text-xl font-bold text-white leading-tight">AI Center</h1>
-          <p className="text-xs" style={{ color: 'var(--text-low)' }}>Управление ассистентом Infy AI</p>
+          <p className="text-xs" style={{ color: 'var(--text-low)' }}>Управление ассистентом Infy Puls</p>
         </div>
         {saved && (
           <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -127,7 +127,7 @@ export function AdminAiCenterPage() {
         <div>
           <p className="font-semibold text-white text-sm">Ассистент включён</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-low)' }}>
-            Доступ к Infy AI в чатах: поиск по переписке, веб-поиск, планы, подсказки, /ask
+            Доступ к Infy Puls в чатах: поиск по переписке, веб-поиск, планы, подсказки, /ask
           </p>
         </div>
         <Toggle checked={settings.enabled} disabled={saving}

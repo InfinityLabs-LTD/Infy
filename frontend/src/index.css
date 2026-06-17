@@ -196,6 +196,69 @@
 }
 .online-ping { animation: onlinePing 2.2s ease-out infinite; }
 
+/* === Кнопка Infy Puls (AI) — пульсирующая === */
+.puls-btn {
+  background: linear-gradient(135deg, #A855F7 0%, #7C3AED 100%);
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.45);
+  animation: pulsBreathe 2.8s ease-in-out infinite;
+}
+.puls-btn:hover { filter: brightness(1.08); }
+/* Иконка-искра внутри слегка «дышит» вместе с кнопкой */
+.puls-btn > span:last-child { animation: pulsGlow 2.8s ease-in-out infinite; }
+
+/* Пульсирующее кольцо-ореол вокруг кнопки */
+.puls-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.55) 0%, rgba(168, 85, 247, 0) 70%);
+  animation: pulsRing 2.8s ease-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes pulsBreathe {
+  0%, 100% { box-shadow: 0 4px 14px rgba(124, 58, 237, 0.40); transform: scale(1); }
+  50%      { box-shadow: 0 6px 22px rgba(168, 85, 247, 0.70); transform: scale(1.06); }
+}
+@keyframes pulsRing {
+  0%   { transform: scale(0.85); opacity: 0.7; }
+  70%  { transform: scale(1.9);  opacity: 0; }
+  100% { transform: scale(1.9);  opacity: 0; }
+}
+@keyframes pulsGlow {
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
+  50%      { filter: drop-shadow(0 0 4px rgba(255,255,255,0.7)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .puls-btn, .puls-btn > span:last-child, .puls-ring { animation: none; }
+}
+
+/* === Поле ввода сообщения — фиолетовое свечение === */
+.composer-input {
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+/* В покое — мягкая бегущая фиолетовая обводка (едва заметная). */
+.composer-input:not(:focus) {
+  animation: composerIdle 4s ease-in-out infinite;
+}
+/* В фокусе — живое пульсирующее свечение акцентом. */
+.composer-input:focus {
+  border-color: rgba(168, 85, 247, 0.65) !important;
+  animation: composerFocus 2.2s ease-in-out infinite;
+}
+@keyframes composerIdle {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.10), 0 0 0 rgba(168,85,247,0); }
+  50%      { box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.28), 0 0 14px rgba(168,85,247,0.18); }
+}
+@keyframes composerFocus {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.30), 0 0 16px rgba(168,85,247,0.25); }
+  50%      { box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.55), 0 0 26px rgba(168,85,247,0.45); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer-input:not(:focus), .composer-input:focus { animation: none; }
+}
+
 /* ============================================================
    Auth (страницы входа / регистрации) — premium liquid glass
    ============================================================ */

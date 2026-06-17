@@ -104,7 +104,7 @@ async function publishCreatedEvents(
           chatId: created.chatId,
           senderId: ctx.userId,
           type: 'SYSTEM',
-          content: `🤖 Infy AI запланировал: «${full.title}» — ${when}. Напоминание придёт обоим.`,
+          content: `🤖 Infy Puls запланировал: «${full.title}» — ${when}. Напоминание придёт обоим.`,
         },
         include: {
           sender: true,
@@ -124,7 +124,7 @@ async function publishCreatedEvents(
 // веб-поиск, создание напоминаний, ответы по контексту.
 
 const PRIVATE_SYSTEM = (myNickname: string, transcript: string, tz: string) =>
-  `Ты — Infy AI, умный помощник внутри мессенджера Infy. Ты помогаешь пользователю «${myNickname}» в контексте его личного чата с собеседником. ` +
+  `Ты — Infy Puls, умный помощник внутри мессенджера Infy. Ты помогаешь пользователю «${myNickname}» в контексте его личного чата с собеседником. ` +
   `Отвечай на русском, дружелюбно и по делу. ${nowContext(tz)}\n\n` +
   `Твои возможности:\n` +
   `• Находить информацию по переписке (инструмент search_chat).\n` +
@@ -235,7 +235,7 @@ export async function chatWithAssistant(
 // Ответ ИИ публикуется отдельным системным сообщением в чат.
 
 const ASK_SYSTEM = (transcript: string, tz: string) =>
-  `Ты — Infy AI, помощник в общем чате мессенджера Infy. Двое участников вызвали тебя командой /ask, и оба видят твой ответ. ` +
+  `Ты — Infy Puls, помощник в общем чате мессенджера Infy. Двое участников вызвали тебя командой /ask, и оба видят твой ответ. ` +
   `Отвечай на русском, кратко и нейтрально. ${nowContext(tz)}\n\n` +
   `Твои возможности:\n` +
   `• Отвечать на вопросы по переписке (инструмент search_chat).\n` +
@@ -359,7 +359,7 @@ export async function askInChat(
   // 1) Публикуем сам вопрос как сообщение-запрос к ИИ (видят оба участника).
   const queryMsg = await createAndPublishMessage(prisma, redis, chatId, userId, 'AI_QUERY', question.trim())
 
-  // 2) Сразу публикуем пустой ответ-плейсхолдер (оба видят «Infy AI печатает…»).
+  // 2) Сразу публикуем пустой ответ-плейсхолдер (оба видят «Infy Puls печатает…»).
   const placeholder = await createAndPublishMessage(prisma, redis, chatId, userId, 'AI', '')
 
   // 3) Генерация ответа — в фоне (не блокируем HTTP и поле ввода). По готовности
