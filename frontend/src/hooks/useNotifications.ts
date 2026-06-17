@@ -143,7 +143,17 @@ export function useNotifications(): UseNotificationsResult {
     setPermission(perm)
     if (perm !== 'granted') return
     setOptedOut(false)
-    await subscribeAndRegister().then(() => setSubscribed(true)).catch(() => {})
+    // Не глотаем ошибки: на Android подписка может не создаться с первого раза
+    // (SW ещё активируется), поэтому пробуем повторно и пробрасываем ошибку,
+    // чтобы UI не показывал «включено», когда подписки на сервере нет.
+    try {
+      await subscribeAndRegister()
+      setSubscribed(true)
+    } catch {
+      await new Promise((r) => setTimeout(r, 800))
+      await subscribeAndRegister()
+      setSubscribed(true)
+    }
   }, [supported])
 
   const disable = useCallback(async () => {

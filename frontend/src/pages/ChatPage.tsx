@@ -1178,11 +1178,20 @@ export function ChatPage() {
                 )
               })
             )}
-            <TypingIndicator names={typingNames} />
             <div ref={bottomRef} />
           </div>
         )}
       </div>
+
+      {/* Индикатор «печатает» — отдельной плашкой над полем ввода, вне зоны
+          прокрутки, чтобы он не уходил под композер и не требовал листать вниз. */}
+      {typingNames.length > 0 && (
+        <div className="shrink-0 px-2">
+          <div className="mx-auto w-full max-w-[880px]">
+            <TypingIndicator names={typingNames} />
+          </div>
+        </div>
+      )}
 
       {/* Тост: запись слишком короткая */}
       {shortRecordToast && (

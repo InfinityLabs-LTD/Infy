@@ -108,5 +108,32 @@ export function useSocket(): Socket | null {
     if (!accessToken) disconnectSocket()
   }, [accessToken])
 
+  // Присутствие по видимости вкладки: при сворачивании приложения сообщаем
+  // серверу «away» (пользователь перестаёт «висеть в сети»), при возврате —
+  // «active». Также пере-отправляем актуальное состояние после reconnect.
+  useEffect(() => {
+    if (!accessToken) return
+    const socket = socketRef.current
+    if (!socket) return
+
+    const syncPresence = () => {
+      if (!socket.connected) return
+      socket.emit(document.hidden ? 'set_away' : 'set_active')
+    }
+    const onPageHide = () => { if (socket.connected) socket.emit('set_away') }
+
+    document.addEventListener('visibilitychange', syncPresence)
+    window.addEventListener('pagehide', onPageHide)
+    socket.on('connect', syncPresence)
+    // Отправляем текущее состояние сразу.
+    syncPresence()
+
+    return () => {
+      document.removeEventListener('visibilitychange', syncPresence)
+      window.removeEventListener('pagehide', onPageHide)
+      socket.off('connect', syncPresence)
+    }
+  }, [accessToken])
+
   return socketRef.current
 }

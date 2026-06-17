@@ -323,6 +323,36 @@ export function createSocketServer(
       socket.emit('pong')
     })
 
+    // ── away / active ───────────────────────────────────────
+    // Клиент сообщает, что вкладка свёрнута/неактивна (visibilitychange).
+    // Сокет остаётся подключённым (чтобы получать сообщения и push), но в
+    // присутствии пользователь считается оффлайн — иначе он «висит в сети»
+    // при свёрнутом приложении.
+    socket.on('set_away', async () => {
+      try {
+        socket.data.active = false
+        const sockets = await io.in(`user:${userId}`).fetchSockets()
+        // Уходим в оффлайн, только если ни один сокет пользователя не активен.
+        const anyActive = sockets.some((sk: { data: { active?: boolean } }) => sk.data.active !== false)
+        if (!anyActive) {
+          await setOffline(pubClient, userId)
+          await prisma.user.update({
+            where: { id: BigInt(userId) },
+            data: { lastSeenAt: new Date() },
+          }).catch(() => {})
+          io.emit('user_offline', { userId, username, lastSeenAt: new Date() })
+        }
+      } catch { /* non-critical */ }
+    })
+
+    socket.on('set_active', async () => {
+      try {
+        socket.data.active = true
+        await setOnline(pubClient, userId)
+        io.emit('user_online', { userId, username })
+      } catch { /* non-critical */ }
+    })
+
     // ── disconnect ──────────────────────────────────────────
     socket.on('disconnect', async () => {
       // Check if user has other active sockets before marking offline

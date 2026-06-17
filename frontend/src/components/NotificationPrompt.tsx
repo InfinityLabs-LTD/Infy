@@ -13,17 +13,33 @@ const DISMISS_KEY = 'infy:notif-prompt-dismissed'
  *   'default'.
  */
 export function NotificationPrompt() {
-  const { supported, permission, needsIosInstall, enable } = useNotifications()
+  const { supported, permission, needsIosInstall, subscribed, enable } = useNotifications()
   const [dismissed, setDismissed] = useState(
     () => localStorage.getItem(DISMISS_KEY) === '1',
   )
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
 
   if (!supported || dismissed) return null
-  if (permission === 'granted' || permission === 'denied') return null
+  // Прячем плашку только когда подписка реально оформлена, либо доступ запрещён.
+  if (permission === 'denied') return null
+  if (permission === 'granted' && subscribed) return null
 
   const dismiss = () => {
     localStorage.setItem(DISMISS_KEY, '1')
     setDismissed(true)
+  }
+
+  const handleEnable = async () => {
+    setBusy(true)
+    setFailed(false)
+    try {
+      await enable()
+    } catch {
+      setFailed(true)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -37,13 +53,16 @@ export function NotificationPrompt() {
       ) : (
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm text-white/80">
-            Включить уведомления о новых сообщениях?
+            {failed
+              ? 'Не удалось включить уведомления. Попробуйте ещё раз.'
+              : 'Включить уведомления о новых сообщениях?'}
           </p>
           <button
-            onClick={() => void enable()}
-            className="shrink-0 rounded-xl bg-purple-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-purple-400"
+            onClick={() => void handleEnable()}
+            disabled={busy}
+            className="shrink-0 rounded-xl bg-purple-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-purple-400 disabled:opacity-50"
           >
-            Включить
+            {busy ? 'Включаем…' : failed ? 'Повторить' : 'Включить'}
           </button>
         </div>
       )}
