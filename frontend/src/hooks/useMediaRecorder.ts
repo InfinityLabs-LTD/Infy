@@ -4,7 +4,8 @@ export type RecordingState = 'idle' | 'recording' | 'paused'
 
 export interface UseMediaRecorderResult {
   state: RecordingState
-  duration: number          // seconds
+  duration: number          // seconds (для отображения, округлено вниз)
+  getElapsedMs: () => number // точная длительность записи в мс
   start: () => Promise<void>
   stop: () => Promise<Blob | null>
   cancel: () => void
@@ -24,6 +25,10 @@ export function useMediaRecorder(): UseMediaRecorderResult {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const resolveRef = useRef<((blob: Blob | null) => void) | null>(null)
   const startPromiseRef = useRef<Promise<void> | null>(null)
+  // Метка начала записи — для точного расчёта длительности (мс), а не по
+  // целочисленному счётчику секунд (он обновляется раз в секунду и занижает дробные значения).
+  const startTimeRef = useRef<number>(0)
+  const elapsedMsRef = useRef<number>(0)
 
   const clearTimer = () => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
@@ -59,6 +64,8 @@ export function useMediaRecorder(): UseMediaRecorderResult {
       recorder.start(200)
       setState('recording')
       setDuration(0)
+      startTimeRef.current = Date.now()
+      elapsedMsRef.current = 0
       timerRef.current = setInterval(() => setDuration(d => d + 1), 1000)
     })()
     startPromiseRef.current = promise
@@ -75,6 +82,8 @@ export function useMediaRecorder(): UseMediaRecorderResult {
       if (!recorder || recorder.state === 'inactive') { resolve(null); return }
 
       resolveRef.current = resolve
+      // Фиксируем точную длительность в момент остановки (до асинхронного onstop).
+      elapsedMsRef.current = startTimeRef.current ? Date.now() - startTimeRef.current : 0
       clearTimer()
 
       recorder.onstop = () => {
@@ -101,9 +110,17 @@ export function useMediaRecorder(): UseMediaRecorderResult {
     recorderRef.current?.stop()
     recorderRef.current = null
     chunksRef.current = []
+    startTimeRef.current = 0
+    elapsedMsRef.current = 0
     setState('idle')
     setDuration(0)
     resolveRef.current?.(null)
+  }, [])
+
+  // Точная длительность последней (или текущей) записи в миллисекундах.
+  const getElapsedMs = useCallback(() => {
+    if (elapsedMsRef.current) return elapsedMsRef.current
+    return startTimeRef.current ? Date.now() - startTimeRef.current : 0
   }, [])
 
   // Освобождаем стрим только при размонтировании компонента
@@ -112,5 +129,5 @@ export function useMediaRecorder(): UseMediaRecorderResult {
     streamRef.current = null
   }, [])
 
-  return { state, duration, start, stop, cancel, releaseStream } as UseMediaRecorderResult & { releaseStream: () => void }
+  return { state, duration, getElapsedMs, start, stop, cancel, releaseStream } as UseMediaRecorderResult & { releaseStream: () => void }
 }

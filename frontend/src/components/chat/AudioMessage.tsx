@@ -69,7 +69,7 @@ export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
   const activeBars = Math.round(progress * bars.length)
 
   return (
-    <div className="flex items-center gap-2.5 px-3 py-2" style={{ minWidth: 200, maxWidth: 260 }}>
+    <div className="flex items-center gap-2.5" style={{ minWidth: 180, width: 240, maxWidth: '100%' }}>
       <audio ref={audioRef} src={url} preload="metadata" />
 
       <button
@@ -88,9 +88,9 @@ export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
         )}
       </button>
 
-      <div className="flex-1 flex flex-col gap-1">
+      <div className="flex-1 min-w-0 flex flex-col gap-1">
         {/* Waveform */}
-        <div className="flex items-center gap-px h-8 cursor-pointer" onClick={seek}>
+        <div className="flex items-center gap-px h-8 cursor-pointer overflow-hidden" onClick={seek}>
           {bars.map((amp, i) => (
             <div
               key={i}

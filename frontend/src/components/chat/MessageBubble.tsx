@@ -155,7 +155,10 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
 
   const time = new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const att = message.attachments?.[0]
-  const isMediaOnly = !message.content && att
+  const isAudio = message.type === 'AUDIO'
+  // Голосовое всегда в пузыре с внутренними отступами — дорожка не должна
+  // упираться в скруглённый край (в отличие от фото/видео «на всю ширину»).
+  const isMediaOnly = !message.content && att && !isAudio
   const isCircle = message.type === 'CIRCLE_VIDEO'
   const reactions = message.reactions ?? []
   const isRead = !!(partnerLastReadMessageId && message.id <= partnerLastReadMessageId)

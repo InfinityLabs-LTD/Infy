@@ -602,13 +602,15 @@ export function ChatPage() {
   }
 
   async function sendVoiceBlob() {
-    const dur = voiceRecorder.duration
     const blob = await voiceRecorder.stop()
+    // Точная длительность фиксируется в момент stop() (в мс), а не по
+    // целочисленному счётчику секунд — иначе запись ~1.8с занижалась до 1с.
+    const elapsedMs = voiceRecorder.getElapsedMs()
     recordLockedRef.current = false
     setRecordLocked(false)
     isHoldingRef.current = false
     if (!blob || blob.size < 1000 || !chatId) return
-    if (dur < 2) {
+    if (elapsedMs < 1000) {
       setShortRecordToast(true)
       setTimeout(() => setShortRecordToast(false), 2500)
       return
@@ -1105,7 +1107,7 @@ export function ChatPage() {
       {/* Тост: запись слишком короткая */}
       {shortRecordToast && (
         <div className="glass-pop fixed bottom-28 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm text-white">
-          Минимальная длина записи — 2 секунды
+          Минимальная длина записи — 1 секунда
         </div>
       )}
 
@@ -1263,21 +1265,7 @@ export function ChatPage() {
               <rect x="3" y="11" width="18" height="11" rx="2"/>
               <path d="M7 11V7a5 5 0 0110 0v4"/>
             </svg>
-            {/* Кнопка отправки справа от дорожки */}
-            <button
-              onClick={sendVoiceBlob}
-              disabled={sending}
-              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-all disabled:opacity-40 active:scale-95 ml-1"
-              style={{ background: 'var(--grad-own)', boxShadow: 'var(--glow-primary)' }}
-            >
-              {sending ? <Spinner size={12} /> : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"
-                  style={{ transform: 'rotate(45deg)', marginLeft: '2px' }}>
-                  <line x1="22" y1="2" x2="11" y2="13"/>
-                  <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                </svg>
-              )}
-            </button>
+            {/* Кнопка отправки — единственная, справа в композере (см. ниже) */}
           </div>
         )}
 
