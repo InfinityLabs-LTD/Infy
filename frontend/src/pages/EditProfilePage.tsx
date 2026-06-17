@@ -55,6 +55,8 @@ export function EditProfilePage() {
     bio: user?.bio ?? '',
     timezone: user?.timezone ?? browserTimezone(),
   })
+  // Infy Puls: подсказки ответов над полем ввода (булев — отдельно от строковых полей).
+  const [aiSuggestReplies, setAiSuggestReplies] = useState(user?.aiSuggestReplies ?? true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<unknown>(null)
 
@@ -78,6 +80,7 @@ export function EditProfilePage() {
         birthdate: form.birthdate || null,
         bio: form.bio.trim() || null,
         timezone: form.timezone || null,
+        aiSuggestReplies,
       })
       setUser(res.data.data)
       navigate('/profile')
@@ -153,6 +156,35 @@ export function EditProfilePage() {
               <p className="text-xs mt-1" style={{ color: 'var(--text-low)' }}>
                 Время событий и напоминаний показывается в вашем поясе. У собеседника из другого пояса — в его.
               </p>
+            </div>
+
+            {/* ── Infy Puls ── */}
+            <div className="pt-2 mt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: 'var(--grad-own)', boxShadow: 'var(--glow-primary)' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
+                  </svg>
+                </div>
+                <span className="text-sm font-semibold text-white">Infy Puls</span>
+              </div>
+
+              <button type="button" onClick={() => setAiSuggestReplies(v => !v)}
+                className="w-full flex items-center gap-3 text-left">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white">Предлагать ответы</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-low)' }}>
+                    Подсказки над полем ввода: варианты ответа на сообщение собеседника в вашей манере.
+                  </p>
+                </div>
+                {/* Переключатель */}
+                <span className="shrink-0 w-11 h-6 rounded-full relative transition-colors"
+                  style={{ background: aiSuggestReplies ? 'var(--grad-own)' : 'rgba(255,255,255,0.12)' }}>
+                  <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all"
+                    style={{ left: aiSuggestReplies ? '22px' : '2px' }} />
+                </span>
+              </button>
             </div>
 
             <div className="flex gap-3 pt-2">

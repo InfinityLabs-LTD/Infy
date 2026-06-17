@@ -108,6 +108,8 @@ model User {
   // IANA-зона пользователя (напр. "Asia/Yekaterinburg") для календаря/напоминаний.
   // null = ещё не задана (клиент при первом заходе пишет авто-зону браузера).
   timezone        String?   @db.VarChar(64)
+  // Infy Puls: показывать ли подсказки ответов над полем ввода чата.
+  aiSuggestReplies Boolean  @default(true)
   createdAt       DateTime  @default(now())
   lastSeenAt      DateTime  @default(now())
 

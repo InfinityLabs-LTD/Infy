@@ -445,13 +445,33 @@ export async function suggestReplies(
   const { transcript, count, myNickname } = await buildTranscript(prisma, chatId, userId, 40)
   if (count === 0) return { replies: [] }
 
+  // Подсказки нужны, только когда последнее слово за собеседником —
+  // отвечаем на ЕГО реплику. Если последним писал сам пользователь, отвечать не на что.
+  const last = await prisma.message.findFirst({
+    where: { chatId, deletedAt: null, type: { not: 'SYSTEM' } },
+    orderBy: { id: 'desc' },
+    include: { sender: { select: { id: true, nickname: true } } },
+  })
+  if (!last || last.sender.id === userId) return { replies: [] }
+  const partnerName = last.sender.nickname
+  const partnerText = last.content ?? `[${last.type.toLowerCase()}]`
+
   const result = await runAgent({
     config,
     system:
-      `Ты помогаешь пользователю «${myNickname}» ответить в чате Infy. ` +
-      'Предложи РОВНО 3 коротких варианта ответа на русском от его лица — естественных, разных по тону, по 1–2 предложения. ' +
-      'Верни ТОЛЬКО валидный JSON-массив из 3 строк, без markdown. Пример: ["Хорошо!","Давай обсудим","Расскажи подробнее"]',
-    messages: [{ role: 'user', content: `Переписка:\n\n${transcript}\n\nПредложи 3 варианта моего ответа.` }],
+      `Ты помогаешь пользователю «${myNickname}» ответить в личном чате Infy на последнее сообщение собеседника «${partnerName}». ` +
+      'Сгенерируй варианты ответа ОТ ЛИЦА пользователя, обращённые к собеседнику (не пересказ, не комментарий со стороны). ' +
+      `Опирайся на контекст всего диалога и подражай манере письма самого «${myNickname}» — его длине фраз, тону, ` +
+      'эмодзи и пунктуации, как видно из его прошлых реплик в переписке. ' +
+      'Предложи РОВНО 3 варианта на русском, разных по смыслу/тону (например: согласие, уточняющий вопрос, встречное предложение), по 1–2 предложения. ' +
+      'Верни ТОЛЬКО валидный JSON-массив из 3 строк, без markdown. Пример: ["Хорошо, давай!","А во сколько удобнее?","Можем перенести на завтра?"]',
+    messages: [{
+      role: 'user',
+      content:
+        `Переписка (последним написал собеседник):\n\n${transcript}\n\n` +
+        `Последнее сообщение собеседника «${partnerName}»: «${partnerText}»\n\n` +
+        `Предложи 3 варианта моего ответа на это сообщение в моей манере.`,
+    }],
     tools: [],
     handlers: {},
     webSearch: false,

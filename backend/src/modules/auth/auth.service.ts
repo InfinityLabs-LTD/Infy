@@ -39,7 +39,7 @@ interface TokenPair {
   sessionId: string
 }
 
-export function serializeUser(user: { id: bigint; username: string; nickname: string; avatarUrl: string | null; coverUrl: string | null; bio: string | null; role: string; email: string | null; birthdate: Date | null; timezone?: string | null; createdAt: Date; lastSeenAt: Date }) {
+export function serializeUser(user: { id: bigint; username: string; nickname: string; avatarUrl: string | null; coverUrl: string | null; bio: string | null; role: string; email: string | null; birthdate: Date | null; timezone?: string | null; aiSuggestReplies?: boolean; createdAt: Date; lastSeenAt: Date }) {
   return {
     id: user.id.toString(),
     username: user.username,
@@ -51,6 +51,7 @@ export function serializeUser(user: { id: bigint; username: string; nickname: st
     email: user.email,
     birthdate: user.birthdate,
     timezone: user.timezone ?? null,
+    aiSuggestReplies: user.aiSuggestReplies ?? true,
     createdAt: user.createdAt,
     lastSeenAt: user.lastSeenAt,
   }

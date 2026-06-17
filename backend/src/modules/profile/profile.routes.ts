@@ -20,6 +20,8 @@ const updateProfileSchema = z.object({
   // IANA-зона (напр. "Asia/Yekaterinburg"); null — сбросить.
   timezone: z.string().max(64).optional().nullable()
     .refine(v => v == null || isValidTimezone(v), { message: 'Invalid IANA timezone' }),
+  // Infy Puls: подсказки ответов над полем ввода чата.
+  aiSuggestReplies: z.boolean().optional(),
 })
 
 const profileRoutes: FastifyPluginAsync = async (app) => {
@@ -52,6 +54,7 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
           birthdate: { type: 'string', nullable: true },
           bio: { type: 'string', maxLength: 500, nullable: true },
           timezone: { type: 'string', maxLength: 64, nullable: true },
+          aiSuggestReplies: { type: 'boolean' },
         },
       },
     },
@@ -76,6 +79,7 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
         }),
         ...(input.bio !== undefined && { bio: input.bio ?? null }),
         ...(input.timezone !== undefined && { timezone: input.timezone ?? null }),
+        ...(input.aiSuggestReplies !== undefined && { aiSuggestReplies: input.aiSuggestReplies }),
       },
     })
 

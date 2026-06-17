@@ -11,6 +11,7 @@ export interface User {
   email: string | null
   birthdate: string | null
   timezone: string | null
+  aiSuggestReplies: boolean
   createdAt: string
   lastSeenAt: string
 }
@@ -61,7 +62,7 @@ export const profileApi = {
   getByUsername: (username: string) =>
     api.get<{ data: User }>(`/profile/${username}`),
 
-  updateMe: (body: { nickname?: string; username?: string; birthdate?: string | null; bio?: string | null; timezone?: string | null }) =>
+  updateMe: (body: { nickname?: string; username?: string; birthdate?: string | null; bio?: string | null; timezone?: string | null; aiSuggestReplies?: boolean }) =>
     api.patch<{ data: User }>('/profile/me', body),
 
   uploadAvatar: (file: File) => {

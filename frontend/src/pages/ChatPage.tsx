@@ -179,6 +179,12 @@ export function ChatPage() {
   const [recordLocked, setRecordLocked] = useState(false)
   const [circleAutoSend, setCircleAutoSend] = useState(false)
 
+  // ── Infy Puls: подсказки ответов над полем ввода ──
+  // Грузятся по кнопке-искре. Показываются только если пользователь включил их в настройках
+  // и последнее сообщение в чате — от собеседника.
+  const [suggestions, setSuggestions] = useState<string[] | null>(null)
+  const [suggestLoading, setSuggestLoading] = useState(false)
+
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const prevMsgLengthRef = useRef(0)
@@ -422,6 +428,43 @@ export function ChatPage() {
     setReplyTo(null)
     if (editing) { setEditing(null); setText('') }
   }
+
+  // ── Infy Puls: подсказки ответов ──
+  // Последнее сообщение в чате — от собеседника? Только тогда есть смысл подсказывать ответ.
+  const lastMsg = chatMessages.length ? chatMessages[chatMessages.length - 1] : null
+  const lastFromPartner = !!lastMsg && lastMsg.sender.id !== myUser?.id &&
+    lastMsg.type !== 'SYSTEM' && lastMsg.type !== 'AI_QUERY'
+  // Кнопку-искру показываем, если подсказки включены в настройках, ИИ-функции в принципе
+  // доступны, поле ввода пустое и последним писал собеседник.
+  const canSuggest = (myUser?.aiSuggestReplies ?? true) && lastFromPartner && !text.trim() && !staged.length
+
+  async function loadSuggestions() {
+    if (!chatId || suggestLoading) return
+    setSuggestLoading(true)
+    try {
+      const r = await aiApi.replies(chatId)
+      setSuggestions(r.data.data.replies)
+    } catch {
+      setSuggestions([])
+    } finally { setSuggestLoading(false) }
+  }
+
+  function applySuggestion(s: string) {
+    setText(s)
+    setSuggestions(null)
+    setTimeout(() => {
+      const el = inputRef.current
+      if (!el) return
+      el.focus()
+      el.style.height = 'auto'
+      el.style.height = `${el.scrollHeight}px`
+    }, 0)
+  }
+
+  // Сбрасываем подсказки при смене чата или когда последним стал не собеседник
+  // (например, пользователь только что отправил сообщение).
+  useEffect(() => { setSuggestions(null) }, [chatId])
+  useEffect(() => { if (!lastFromPartner) setSuggestions(null) }, [lastFromPartner])
 
   // ── Фоновая отправка медиа ──────────────────────────────────
   // Сообщение сразу появляется у отправителя (со значком таймера), поле
@@ -1178,6 +1221,20 @@ export function ChatPage() {
           </div>
         )}
 
+        {/* Infy Puls — подсказки ответов над полем ввода.
+            Видны, когда последним писал собеседник, поле пустое и подсказки включены. */}
+        {canSuggest && !isRecording && suggestions !== null && suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2 px-0.5">
+            {suggestions.map((s, i) => (
+              <button key={i} onClick={() => applySuggestion(s)}
+                className="suggest-chip text-left text-[13px] leading-snug px-3.5 py-2 rounded-2xl transition-transform active:scale-[0.98]"
+                style={{ color: 'rgba(255,255,255,0.92)' }}>
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Превью ответа / редактирования */}
         {(replyTo || editing) && !isRecording && (
           <div className="flex items-center gap-2 px-3 py-1.5 mb-2 rounded-xl"
@@ -1407,6 +1464,24 @@ export function ChatPage() {
                   </div>
                 </>
               )}
+            </div>
+          )}
+
+          {/* Infy Puls — искра: подобрать варианты ответа на сообщение собеседника */}
+          {!isRecording && canSuggest && suggestions === null && (
+            <div className="shrink-0 pb-0.5">
+              <IconBtn
+                onClick={loadSuggestions}
+                disabled={suggestLoading}
+                title="Infy Puls — подсказать ответ"
+                color="#C084FC"
+              >
+                {suggestLoading ? <Spinner size={16} /> : (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
+                  </svg>
+                )}
+              </IconBtn>
             </div>
           )}
 
