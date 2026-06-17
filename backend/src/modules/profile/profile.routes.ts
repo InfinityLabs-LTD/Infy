@@ -20,7 +20,7 @@ const updateProfileSchema = z.object({
   // IANA-зона (напр. "Asia/Yekaterinburg"); null — сбросить.
   timezone: z.string().max(64).optional().nullable()
     .refine(v => v == null || isValidTimezone(v), { message: 'Invalid IANA timezone' }),
-  // Infy Puls: подсказки ответов над полем ввода чата.
+  // Infy Pulse: подсказки ответов над полем ввода чата.
   aiSuggestReplies: z.boolean().optional(),
 })
 

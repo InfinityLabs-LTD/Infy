@@ -119,9 +119,9 @@ function ChatRow({ chat, active }: { chat: Chat; active: boolean }) {
                 : chat.lastMessage.type === 'SYSTEM'
                   ? chat.lastMessage.content
                   : chat.lastMessage.type === 'AI'
-                    ? `🤖 ${chat.lastMessage.content || 'Infy Puls печатает…'}`
+                    ? `🤖 ${chat.lastMessage.content || 'Infy Pulse печатает…'}`
                     : chat.lastMessage.type === 'AI_QUERY'
-                      ? `🤖 Вопрос Infy Puls`
+                      ? `🤖 Вопрос Infy Pulse`
                       : mediaLabel(chat.lastMessage.type))
             : 'Нет сообщений'}
         </p>

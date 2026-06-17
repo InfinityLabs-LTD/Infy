@@ -252,7 +252,7 @@ export function createSocketServer(
           return
         }
 
-        // Команда /ask <вопрос> — вызов Infy Puls в чате. Не сохраняем команду
+        // Команда /ask <вопрос> — вызов Infy Pulse в чате. Не сохраняем команду
         // как обычное сообщение: ассистент сам публикует системный ответ обоим.
         if (ASK_PREFIX.test(content.trim())) {
           const question = content.trim().replace(ASK_PREFIX, '').trim()

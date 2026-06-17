@@ -177,7 +177,7 @@
 | GET | `/media/avatars/*` | Раздача аватаров |
 | GET | `/media/:encodedKey` | Раздача/редирект на presigned-URL |
 
-### Infy Puls (ИИ) — `/ai`
+### Infy Pulse (ИИ) — `/ai`
 | Метод | Путь | Описание |
 |-------|------|----------|
 | GET | `/ai/status` | Включён ли ИИ (есть ли ключ) |
@@ -291,6 +291,6 @@ POST /auth/login     → 10 запросов / 15 мин / IP
 - `MINIO_*` — подключение и доступы MinIO
 - `RATE_LIMIT_*` — пороги rate-limit
 - `VAPID_*` — ключи web-push
-- `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` — ИИ (Infy Puls), опционально
+- `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` — ИИ (Infy Pulse), опционально
 - `STUN_URLS`, `TURN_URLS`, `TURN_SECRET`, `TURN_TTL_SEC`, `TURN_REALM`, `TURN_EXTERNAL_IP` — звонки
 - `SERVICE_ROLE` — `core` | `realtime` | `media` | `scheduler`

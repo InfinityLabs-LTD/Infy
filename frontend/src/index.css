@@ -196,7 +196,7 @@
 }
 .online-ping { animation: onlinePing 2.2s ease-out infinite; }
 
-/* === Кнопка Infy Puls (AI) — пульсирующая === */
+/* === Кнопка Infy Pulse (AI) — пульсирующая === */
 .puls-btn {
   background: linear-gradient(135deg, #A855F7 0%, #7C3AED 100%);
   box-shadow: 0 4px 14px rgba(124, 58, 237, 0.45);
@@ -235,7 +235,7 @@
   .puls-btn, .puls-btn > span:last-child, .puls-ring { animation: none; }
 }
 
-/* === Чип подсказки ответа Infy Puls ===
+/* === Чип подсказки ответа Infy Pulse ===
    Градиентная обводка в стиле Gemini: тёмная заливка (padding-box) поверх
    многоцветного градиента (border-box) даёт «жидкую» цветную рамку на пилюле. */
 .suggest-chip {

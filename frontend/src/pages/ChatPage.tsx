@@ -179,7 +179,7 @@ export function ChatPage() {
   const [recordLocked, setRecordLocked] = useState(false)
   const [circleAutoSend, setCircleAutoSend] = useState(false)
 
-  // ── Infy Puls: подсказки ответов над полем ввода ──
+  // ── Infy Pulse: подсказки ответов над полем ввода ──
   // Грузятся по кнопке-искре. Показываются только если пользователь включил их в настройках
   // и последнее сообщение в чате — от собеседника.
   const [suggestions, setSuggestions] = useState<string[] | null>(null)
@@ -337,7 +337,7 @@ export function ChatPage() {
     if (!text.trim() || !chatId || sending) return
     const content = text.trim()
 
-    // Команда /ask <вопрос> — вызов Infy Puls в чате (вопрос и ответ видны обоим).
+    // Команда /ask <вопрос> — вызов Infy Pulse в чате (вопрос и ответ видны обоим).
     // Не блокируем поле ввода: вопрос публикуется сразу, ответ ИИ придёт
     // асинхронно по сокету как отдельное сообщение.
     if (/^\/ask\b/i.test(content) && !editing) {
@@ -429,7 +429,7 @@ export function ChatPage() {
     if (editing) { setEditing(null); setText('') }
   }
 
-  // ── Infy Puls: подсказки ответов ──
+  // ── Infy Pulse: подсказки ответов ──
   // Последнее сообщение в чате — от собеседника? Только тогда есть смысл подсказывать ответ.
   const lastMsg = chatMessages.length ? chatMessages[chatMessages.length - 1] : null
   const lastFromPartner = !!lastMsg && lastMsg.sender.id !== myUser?.id &&
@@ -901,10 +901,10 @@ export function ChatPage() {
             </button>
 
             <div className="flex items-center shrink-0">
-              {/* Infy Puls — AI: акцентная кнопка с плавной пульсацией */}
+              {/* Infy Pulse — AI: акцентная кнопка с плавной пульсацией */}
               <button
                 onClick={() => chatId && setShowAi(true)}
-                title="Infy Puls — AI"
+                title="Infy Pulse — AI"
                 className="puls-btn relative w-9 h-9 mr-0.5 flex items-center justify-center rounded-full shrink-0 active:scale-90 transition-transform"
               >
                 {/* Пульсирующее кольцо-ореол */}
@@ -1233,7 +1233,7 @@ export function ChatPage() {
           </div>
         )}
 
-        {/* Infy Puls — подсказки ответов над полем ввода.
+        {/* Infy Pulse — подсказки ответов над полем ввода.
             Видны, когда последним писал собеседник, поле пустое и подсказки включены. */}
         {canSuggest && !isRecording && suggestions !== null && suggestions.length > 0 && (
           <div className="flex flex-wrap justify-center gap-2.5 mb-2.5 px-0.5">
@@ -1479,13 +1479,13 @@ export function ChatPage() {
             </div>
           )}
 
-          {/* Infy Puls — искра: подобрать варианты ответа на сообщение собеседника */}
+          {/* Infy Pulse — искра: подобрать варианты ответа на сообщение собеседника */}
           {!isRecording && canSuggest && suggestions === null && (
             <div className="shrink-0 pb-0.5">
               <IconBtn
                 onClick={loadSuggestions}
                 disabled={suggestLoading}
-                title="Infy Puls — подсказать ответ"
+                title="Infy Pulse — подсказать ответ"
                 color="#C084FC"
               >
                 {suggestLoading ? <Spinner size={16} /> : (

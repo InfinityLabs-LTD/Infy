@@ -403,7 +403,7 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
   )
 
   // ── AI-сообщения: вопрос к ИИ (AI_QUERY) и ответ ИИ (AI) ──
-  // Рендерятся как сообщения (видят оба), но с явной стилизацией под Infy Puls.
+  // Рендерятся как сообщения (видят оба), но с явной стилизацией под Infy Pulse.
   // На них тоже можно отвечать (свайпом) — это комментирование, на вызов ИИ не влияет.
   if (message.type === 'AI' || message.type === 'AI_QUERY') {
     return <AiMessage message={message} isOwn={isOwn} time={time} onReply={onReply} onJumpTo={onJumpTo} />
@@ -473,7 +473,7 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
 }
 
 // ── AI-сообщения ──────────────────────────────────────────────
-// Вопрос пользователя к Infy Puls (AI_QUERY) и ответ ассистента (AI).
+// Вопрос пользователя к Infy Pulse (AI_QUERY) и ответ ассистента (AI).
 // Оба видны обоим участникам; вопрос помечен как обращение к ИИ, чтобы
 // собеседник не принял его за обычное сообщение.
 
@@ -526,7 +526,7 @@ function AiMessage({ message, isOwn, time, onReply, onJumpTo }: {
   )
 
   if (isQuery) {
-    // Вопрос к ИИ — на стороне автора, с бейджем «Вопрос Infy Puls».
+    // Вопрос к ИИ — на стороне автора, с бейджем «Вопрос Infy Pulse».
     return (
       <div className="relative msg-appear mt-3">
         {replyHint}
@@ -548,7 +548,7 @@ function AiMessage({ message, isOwn, time, onReply, onJumpTo }: {
               {replyPreview}
               <div className="flex items-center gap-1.5 mb-1" style={{ color: '#C084FC' }}>
                 <AiGlyph />
-                <span className="text-[11px] font-semibold tracking-wide">Вопрос Infy Puls</span>
+                <span className="text-[11px] font-semibold tracking-wide">Вопрос Infy Pulse</span>
               </div>
               <p className="whitespace-pre-wrap break-words leading-relaxed" style={{ color: 'rgba(255,255,255,0.92)' }}>
                 {message.content}
@@ -561,7 +561,7 @@ function AiMessage({ message, isOwn, time, onReply, onJumpTo }: {
     )
   }
 
-  // Ответ ИИ — пузырь Infy Puls слева, с аватаркой-иконкой и markdown.
+  // Ответ ИИ — пузырь Infy Pulse слева, с аватаркой-иконкой и markdown.
   const pending = !message.content
   return (
     <div className="relative msg-appear mt-2">
@@ -588,7 +588,7 @@ function AiMessage({ message, isOwn, time, onReply, onJumpTo }: {
             >
               {replyPreview}
               <div className="flex items-center gap-1.5 mb-1" style={{ color: '#C084FC' }}>
-                <span className="text-[11px] font-semibold tracking-wide">Infy Puls</span>
+                <span className="text-[11px] font-semibold tracking-wide">Infy Pulse</span>
               </div>
               {pending ? (
                 <TypingDots />

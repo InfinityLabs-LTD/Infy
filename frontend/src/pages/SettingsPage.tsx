@@ -142,7 +142,7 @@ export function SettingsPage() {
           )}
         </div>
 
-        {/* ── Infy Puls ── */}
+        {/* ── Infy Pulse ── */}
         <div className="rounded-2xl p-5" style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
           <div className="flex items-center gap-2 mb-3">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
@@ -151,7 +151,7 @@ export function SettingsPage() {
                 <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
               </svg>
             </div>
-            <span className="text-sm font-semibold text-white">Infy Puls</span>
+            <span className="text-sm font-semibold text-white">Infy Pulse</span>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0">

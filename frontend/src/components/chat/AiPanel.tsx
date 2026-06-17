@@ -11,7 +11,7 @@ interface Props {
 
 type Tab = 'assistant' | 'summary'
 
-// Infy Puls — AI-помощник по чату: приватный диалог (поиск/веб/планы/подсказки),
+// Infy Pulse — AI-помощник по чату: приватный диалог (поиск/веб/планы/подсказки),
 // сводка диалога и умные ответы. Вкладка «Ассистент» приватна — собеседник её не видит.
 export function AiPanel({ chatId, onClose, onUseReply }: Props) {
   const [tab, setTab] = useState<Tab>('assistant')
@@ -126,8 +126,9 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
           WebkitBackdropFilter: 'blur(40px) saturate(150%)',
           borderLeft: '1px solid rgba(255,255,255,0.07)',
         }}>
-        {/* Шапка */}
-        <div className="shrink-0 flex items-center gap-2.5 px-3 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        {/* Шапка — верхний отступ учитывает вырез/статус-бар (safe-area) */}
+        <div className="shrink-0 flex items-center gap-2.5 px-3 pb-3"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}>
           <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
             style={{ background: 'var(--grad-own)', boxShadow: 'var(--glow-primary)' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -135,7 +136,7 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
             </svg>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-display text-sm font-bold text-white leading-tight">Infy Puls</p>
+            <p className="font-display text-sm font-bold text-white leading-tight">Infy Pulse</p>
             <p className="text-[11px]" style={{ color: 'var(--text-low)' }}>AI-помощник чата</p>
           </div>
           <button onClick={onClose}
@@ -211,8 +212,9 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
               )}
             </div>
 
-            {/* Поле ввода */}
-            <div className="shrink-0 p-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            {/* Поле ввода — нижний отступ учитывает домашний индикатор (safe-area) */}
+            <div className="shrink-0 px-3 pt-3"
+              style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
               {convo && convo.length > 0 && (
                 <button onClick={clearConvo} className="text-[11px] mb-2 transition-colors hover:text-white" style={{ color: 'var(--text-low)' }}>
                   Очистить диалог
@@ -223,7 +225,7 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-                  placeholder="Сообщение для Infy Puls…"
+                  placeholder="Сообщение для Infy Pulse…"
                   rows={1}
                   className="flex-1 resize-none px-3 py-2.5 rounded-xl text-sm text-white outline-none max-h-32"
                   style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }} />
