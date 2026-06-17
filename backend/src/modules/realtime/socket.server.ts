@@ -65,7 +65,8 @@ async function pushToOfflineMembers(
           body,
           icon: senderAvatar,
           tag: msg.chatId,
-          url: `/`,
+          // Открываем сразу нужный диалог по клику на уведомление.
+          url: `/chat/${msg.chatId}`,
         }),
       ),
     )

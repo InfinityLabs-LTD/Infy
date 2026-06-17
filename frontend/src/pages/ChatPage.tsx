@@ -227,6 +227,33 @@ export function ChatPage() {
       .finally(() => setLoading(false))
   }, [chatId])
 
+  // Досинхронизация при возврате в приложение (из уведомления / из фона).
+  // Пока вкладка свёрнута, сообщение по сокету могло не дойти; при фокусе
+  // дочитываем актуальную историю и помечаем прочитанным — иначе нового
+  // сообщения не видно, пока не перезайти в чат.
+  useEffect(() => {
+    if (!chatId) return
+    const resync = () => {
+      if (document.hidden) return
+      chatApi.getMessages(chatId)
+        .then(r => {
+          setMessages(chatId, r.data.data.messages, r.data.data.nextCursor)
+          const lastId = r.data.data.messages.at(-1)?.id
+          if (lastId) {
+            getActiveSocket()?.emit('mark_read', { chatId, messageId: lastId })
+            resetUnread(chatId)
+          }
+        })
+        .catch(() => { /* не критично */ })
+    }
+    document.addEventListener('visibilitychange', resync)
+    window.addEventListener('focus', resync)
+    return () => {
+      document.removeEventListener('visibilitychange', resync)
+      window.removeEventListener('focus', resync)
+    }
+  }, [chatId])
+
   // Сбрасываем выбранные файлы при смене чата и освобождаем object URL'ы
   useEffect(() => {
     return () => { setStaged(prev => { prev.forEach(s => s.previewUrl && URL.revokeObjectURL(s.previewUrl)); return [] }) }
