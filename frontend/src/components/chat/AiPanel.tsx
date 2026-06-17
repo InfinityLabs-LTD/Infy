@@ -9,7 +9,7 @@ interface Props {
   onUseReply: (text: string) => void
 }
 
-type Tab = 'assistant' | 'summary' | 'replies'
+type Tab = 'assistant' | 'summary'
 
 // Infy Puls — AI-помощник по чату: приватный диалог (поиск/веб/планы/подсказки),
 // сводка диалога и умные ответы. Вкладка «Ассистент» приватна — собеседник её не видит.
@@ -30,8 +30,6 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
   const [summaryPeriod, setSummaryPeriod] = useState<SummaryPeriod | 'custom'>('all')
   const [customFrom, setCustomFrom] = useState('') // datetime-local: YYYY-MM-DDTHH:mm
   const [customTo, setCustomTo] = useState('')
-  const [replies, setReplies] = useState<string[] | null>(null)
-  const [repliesLoading, setRepliesLoading] = useState(false)
 
   const [error, setError] = useState<string | null>(null)
 
@@ -95,19 +93,10 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
       setSummary(r.data.data.summary); setSummaryCount(r.data.data.messageCount)
     } catch (e) { setError(describeError(e)) } finally { setSummaryLoading(false) }
   }
-  async function loadReplies() {
-    setRepliesLoading(true); setError(null)
-    try {
-      const r = await aiApi.replies(chatId)
-      setReplies(r.data.data.replies)
-    } catch (e) { setError(describeError(e)) } finally { setRepliesLoading(false) }
-  }
-
   // Ленивая загрузка содержимого активной вкладки.
   // Сводка НЕ загружается автоматически — пользователь выбирает период и жмёт кнопку.
   useEffect(() => {
     if (tab === 'assistant' && convo === null) loadConvo()
-    if (tab === 'replies' && replies === null && !repliesLoading) loadReplies()
   }, [tab]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Автопрокрутка диалога вниз.
@@ -160,7 +149,7 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
 
         {/* Табы */}
         <div className="flex gap-1 px-3 pt-3 shrink-0">
-          {([['assistant', 'Ассистент'], ['summary', 'Сводка'], ['replies', 'Ответы']] as [Tab, string][]).map(([t, label]) => (
+          {([['assistant', 'Ассистент'], ['summary', 'Сводка']] as [Tab, string][]).map(([t, label]) => (
             <button key={t} onClick={() => setTab(t)}
               className="px-3 py-1.5 rounded-xl text-[13px] font-medium transition-colors"
               style={{ background: tab === t ? 'var(--glass-3)' : 'transparent', color: tab === t ? '#fff' : 'rgba(255,255,255,0.5)' }}>
@@ -317,34 +306,6 @@ export function AiPanel({ chatId, onClose, onUseReply }: Props) {
                 Выберите период и нажмите «Проанализировать».
               </p>
             )}
-          </div>
-        )}
-
-        {/* ── Вкладка: Ответы ── */}
-        {tab === 'replies' && (
-          <div className="flex-1 min-h-0 overflow-y-auto p-3">
-            {repliesLoading ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-2">
-                <Spinner size={22} /><p className="text-xs" style={{ color: 'var(--text-low)' }}>Подбираю варианты…</p>
-              </div>
-            ) : replies !== null ? (
-              replies.length === 0 ? (
-                <p className="text-sm text-center py-10" style={{ color: 'var(--text-low)' }}>Недостаточно сообщений для подсказок</p>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-[11px] px-1 mb-1" style={{ color: 'var(--text-low)' }}>Нажмите, чтобы вставить в поле ввода</p>
-                  {replies.map((r, i) => (
-                    <motion.button key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
-                      onClick={() => { onUseReply(r); onClose() }}
-                      className="w-full text-left glass rounded-2xl px-3.5 py-3 text-[13px] leading-relaxed transition-colors hover:bg-white/[0.1]"
-                      style={{ color: 'var(--text-mid)' }}>
-                      {r}
-                    </motion.button>
-                  ))}
-                  <button onClick={loadReplies} className="w-full text-center text-xs py-2 transition-colors hover:text-white" style={{ color: '#C084FC' }}>Другие варианты</button>
-                </div>
-              )
-            ) : null}
           </div>
         )}
       </motion.div>

@@ -294,7 +294,17 @@ export function createSocketServer(
       if (!chatId || !messageId) return
       try {
         const readAt = await ChatService.markAsRead(prisma, chatId, BigInt(userId), messageId)
-        socket.to(`chat:${chatId}`).emit('messages_read', { chatId, userId, messageId, readAt })
+        const payload = { chatId, userId, messageId, readAt }
+        // Рассылаем в комнату чата (для тех, кто открыл диалог)…
+        socket.to(`chat:${chatId}`).emit('messages_read', payload)
+        // …и дополнительно в персональные комнаты остальных участников. Иначе,
+        // если сокет отправителя не успел войти в комнату чата (новый диалог /
+        // авто-join с задержкой), статус «прочитано» не доезжал в реальном времени.
+        const members = await prisma.chatMember.findMany({ where: { chatId }, select: { userId: true } })
+        for (const m of members) {
+          if (m.userId.toString() === userId) continue
+          socket.to(`user:${m.userId.toString()}`).emit('messages_read', payload)
+        }
       } catch { /* non-critical */ }
     })
 

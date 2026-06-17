@@ -21,6 +21,19 @@ function isSupported(): boolean {
   return 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window
 }
 
+// Явный отказ пользователя от push (в настройках). Хранится локально, чтобы
+// авто-переподписка при загрузке не включала уведомления обратно.
+const OPT_OUT_KEY = 'infy:push-opt-out'
+function isOptedOut(): boolean {
+  try { return localStorage.getItem(OPT_OUT_KEY) === '1' } catch { return false }
+}
+function setOptedOut(v: boolean): void {
+  try {
+    if (v) localStorage.setItem(OPT_OUT_KEY, '1')
+    else localStorage.removeItem(OPT_OUT_KEY)
+  } catch { /* ignore */ }
+}
+
 function isIos(): boolean {
   return /iphone|ipad|ipod/i.test(navigator.userAgent)
 }
@@ -78,8 +91,12 @@ export interface UseNotificationsResult {
    * "Add to Home Screen" hint instead of a permission prompt.
    */
   needsIosInstall: boolean
+  /** Подписка push активна (есть и разрешение, и регистрация на сервере). */
+  subscribed: boolean
   /** Request permission (must be called from a user gesture) and subscribe. */
   enable: () => Promise<void>
+  /** Отписаться от push-уведомлений (локально + на сервере). */
+  disable: () => Promise<void>
 }
 
 export function useNotifications(): UseNotificationsResult {
@@ -90,19 +107,32 @@ export function useNotifications(): UseNotificationsResult {
   )
 
   const needsIosInstall = supported && isIos() && !isStandalone()
+  const [subscribed, setSubscribed] = useState(false)
 
   // Auto-refresh the subscription when permission is already granted.
   // We never auto-prompt: iOS ignores requestPermission() outside a user
   // gesture, so prompting is deferred to enable().
   useEffect(() => {
     if (!accessToken || !supported) return
-    if (Notification.permission !== 'granted') return
+    if (Notification.permission !== 'granted' || isOptedOut()) {
+      setSubscribed(false)
+      return
+    }
 
     const timer = setTimeout(() => {
-      subscribeAndRegister().catch(() => {})
+      subscribeAndRegister().then(() => setSubscribed(true)).catch(() => {})
     }, 2000)
     return () => clearTimeout(timer)
   }, [accessToken, supported])
+
+  // Отражаем фактическое наличие подписки в браузере при монтировании.
+  useEffect(() => {
+    if (!supported || Notification.permission !== 'granted' || isOptedOut()) return
+    navigator.serviceWorker.ready
+      .then(reg => reg.pushManager.getSubscription())
+      .then(sub => setSubscribed(!!sub))
+      .catch(() => {})
+  }, [supported])
 
   const enable = useCallback(async () => {
     if (!supported) return
@@ -112,8 +142,25 @@ export function useNotifications(): UseNotificationsResult {
         : Notification.permission
     setPermission(perm)
     if (perm !== 'granted') return
-    await subscribeAndRegister().catch(() => {})
+    setOptedOut(false)
+    await subscribeAndRegister().then(() => setSubscribed(true)).catch(() => {})
   }, [supported])
 
-  return { supported, permission, needsIosInstall, enable }
+  const disable = useCallback(async () => {
+    if (!supported) return
+    setOptedOut(true)
+    try {
+      const reg = await navigator.serviceWorker.ready
+      const sub = await reg.pushManager.getSubscription()
+      if (sub) {
+        const endpoint = sub.endpoint
+        await sub.unsubscribe().catch(() => {})
+        await pushApi.unsubscribe(endpoint).catch(() => {})
+      }
+    } finally {
+      setSubscribed(false)
+    }
+  }, [supported])
+
+  return { supported, permission, needsIosInstall, subscribed, enable, disable }
 }

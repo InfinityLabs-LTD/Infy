@@ -5,6 +5,7 @@ import { RegisterPage } from '@/pages/RegisterPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { EditProfilePage } from '@/pages/EditProfilePage'
+import { SettingsPage } from '@/pages/SettingsPage'
 import { SessionsPage } from '@/pages/SessionsPage'
 import { MessengerLayout } from '@/pages/MessengerLayout'
 import { ChatListPage } from '@/pages/ChatListPage'
@@ -64,6 +65,7 @@ export default function App() {
 
         {/* Profile */}
         <Route path="/profile/edit" element={<RequireAuth><EditProfilePage /></RequireAuth>} />
+        <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
         <Route path="/sessions" element={<RequireAuth><SessionsPage /></RequireAuth>} />
         <Route path="/u/:username" element={<RequireAuth><UserProfilePage /></RequireAuth>} />
 
