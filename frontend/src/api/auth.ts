@@ -89,6 +89,11 @@ export const authApi = {
 
   resetPassword: (body: { token: string; password: string }) =>
     api.post('/auth/reset-password', body),
+
+  // Смена пароля из настроек (нужен текущий пароль). Текущая сессия сохраняется,
+  // остальные устройства разлогиниваются.
+  changePassword: (body: { currentPassword: string; newPassword: string }) =>
+    api.post('/auth/change-password', body),
 }
 
 export interface UserSearchResult {

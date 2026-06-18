@@ -26,6 +26,8 @@ export const Errors = {
   UNAUTHORIZED:        () => new AppError('AUTH_UNAUTHORIZED', 'Authentication required', 401),
   FORBIDDEN:           () => new AppError('AUTH_FORBIDDEN', 'Insufficient permissions', 403),
   RESET_TOKEN_INVALID: () => new AppError('AUTH_RESET_TOKEN_INVALID', 'Reset link is invalid or expired', 400),
+  CURRENT_PASSWORD_WRONG: () => new AppError('AUTH_CURRENT_PASSWORD_WRONG', 'Current password is incorrect', 400),
+  SAME_PASSWORD:       () => new AppError('AUTH_SAME_PASSWORD', 'New password must differ from the current one', 400),
   // Moderation (Infy Shield) enforcement
   ACCOUNT_BANNED:      (reason: string, expiresAt: Date | null) =>
     new AppError('MOD_ACCOUNT_BANNED', reason, 403, { expiresAt: expiresAt?.toISOString() ?? null }),

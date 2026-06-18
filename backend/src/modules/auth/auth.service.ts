@@ -241,6 +241,38 @@ export async function setUserPassword(prisma: PrismaClient, userId: bigint, newP
   ])
 }
 
+// Сменить пароль самостоятельно (из настроек): проверяем текущий пароль и
+// отзываем все остальные сессии, кроме текущей — устройство, с которого
+// меняют пароль, остаётся в системе.
+export async function changePassword(
+  prisma: PrismaClient,
+  userId: bigint,
+  currentSessionId: string,
+  currentPassword: string,
+  newPassword: string,
+) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } })
+
+  const valid = await argon2.verify(user.passwordHash, currentPassword)
+  if (!valid) throw Errors.CURRENT_PASSWORD_WRONG()
+
+  const same = await argon2.verify(user.passwordHash, newPassword)
+  if (same) throw Errors.SAME_PASSWORD()
+
+  const passwordHash = await argon2.hash(newPassword)
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
+    prisma.deviceSession.updateMany({
+      where: { userId, revokedAt: null, id: { not: currentSessionId } },
+      data: { revokedAt: new Date() },
+    }),
+    prisma.passwordResetToken.updateMany({
+      where: { userId, consumedAt: null },
+      data: { consumedAt: new Date() },
+    }),
+  ])
+}
+
 // Создать одноразовый токен смены пароля. Возвращает сырой токен (его нужно
 // вставить в ссылку — в БД хранится только хэш).
 export async function createPasswordResetToken(prisma: PrismaClient, userId: bigint): Promise<string> {

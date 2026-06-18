@@ -28,6 +28,11 @@ export const resetPasswordSchema = z.object({
   password: z.string().min(8).max(128),
 })
 
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8).max(128),
+})
+
 export const logoutAllSchema = z.object({
   exceptCurrent: z.boolean().default(true),
 })
@@ -36,3 +41,4 @@ export type RegisterInput = z.infer<typeof registerSchema>
 export type LoginInput = z.infer<typeof loginSchema>
 export type RefreshInput = z.infer<typeof refreshSchema>
 export type LogoutAllInput = z.infer<typeof logoutAllSchema>
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>

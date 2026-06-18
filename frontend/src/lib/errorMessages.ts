@@ -16,6 +16,8 @@ const MESSAGES: Record<string, string> = {
   AUTH_UNAUTHORIZED:        'Требуется авторизация',
   AUTH_FORBIDDEN:           'Недостаточно прав',
   AUTH_RESET_TOKEN_INVALID: 'Ссылка восстановления недействительна или истекла',
+  AUTH_CURRENT_PASSWORD_WRONG: 'Текущий пароль введён неверно',
+  AUTH_SAME_PASSWORD:       'Новый пароль должен отличаться от текущего',
 
   // Profile
   PROFILE_USERNAME_INVALID:    'Имя пользователя может содержать только строчные латинские буквы, цифры и подчёркивание',

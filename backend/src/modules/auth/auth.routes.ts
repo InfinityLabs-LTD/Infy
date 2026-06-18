@@ -9,6 +9,7 @@ import {
   loginSchema,
   refreshSchema,
   resetPasswordSchema,
+  changePasswordSchema,
 } from './auth.schema.js'
 
 const authRoutes: FastifyPluginAsync = async (app) => {
@@ -139,6 +140,40 @@ const authRoutes: FastifyPluginAsync = async (app) => {
   }, async (request, reply) => {
     const body = resetPasswordSchema.parse(request.body)
     await AuthService.resetPasswordWithToken(app.prisma, body.token, body.password)
+    return reply.code(204).send()
+  })
+
+  // POST /auth/change-password — смена пароля из настроек (нужен текущий пароль)
+  app.post('/change-password', {
+    preHandler: [authenticate],
+    config: {
+      rateLimit: {
+        max: env.RATE_LIMIT_LOGIN_MAX,
+        timeWindow: env.RATE_LIMIT_LOGIN_WINDOW_MS,
+      },
+    },
+    schema: {
+      tags: ['Auth'],
+      summary: 'Change password (requires current password)',
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['currentPassword', 'newPassword'],
+        properties: {
+          currentPassword: { type: 'string' },
+          newPassword: { type: 'string', minLength: 8, maxLength: 128 },
+        },
+      },
+    },
+  }, async (request, reply) => {
+    const body = changePasswordSchema.parse(request.body)
+    await AuthService.changePassword(
+      app.prisma,
+      BigInt(request.user.sub),
+      request.user.sessionId,
+      body.currentPassword,
+      body.newPassword,
+    )
     return reply.code(204).send()
   })
 
