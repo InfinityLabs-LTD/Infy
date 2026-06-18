@@ -128,7 +128,7 @@ export function UserProfilePage() {
           </PublicGlass>
 
           {/* About + interests (public) */}
-          {(user.bio || user.interests.length > 0) && (
+          {(user.bio || (user.interests?.length ?? 0) > 0) && (
             <PublicGlass className="p-5">
               <h2 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-low)' }}>🚀 О себе</h2>
               {user.bio && (

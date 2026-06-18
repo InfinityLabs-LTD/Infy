@@ -122,7 +122,7 @@ export function ProfilePage() {
               >
                 <AccountCard user={user} />
                 <ActionGrid isAdmin={user.role === 'ADMIN'} />
-                {user.badges.some(b => b.slug === 'premium') && <PremiumCard />}
+                {(user.badges ?? []).some(b => b.slug === 'premium') && <PremiumCard />}
                 <DangerZone onLogout={logout} />
               </motion.div>
             )}
@@ -296,15 +296,16 @@ function Hero({
 
 // Рисует ряд бейджей. «Администратор» подставляется автоматически по роли,
 // если админ не завёл отдельный бейдж со slug "admin"/"administrator".
-export function BadgeRow({ role, badges }: { role: string; badges: BadgeType[] }) {
-  const hasAdminBadge = badges.some(b => b.slug === 'admin' || b.slug === 'administrator')
-  if (badges.length === 0 && !(role === 'ADMIN' && !hasAdminBadge)) return null
+export function BadgeRow({ role, badges }: { role: string; badges?: BadgeType[] }) {
+  const list = badges ?? []
+  const hasAdminBadge = list.some(b => b.slug === 'admin' || b.slug === 'administrator')
+  if (list.length === 0 && !(role === 'ADMIN' && !hasAdminBadge)) return null
   return (
     <div className="mt-3 flex flex-wrap gap-1.5">
       {role === 'ADMIN' && !hasAdminBadge && (
         <BadgePill color="192,132,252" icon="★" label="Администратор" />
       )}
-      {badges.map(b => (
+      {list.map(b => (
         <BadgePill key={b.slug} color={b.color} icon={b.icon} label={b.label} />
       ))}
     </div>
@@ -355,11 +356,12 @@ function StatGrid({ stats }: { stats: ProfileStats | null }) {
 
 /* ════════════════════════ About ══════════════════════════════ */
 // Чипы хэштегов/интересов — общие для своего и публичного профиля.
-export function InterestChips({ interests }: { interests: string[] }) {
-  if (interests.length === 0) return null
+export function InterestChips({ interests }: { interests?: string[] }) {
+  const list = interests ?? []
+  if (list.length === 0) return null
   return (
     <div className="mt-3 flex flex-wrap gap-1.5">
-      {interests.map((t) => (
+      {list.map((t) => (
         <span key={t} className="text-xs font-medium px-2.5 py-1 rounded-full"
           style={{ background: 'rgba(168,85,247,0.12)', color: '#C084FC' }}>#{t}</span>
       ))}
@@ -368,8 +370,9 @@ export function InterestChips({ interests }: { interests: string[] }) {
 }
 
 function AboutCard({ user }: { user: User }) {
+  const interests = user.interests ?? []
   // Не показываем карточку, если нечего показать.
-  if (!user.bio && user.interests.length === 0) return null
+  if (!user.bio && interests.length === 0) return null
   return (
     <Glass layer="raised" delay={0.1} className="p-5">
       <SectionLabel>🚀 О себе</SectionLabel>
@@ -378,7 +381,7 @@ function AboutCard({ user }: { user: User }) {
           {user.bio}
         </p>
       )}
-      <InterestChips interests={user.interests} />
+      <InterestChips interests={interests} />
     </Glass>
   )
 }
@@ -387,8 +390,9 @@ function AboutCard({ user }: { user: User }) {
 // Карточка-визитка Infy AI. Пока без отдельного бэкенда инсайтов —
 // формирует подсказку из реальных интересов пользователя.
 function AiInsightCard({ user }: { user: User }) {
-  if (user.interests.length === 0) return null
-  const top = user.interests.slice(0, 3).join(', ')
+  const interests = user.interests ?? []
+  if (interests.length === 0) return null
+  const top = interests.slice(0, 3).join(', ')
   return (
     <Glass layer="floating" glow="brand" delay={0.15} className="p-5">
       <div className="flex items-center justify-between">
@@ -400,7 +404,7 @@ function AiInsightCard({ user }: { user: User }) {
         собеседников и контент под эти темы.
       </p>
       <div className="mt-3 flex flex-wrap gap-1.5">
-        {user.interests.slice(0, 5).map((t) => (
+        {interests.slice(0, 5).map((t) => (
           <span key={t} className="text-xs px-2.5 py-1 rounded-full"
             style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)' }}>{t}</span>
         ))}

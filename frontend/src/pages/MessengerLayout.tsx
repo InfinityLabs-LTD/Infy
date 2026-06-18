@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/auth'
 import { useSocket } from '@/hooks/useSocket'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
 import { Spinner } from '@/components/ui/Spinner'
+import { Avatar } from '@/components/ui/Avatar'
 import { AnimatePresence, motion } from 'framer-motion'
 import { NewChatModal } from '@/components/chat/NewChatModal'
 import { CommandPalette } from '@/components/chat/CommandPalette'
@@ -93,6 +94,21 @@ export function MessengerLayout() {
 
         {/* Top bar */}
         <div className="flex items-center gap-1 px-2 py-1.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+          {/* Профиль — только на десктопе (на мобильном есть нижняя вкладка) */}
+          {user && (
+            <button
+              onClick={() => navigate('/profile')}
+              title="Мой профиль"
+              className="hidden md:flex w-10 h-10 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-105"
+              style={{
+                outline: isProfileTab ? '2px solid #A855F7' : 'none',
+                outlineOffset: '2px',
+              }}
+            >
+              <Avatar url={user.avatarUrl} nickname={user.nickname} size={32} />
+            </button>
+          )}
+
           {/* Search bar — liquid glass */}
           <div className="flex-1 relative">
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--accent)' }}>

@@ -12,6 +12,18 @@ interface AuthState {
   logout: () => void
 }
 
+// Гарантирует наличие массивов interests/badges даже для «старых» объектов
+// пользователя (например, сохранённых в localStorage до их появления),
+// иначе .map/.length падают и экран профиля становится пустым.
+function normalizeUser<T extends User | null>(user: T): T {
+  if (!user) return user
+  return {
+    ...user,
+    interests: Array.isArray(user.interests) ? user.interests : [],
+    badges: Array.isArray(user.badges) ? user.badges : [],
+  }
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -20,12 +32,12 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
 
       setAuth: (user, accessToken, refreshToken) =>
-        set({ user, accessToken, refreshToken }),
+        set({ user: normalizeUser(user), accessToken, refreshToken }),
 
       setTokens: (accessToken, refreshToken) =>
         set({ accessToken, refreshToken }),
 
-      setUser: (user) => set({ user }),
+      setUser: (user) => set({ user: normalizeUser(user) }),
 
       logout: () => set({ user: null, accessToken: null, refreshToken: null }),
     }),
@@ -36,6 +48,12 @@ export const useAuthStore = create<AuthState>()(
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
       }),
+      // При восстановлении из localStorage нормализуем пользователя,
+      // чтобы старые сохранённые данные без interests/badges не ломали UI.
+      merge: (persisted, current) => {
+        const p = persisted as Partial<AuthState> | undefined
+        return { ...current, ...p, user: normalizeUser(p?.user ?? null) }
+      },
     },
   ),
 )
