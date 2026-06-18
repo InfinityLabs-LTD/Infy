@@ -10,6 +10,7 @@ import { VideoMessage } from './VideoMessage'
 import { AudioMessage } from './AudioMessage'
 import { CircleVideoMessage } from './CircleVideoMessage'
 import { MarkdownText } from './MarkdownText'
+import { apiBaseUrl } from '@/lib/origin'
 import { TranscriptButton, AudioWithTranscript } from './TranscriptButton'
 import { useSwipeReply } from '@/hooks/useSwipeReply'
 import { vibrate } from '@/lib/haptics'
@@ -953,7 +954,7 @@ export function mediaUrl(publicUrl: string | null | undefined, storageKey: strin
     if (publicUrl.startsWith('/')) return withToken(publicUrl)
     return publicUrl
   }
-  const apiUrl = import.meta.env.VITE_API_URL ?? '/api'
+  const apiUrl = apiBaseUrl()
   const encoded = btoa(storageKey).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
   return withToken(`${apiUrl}/media/${encoded}`)
 }

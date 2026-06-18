@@ -8,6 +8,7 @@ import {
 import { profileApi } from '@/api/auth'
 import { useAuthStore } from '@/store/auth'
 import { Avatar } from '@/components/ui/Avatar'
+import { apiBaseUrl } from '@/lib/origin'
 import { Spinner } from '@/components/ui/Spinner'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
 
@@ -454,7 +455,7 @@ const REPORT_FILTERS: [ReportStatus | 'all', string][] = [
 ]
 
 function evidenceUrl(storageKey: string): string {
-  const apiUrl = import.meta.env.VITE_API_URL ?? '/api'
+  const apiUrl = apiBaseUrl()
   const token = useAuthStore.getState().accessToken
   const encoded = btoa(storageKey).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
   return `${apiUrl}/media/${encoded}${token ? `?token=${encodeURIComponent(token)}` : ''}`

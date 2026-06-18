@@ -7,6 +7,7 @@ import type { Message, ChatPartner } from '@/store/chat'
 import { Avatar } from '@/components/ui/Avatar'
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator'
 import { Spinner } from '@/components/ui/Spinner'
+import { apiBaseUrl } from '@/lib/origin'
 
 interface Props {
   chatId: string
@@ -21,7 +22,7 @@ function mediaUrl(publicUrl: string | null | undefined, storageKey: string): str
     if (publicUrl.startsWith('/')) return withToken(publicUrl)
     return publicUrl
   }
-  const apiUrl = import.meta.env.VITE_API_URL ?? '/api'
+  const apiUrl = apiBaseUrl()
   const encoded = btoa(storageKey).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
   return withToken(`${apiUrl}/media/${encoded}`)
 }

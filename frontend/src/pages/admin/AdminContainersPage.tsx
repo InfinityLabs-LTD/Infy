@@ -4,6 +4,7 @@ import { adminApi, Container } from '@/api/admin'
 import { useAuthStore } from '@/store/auth'
 import { Spinner } from '@/components/ui/Spinner'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
+import { apiBaseUrl } from '@/lib/origin'
 
 const STATE_DOT: Record<string, string> = {
   running: '#22C55E',
@@ -180,7 +181,7 @@ function LogsDrawer({
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_URL ?? '/api'
+    const apiBase = apiBaseUrl()
     const ctrl = new AbortController()
 
     ;(async () => {

@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom'
 import { VideoMessage } from '@/components/chat/VideoMessage'
 import { AudioMessage } from '@/components/chat/AudioMessage'
 import { CircleVideoMessage } from '@/components/chat/CircleVideoMessage'
+import { apiBaseUrl } from '@/lib/origin'
 
 // ── Медиа-URL (как в чате: через /media с токеном) ───────────
 function withToken(url: string): string {
@@ -19,7 +20,7 @@ function withToken(url: string): string {
 }
 
 function mediaUrl(storageKey: string): string {
-  const apiUrl = import.meta.env.VITE_API_URL ?? '/api'
+  const apiUrl = apiBaseUrl()
   const encoded = btoa(storageKey).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
   return withToken(`${apiUrl}/media/${encoded}`)
 }

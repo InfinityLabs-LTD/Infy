@@ -1,4 +1,5 @@
 import { api } from './client'
+import { apiBaseUrl } from '@/lib/origin'
 
 export interface AdminUser {
   id: string
@@ -305,7 +306,7 @@ export const adminApi = {
 
   // Logs SSE — returns EventSource URL (constructed by caller)
   logsUrl: (id: string, tail = 200) => {
-    const base = import.meta.env.VITE_API_URL ?? '/api'
+    const base = apiBaseUrl()
     return `${base}/admin/containers/${id}/logs?tail=${tail}`
   },
 }

@@ -1,7 +1,9 @@
 import axios from 'axios'
 import { useAuthStore } from '@/store/auth'
+import { apiBaseUrl } from '@/lib/origin'
 
-const API_URL = import.meta.env.VITE_API_URL ?? '/api'
+// На CDN-домене — абсолютный адрес origin, иначе из env (см. lib/origin.ts).
+const API_URL = apiBaseUrl()
 
 export const api = axios.create({
   baseURL: API_URL,

@@ -1,14 +1,14 @@
 import { io, Socket } from 'socket.io-client'
+import { socketUrl } from '@/lib/origin'
 
-// VITE_SOCKET_URL is baked in at build time.
-// On the CDN build it points to the main domain so WebSocket bypasses the CDN.
-// For local dev it is empty (connects to current origin).
+// Адрес сокета определяется в рантайме (см. lib/origin.ts):
+// на CDN-домене WebSocket идёт на основной домен (минуя CDN), иначе — на текущий origin.
 let socket: Socket | null = null
 
 export function getSocket(token: string): Socket {
   if (socket?.connected) return socket
 
-  socket = io({
+  socket = io(socketUrl(), {
     auth: { token },
     transports: ['polling', 'websocket'],
     reconnection: true,
