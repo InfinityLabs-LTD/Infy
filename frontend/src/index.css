@@ -24,6 +24,17 @@
     --shadow-float: 0 12px 40px rgba(0, 0, 0, 0.45);
     --glow-primary: 0 0 24px rgba(124, 58, 237, 0.35);
     --ease-fluid: cubic-bezier(0.32, 0.72, 0, 1);
+
+    /* === Редизайн списка чатов (Aurora v2) === */
+    --surface-press: rgba(168, 85, 247, 0.10);
+    --surface-hover: rgba(255, 255, 255, 0.055);
+    --hairline: rgba(255, 255, 255, 0.06);
+    --preview-read: #8893A8;        /* превью прочитанных — тусклее, для иерархии */
+    --brand-ring: rgba(168, 85, 247, 0.45);
+    --glow-ai: 0 0 20px rgba(168, 85, 247, 0.30), inset 0 0 18px rgba(124, 58, 237, 0.12);
+    --status-read: #A855F7;
+    --status-sent: #64748B;
+    --dock-bg: rgba(11, 16, 32, 0.62);
   }
   html { -webkit-tap-highlight-color: transparent; }
   /* Chrome/Safari красят автозаполненные поля сплошным белым/жёлтым фоном,
@@ -195,6 +206,37 @@
   100% { transform: scale(2.2); opacity: 0; }
 }
 .online-ping { animation: onlinePing 2.2s ease-out infinite; }
+
+/* === Редизайн списка чатов (Aurora v2) === */
+@keyframes badgePop {
+  0%   { transform: scale(0); }
+  60%  { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+.badge-pop { animation: badgePop 0.35s cubic-bezier(0.32, 0.72, 0, 1) both; }
+
+@keyframes aiShimmer {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 1; }
+}
+.ai-shimmer { animation: aiShimmer 2.4s ease-in-out infinite; }
+
+/* Компактный стеклянный док нижней навигации */
+.glass-dock {
+  background: var(--dock-bg);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-float), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+/* Android/браузеры без backdrop-filter: плотный фон, чтобы текст читался */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-dock { background: rgba(11, 16, 32, 0.92); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge-pop, .ai-shimmer { animation: none; }
+}
 
 /* === Кнопка Infy Pulse (AI) — пульсирующая === */
 .puls-btn {
