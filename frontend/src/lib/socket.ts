@@ -4,9 +4,17 @@ import { socketUrl } from '@/lib/origin'
 // Адрес сокета определяется в рантайме (см. lib/origin.ts):
 // на CDN-домене WebSocket идёт на основной домен (минуя CDN), иначе — на текущий origin.
 let socket: Socket | null = null
+// Токен, с которым создано текущее соединение. Нужен, чтобы при СМЕНЕ аккаунта
+// (тот же таб, новый login) пересоздать сокет: иначе старое соединение остаётся
+// аутентифицированным прежним пользователем, и сообщения уходят от его имени.
+let socketToken: string | null = null
 
 export function getSocket(token: string): Socket {
-  if (socket?.connected) return socket
+  // Живой сокет переиспользуем только если токен тот же. При другом токене
+  // (сменился пользователь) — рвём старое соединение и поднимаем новое.
+  if (socket && socketToken === token) return socket
+  if (socket) { socket.disconnect(); socket = null }
+  socketToken = token
 
   socket = io(socketUrl(), {
     auth: { token },
@@ -42,4 +50,5 @@ export function joinChatRoom(chatId: string): void {
 export function disconnectSocket(): void {
   socket?.disconnect()
   socket = null
+  socketToken = null
 }
