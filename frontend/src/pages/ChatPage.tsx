@@ -119,7 +119,13 @@ export function ChatPage() {
     const found = useChatStore.getState().chats.find(c => c.partner?.id === partnerId)
     return found?.id ?? null
   })
-  const [resolving, setResolving] = useState(!chatId)
+  // resolving = true только если chatId вообще неизвестен (нет в сторе).
+  // Если chatId уже есть — сразу рендерим сообщения (из кэша или по запросу),
+  // не показывая глобальный спиннер.
+  const [resolving, setResolving] = useState(() => {
+    const found = useChatStore.getState().chats.find(c => c.partner?.id === partnerId)
+    return !found
+  })
 
   useEffect(() => {
     if (!partnerId) return
@@ -209,11 +215,14 @@ export function ChatPage() {
   const voiceRecorder = useMediaRecorder()
   const isRecording = voiceRecorder.state === 'recording'
 
-  // Load messages once chatId is known; mark read after load
+  // Load messages once chatId is known; mark read after load.
+  // Если в сторе уже есть сообщения для этого чата (вернулись назад или
+  // переключились), показываем их мгновенно и тихо обновляем в фоне.
   useEffect(() => {
     if (!chatId) return
     resetUnread(chatId)
-    setLoading(true)
+    const hasCached = (useChatStore.getState().messages[chatId]?.length ?? 0) > 0
+    if (!hasCached) setLoading(true)
     chatApi.getMessages(chatId)
       .then(r => {
         setMessages(chatId, r.data.data.messages, r.data.data.nextCursor)
@@ -360,6 +369,91 @@ export function ChatPage() {
     } finally { setLoadingMore(false) }
   }
 
+  // Создаёт оптимистичный плейсхолдер текстового сообщения (pending: true)
+  // и запускает отправку в фоне. При успехе — заменяет реальным; при ошибке —
+  // помечает failed, тап по значку ошибки повторяет отправку.
+  function optimisticSendText(
+    targetChatId: string,
+    content: string,
+    replyToId?: string,
+  ) {
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const optimistic: Message = {
+      id: tempId,
+      chatId: targetChatId,
+      content,
+      type: 'TEXT',
+      createdAt: new Date().toISOString(),
+      editedAt: null,
+      sender: {
+        id: myUser?.id ?? '',
+        username: myUser?.username ?? '',
+        nickname: myUser?.nickname ?? '',
+        avatarUrl: myUser?.avatarUrl ?? null,
+      },
+      replyTo: (() => {
+        if (!replyToId) return undefined
+        const ref = chatMessages.find(m => m.id === replyToId)
+        if (!ref) return undefined
+        return {
+          id: replyToId,
+          content: ref.content,
+          type: ref.type,
+          deleted: false,
+          sender: { id: ref.sender.id, nickname: ref.sender.nickname },
+        }
+      })(),
+      pending: true,
+    }
+    addMessage(optimistic)
+
+    const doSend = async () => {
+      try {
+        const socket = getActiveSocket()
+        let real: Message | null = null
+        // Если есть replyToId — всегда REST (сокет не поддерживает ответы)
+        if (socket?.connected && !replyToId) {
+          real = await new Promise<Message | null>((resolve) => {
+            socket.emit('join_chat', targetChatId)
+            socket.emit('send_message', { chatId: targetChatId, content }, (res: { ok: boolean; error?: string; code?: string }) => {
+              if (res?.ok) {
+                // Реальное сообщение придёт по сокету — addMessage с реконсиляцией
+                // заменит плейсхолдер по тексту совпадения. Нам достаточно снять pending.
+                resolve(null)
+              } else if (res?.code === 'MOD_ACCOUNT_MUTED' || res?.code === 'MOD_ACCOUNT_BANNED') {
+                setMutedNotice(res.error ?? 'Вы не можете отправлять сообщения')
+                resolve(null)
+                // Не удалось из-за санкции — убираем оптимистичное сообщение
+                removeMessage(targetChatId, tempId)
+              } else {
+                // Сокет вернул ошибку — fallback на REST
+                chatApi.sendMessage(targetChatId, content, replyToId)
+                  .then(r => resolve(r.data.data))
+                  .catch(() => resolve(null))
+              }
+            })
+          })
+        } else {
+          const r = await chatApi.sendMessage(targetChatId, content, replyToId)
+          real = r.data.data
+        }
+        if (real) {
+          replaceMessage(targetChatId, tempId, real)
+        } else {
+          // Сообщение отправлено через сокет; broadcast придёт и реконсиляция
+          // в addMessage заменит плейсхолдер. Страхуемся таймаутом: если через
+          // 5 сек плейсхолдер всё ещё есть — снимаем pending вручную.
+          setTimeout(() => {
+            setMessageStatus(targetChatId, tempId, { pending: false })
+          }, 5000)
+        }
+      } catch {
+        setMessageFailed(targetChatId, tempId, true)
+      }
+    }
+    void doSend()
+  }
+
   async function sendText() {
     if (!text.trim() || !chatId || sending) return
     const content = text.trim()
@@ -402,31 +496,10 @@ export function ChatPage() {
     const replyToId = replyTo?.id
     setText('')
     setReplyTo(null)
-    setSending(true)
     setMutedNotice(null)
     stopTyping()
-    try {
-      const socket = getActiveSocket()
-      // Ответ всегда уходит через REST — у сокет-обработчика нет replyToId
-      if (socket?.connected && !replyToId) {
-        socket.emit('join_chat', chatId)
-        socket.emit('send_message', { chatId, content }, (res: { ok: boolean; error?: string; code?: string }) => {
-          if (res?.ok) return
-          // Санкция (мут/бан) — показываем причину, не уходим в REST-фолбэк.
-          if (res?.code === 'MOD_ACCOUNT_MUTED' || res?.code === 'MOD_ACCOUNT_BANNED') {
-            setMutedNotice(res.error ?? 'Вы не можете отправлять сообщения')
-            setText(content)
-            return
-          }
-          chatApi.sendMessage(chatId, content).catch(handleSendError)
-        })
-      } else {
-        await chatApi.sendMessage(chatId, content, replyToId)
-      }
-    } catch (err) {
-      handleSendError(err)
-      setText(content)
-    } finally { setSending(false); inputRef.current?.focus() }
+    inputRef.current?.focus()
+    optimisticSendText(chatId, content, replyToId)
   }
 
   // Показывает причину, если отправка отклонена санкцией модерации.
@@ -591,6 +664,12 @@ export function ChatPage() {
 
   // Повтор отправки по тапу на неотправленном сообщении.
   function retrySend(msg: Message) {
+    // Текстовое сообщение — повторяем оптимистичную отправку напрямую.
+    if (msg.type === 'TEXT' && msg.content) {
+      removeMessage(msg.chatId, msg.id)
+      optimisticSendText(msg.chatId, msg.content, msg.replyTo?.id)
+      return
+    }
     const job = getPendingJob(msg.id)
     if (!job) {
       // Задание истекло (прошло больше суток) — просто убираем плашку.

@@ -191,17 +191,46 @@ export const useChatStore = create<ChatState>((set) => ({
       const myId = useAuthStore.getState().user?.id
       const isOwn = msg.sender.id === myId
 
-      // Реконсиляция оптимистичной отправки: своё медиа-сообщение приходит
-      // и REST-ответом, и широковещанием по сокету. Если в списке уже есть
-      // pending-плейсхолдер с тем же storageKey вложения — заменяем его
-      // реальным сообщением, а не добавляем дубль.
+      // Реконсиляция оптимистичной отправки: своё сообщение приходит
+      // и REST-ответом, и широковещанием по сокету — нужно заменить
+      // pending-плейсхолдер реальным, а не добавить дубль.
       if (isOwn) {
+        // Медиа: сопоставляем по storageKey вложения.
         const incomingKeys = (msg.attachments ?? []).map((a) => a.storageKey).filter(Boolean)
         if (incomingKeys.length > 0) {
           const idx = existing.findIndex((m) =>
             m.pending &&
             (m.attachments ?? []).some((a) => incomingKeys.includes(a.storageKey)),
           )
+          if (idx >= 0) {
+            const tempId = existing[idx].id
+            const merged = [...existing]
+            merged[idx] = msg
+            const chats = s.chats.map((c) =>
+              c.id === msg.chatId && (c.lastMessage?.id === tempId || c.lastMessage?.id === msg.id)
+                ? { ...c, lastMessage: { id: msg.id, content: msg.content, type: msg.type, createdAt: msg.createdAt, isOwn } }
+                : c,
+            )
+            return { messages: { ...s.messages, [msg.chatId]: merged }, chats: sortChats(chats) }
+          }
+        }
+
+        // Текст: сопоставляем по содержимому — ищем последний pending-плейсхолдер
+        // того же отправителя с тем же текстом (не старше 30 сек).
+        if (msg.type === 'TEXT' && msg.content) {
+          const cutoff = Date.now() - 30_000
+          // findLastIndex недоступен в ES2020 — ищем с конца вручную
+          let idx = -1
+          for (let i = existing.length - 1; i >= 0; i--) {
+            const m = existing[i]
+            if (
+              m.pending &&
+              m.type === 'TEXT' &&
+              m.sender.id === myId &&
+              m.content === msg.content &&
+              new Date(m.createdAt).getTime() > cutoff
+            ) { idx = i; break }
+          }
           if (idx >= 0) {
             const tempId = existing[idx].id
             const merged = [...existing]
