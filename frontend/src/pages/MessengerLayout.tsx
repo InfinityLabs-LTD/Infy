@@ -82,7 +82,7 @@ export function MessengerLayout() {
   const searching = search.trim().length > 0
 
   return (
-    <div className="flex flex-col overflow-hidden" style={{ height: '100dvh', background: 'var(--bg-deep)' }}>
+    <div className="flex flex-col overflow-hidden" style={{ height: '100%', background: 'var(--bg-deep)' }}>
       {/* ── Основной контент ── */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
       {/* ── Sidebar ── */}
@@ -174,7 +174,7 @@ export function MessengerLayout() {
       {/* Нижняя навигация — Compact Glass Dock (только мобильный, не в чате).
           Иконки в ряд; лейбл только у активной вкладки → низкая высота, без вакуума. */}
       <div className={`md:hidden shrink-0 px-3 ${activeChatId ? 'hidden' : ''}`}
-        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 6px)', paddingTop: 6 }}>
+        style={{ paddingBottom: 6, paddingTop: 6 }}>
         <div className="glass-dock flex items-center justify-around rounded-3xl px-1.5 py-1">
           <DockBtn
             label="Контакты"
