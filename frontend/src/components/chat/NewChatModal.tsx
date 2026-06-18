@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { profileApi, User } from '@/api/auth'
+import { profileApi, PublicProfile } from '@/api/auth'
 import { Avatar } from '@/components/ui/Avatar'
 import { Spinner } from '@/components/ui/Spinner'
 
@@ -11,7 +11,7 @@ interface Props {
 export function NewChatModal({ onClose }: Props) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<PublicProfile | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [searching, setSearching] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
