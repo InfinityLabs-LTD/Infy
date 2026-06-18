@@ -24,8 +24,12 @@ export function EditProfilePage() {
     birthdate: toDateInput(user?.birthdate),
     bio: user?.bio ?? '',
   })
+  const [interests, setInterests] = useState<string[]>(user?.interests ?? [])
+  const [interestDraft, setInterestDraft] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<unknown>(null)
+
+  const MAX_INTERESTS = 10
 
   function set(field: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -33,6 +37,29 @@ export function EditProfilePage() {
         ...prev,
         [field]: field === 'username' ? e.target.value.toLowerCase() : e.target.value,
       }))
+  }
+
+  function addInterest(raw: string) {
+    // Чистим ввод: убираем #, пробелы; оставляем буквы/цифры/_/-
+    const tag = raw.trim().replace(/^#+/, '').replace(/[^\p{L}\p{N}_-]/gu, '').slice(0, 24)
+    if (!tag) return
+    if (interests.length >= MAX_INTERESTS) return
+    if (interests.some((t) => t.toLowerCase() === tag.toLowerCase())) { setInterestDraft(''); return }
+    setInterests((prev) => [...prev, tag])
+    setInterestDraft('')
+  }
+
+  function removeInterest(tag: string) {
+    setInterests((prev) => prev.filter((t) => t !== tag))
+  }
+
+  function onInterestKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      addInterest(interestDraft)
+    } else if (e.key === 'Backspace' && interestDraft === '' && interests.length > 0) {
+      removeInterest(interests[interests.length - 1])
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -44,6 +71,7 @@ export function EditProfilePage() {
         username: form.username || undefined,
         birthdate: form.birthdate || null,
         bio: form.bio.trim() || null,
+        interests,
       })
       setUser(res.data.data)
       navigate('/profile')
@@ -107,6 +135,40 @@ export function EditProfilePage() {
                 style={{ height: 'auto' }}
               />
               <p className="text-xs mt-1 text-right" style={{ color: 'var(--text-low)' }}>{form.bio.length}/500</p>
+            </div>
+
+            <div>
+              <label className="label">Интересы <span className="font-normal" style={{ color: 'var(--text-low)' }}>(хэштеги, до {MAX_INTERESTS})</span></label>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {interests.map((t) => (
+                  <span key={t} className="inline-flex items-center gap-1 text-xs font-medium pl-2.5 pr-1.5 py-1 rounded-full"
+                    style={{ background: 'rgba(168,85,247,0.12)', color: '#C084FC' }}>
+                    #{t}
+                    <button type="button" onClick={() => removeInterest(t)}
+                      className="w-4 h-4 flex items-center justify-center rounded-full transition-colors"
+                      style={{ color: 'rgba(192,132,252,0.7)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(168,85,247,0.25)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      aria-label={`Удалить ${t}`}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </span>
+                ))}
+              </div>
+              {interests.length < MAX_INTERESTS && (
+                <input
+                  className="input"
+                  type="text"
+                  value={interestDraft}
+                  onChange={(e) => setInterestDraft(e.target.value)}
+                  onKeyDown={onInterestKeyDown}
+                  onBlur={() => addInterest(interestDraft)}
+                  maxLength={24}
+                  placeholder="Например: Backend — Enter, чтобы добавить"
+                />
+              )}
             </div>
 
             <div className="flex gap-3 pt-2">

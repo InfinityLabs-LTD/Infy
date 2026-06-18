@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion'
 import { profileApi } from '@/api/auth'
-import type { User } from '@/api/auth'
+import type { User, Badge as BadgeType, ProfileStats } from '@/api/auth'
 import { useAuthStore } from '@/store/auth'
 import { Avatar } from '@/components/ui/Avatar'
 import { Spinner } from '@/components/ui/Spinner'
@@ -41,6 +41,14 @@ export function ProfilePage() {
   const [uploadingCover, setUploadingCover] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [mode, setMode] = useState<Mode>('me')
+  const [stats, setStats] = useState<ProfileStats | null>(null)
+
+  useEffect(() => {
+    // Подтягиваем актуальный профиль (бейджи/интересы) и статистику.
+    profileApi.getMe().then(r => setUser(r.data.data)).catch(() => {})
+    profileApi.getStats().then(r => setStats(r.data.data)).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -94,13 +102,13 @@ export function ProfilePage() {
             onCover={() => coverRef.current?.click()}
           />
           {error !== null && <ErrorMessage error={error} />}
-          <StatGrid />
+          <StatGrid stats={stats} />
         </div>
 
         {/* Right column: about, AI, and (in "me" mode) personal cabinet */}
         <div className="space-y-3 lg:space-y-3">
           <AboutCard user={user} />
-          <AiInsightCard nickname={user.nickname} />
+          <AiInsightCard user={user} />
 
           <AnimatePresence initial={false}>
             {editable && (
@@ -114,7 +122,7 @@ export function ProfilePage() {
               >
                 <AccountCard user={user} />
                 <ActionGrid isAdmin={user.role === 'ADMIN'} />
-                <PremiumCard />
+                {user.badges.some(b => b.slug === 'premium') && <PremiumCard />}
                 <DangerZone onLogout={logout} />
               </motion.div>
             )}
@@ -279,21 +287,34 @@ function Hero({
           <OnlineIndicator userId={user.id} lastSeenAt={user.lastSeenAt} showLabel />
         </div>
 
-        {/* badges */}
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {user.role === 'ADMIN' && <Badge tint="192,132,252" icon="★" label="Администратор" />}
-          <Badge tint="168,85,247" icon="⚡" label="Early User" />
-          <Badge tint="34,197,94" icon="🛠" label="Developer" />
-        </div>
+        {/* badges — выданы администратором; «Администратор» добавляется по роли */}
+        <BadgeRow role={user.role} badges={user.badges} />
       </div>
     </Glass>
   )
 }
 
-function Badge({ tint, icon, label }: { tint: string; icon: string; label: string }) {
+// Рисует ряд бейджей. «Администратор» подставляется автоматически по роли,
+// если админ не завёл отдельный бейдж со slug "admin"/"administrator".
+export function BadgeRow({ role, badges }: { role: string; badges: BadgeType[] }) {
+  const hasAdminBadge = badges.some(b => b.slug === 'admin' || b.slug === 'administrator')
+  if (badges.length === 0 && !(role === 'ADMIN' && !hasAdminBadge)) return null
+  return (
+    <div className="mt-3 flex flex-wrap gap-1.5">
+      {role === 'ADMIN' && !hasAdminBadge && (
+        <BadgePill color="192,132,252" icon="★" label="Администратор" />
+      )}
+      {badges.map(b => (
+        <BadgePill key={b.slug} color={b.color} icon={b.icon} label={b.label} />
+      ))}
+    </div>
+  )
+}
+
+function BadgePill({ color, icon, label }: { color: string; icon: string; label: string }) {
   return (
     <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full"
-      style={{ background: `rgba(${tint},0.16)`, color: `rgb(${tint})` }}>
+      style={{ background: `rgba(${color},0.16)`, color: `rgb(${color})` }}>
       <span aria-hidden>{icon}</span>{label}
     </span>
   )
@@ -311,18 +332,20 @@ function VerifiedTick() {
 }
 
 /* ════════════════════════ Stat grid ══════════════════════════ */
-function StatGrid() {
-  const items = [
-    { v: 134, l: 'Контакты' },
-    { v: 82, l: 'Чаты' },
-    { v: 16, l: 'Группы' },
-    { v: 5, l: 'Устройства' },
+function StatGrid({ stats }: { stats: ProfileStats | null }) {
+  const items: { v: number | null; l: string }[] = [
+    { v: stats?.contacts ?? null, l: 'Контакты' },
+    { v: stats?.chats ?? null, l: 'Чаты' },
+    { v: stats?.groups ?? null, l: 'Группы' },
+    { v: stats?.devices ?? null, l: 'Устройства' },
   ]
   return (
     <div className="grid grid-cols-4 gap-2">
       {items.map((s, i) => (
         <Glass key={s.l} layer="raised" delay={0.05 + i * 0.05} className="py-3 px-1 text-center cursor-default">
-          <div className="text-lg font-bold text-white font-display tabular-nums">{s.v}</div>
+          <div className="text-lg font-bold text-white font-display tabular-nums">
+            {s.v === null ? '—' : s.v}
+          </div>
           <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-low)' }}>{s.l}</div>
         </Glass>
       ))}
@@ -331,37 +354,53 @@ function StatGrid() {
 }
 
 /* ════════════════════════ About ══════════════════════════════ */
+// Чипы хэштегов/интересов — общие для своего и публичного профиля.
+export function InterestChips({ interests }: { interests: string[] }) {
+  if (interests.length === 0) return null
+  return (
+    <div className="mt-3 flex flex-wrap gap-1.5">
+      {interests.map((t) => (
+        <span key={t} className="text-xs font-medium px-2.5 py-1 rounded-full"
+          style={{ background: 'rgba(168,85,247,0.12)', color: '#C084FC' }}>#{t}</span>
+      ))}
+    </div>
+  )
+}
+
 function AboutCard({ user }: { user: User }) {
-  const interests = ['Backend', 'AI', 'Gaming', 'WebRTC']
+  // Не показываем карточку, если нечего показать.
+  if (!user.bio && user.interests.length === 0) return null
   return (
     <Glass layer="raised" delay={0.1} className="p-5">
       <SectionLabel>🚀 О себе</SectionLabel>
-      <p className="text-sm leading-relaxed mt-3" style={{ color: 'rgba(255,255,255,0.85)', whiteSpace: 'pre-wrap' }}>
-        {user.bio || 'Расскажите о себе — это увидят другие пользователи.'}
-      </p>
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {interests.map((t) => (
-          <span key={t} className="text-xs font-medium px-2.5 py-1 rounded-full"
-            style={{ background: 'rgba(168,85,247,0.12)', color: '#C084FC' }}>#{t}</span>
-        ))}
-      </div>
+      {user.bio && (
+        <p className="text-sm leading-relaxed mt-3" style={{ color: 'rgba(255,255,255,0.85)', whiteSpace: 'pre-wrap' }}>
+          {user.bio}
+        </p>
+      )}
+      <InterestChips interests={user.interests} />
     </Glass>
   )
 }
 
 /* ════════════════════════ AI insight ═════════════════════════ */
-function AiInsightCard({ nickname }: { nickname: string }) {
+// Карточка-визитка Infy AI. Пока без отдельного бэкенда инсайтов —
+// формирует подсказку из реальных интересов пользователя.
+function AiInsightCard({ user }: { user: User }) {
+  if (user.interests.length === 0) return null
+  const top = user.interests.slice(0, 3).join(', ')
   return (
     <Glass layer="floating" glow="brand" delay={0.15} className="p-5">
       <div className="flex items-center justify-between">
         <SectionLabel>🤖 Infy AI</SectionLabel>
-        <span className="text-xs" style={{ color: 'var(--text-low)' }}>инсайты</span>
+        <span className="text-xs" style={{ color: 'var(--text-low)' }}>визитка</span>
       </div>
       <p className="text-sm leading-relaxed mt-3" style={{ color: 'rgba(255,255,255,0.88)' }}>
-        На этой неделе {nickname} активнее в вечерних чатах. Открыто 3 напоминания и 2 незавершённых обсуждения.
+        Судя по интересам, {user.nickname} увлекается такими темами, как {top}. Infy AI подберёт
+        собеседников и контент под эти темы.
       </p>
       <div className="mt-3 flex flex-wrap gap-1.5">
-        {['разработка', 'AI', 'игры'].map((t) => (
+        {user.interests.slice(0, 5).map((t) => (
           <span key={t} className="text-xs px-2.5 py-1 rounded-full"
             style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)' }}>{t}</span>
         ))}

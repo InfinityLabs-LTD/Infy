@@ -111,9 +111,47 @@ const adminUsersRoutes: FastifyPluginAsync = async (app) => {
         role: true, avatarUrl: true, birthdate: true,
         createdAt: true, lastSeenAt: true, emailVerifiedAt: true,
         _count: { select: { messages: true, chatMemberships: true } },
+        badges: { include: { badge: true }, orderBy: { grantedAt: 'asc' } },
       },
     })
-    return { data: { ...user, id: user.id.toString() } }
+    return {
+      data: {
+        ...user,
+        id: user.id.toString(),
+        badges: user.badges.map(b => ({
+          slug: b.badge.slug, label: b.badge.label, color: b.badge.color,
+          icon: b.badge.icon, description: b.badge.description, badgeId: b.badge.id,
+        })),
+      },
+    }
+  })
+
+  // PUT /admin/users/:id/badges/:badgeId — выдать бейдж пользователю.
+  app.put('/:id/badges/:badgeId', {
+    schema: { tags: ['Admin'], summary: 'Grant a badge to a user (admin)', security: [{ bearerAuth: [] }] },
+  }, async (request, reply) => {
+    const { id, badgeId } = request.params as { id: string; badgeId: string }
+    const userId = BigInt(id)
+    const grantedById = BigInt(request.user.sub)
+
+    await app.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true } })
+    await app.prisma.badge.findUniqueOrThrow({ where: { id: badgeId }, select: { id: true } })
+
+    await app.prisma.userBadge.upsert({
+      where: { userId_badgeId: { userId, badgeId } },
+      create: { userId, badgeId, grantedById },
+      update: { grantedById },
+    })
+    return reply.code(204).send()
+  })
+
+  // DELETE /admin/users/:id/badges/:badgeId — снять бейдж с пользователя.
+  app.delete('/:id/badges/:badgeId', {
+    schema: { tags: ['Admin'], summary: 'Revoke a badge from a user (admin)', security: [{ bearerAuth: [] }] },
+  }, async (request, reply) => {
+    const { id, badgeId } = request.params as { id: string; badgeId: string }
+    await app.prisma.userBadge.deleteMany({ where: { userId: BigInt(id), badgeId } })
+    return reply.code(204).send()
   })
 
   // PATCH /admin/users/:id

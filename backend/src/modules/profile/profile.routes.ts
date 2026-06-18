@@ -12,11 +12,29 @@ const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/web
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024 // 5 MB
 const MAX_COVER_BYTES = 10 * 1024 * 1024 // 10 MB
 
+// Один интерес/хэштег: буквы/цифры/_/-, без пробелов и решётки (её рисует UI).
+const interestSchema = z.string().trim().min(1).max(24).regex(/^[\p{L}\p{N}_-]+$/u)
+
+// Убирает дубликаты интересов без учёта регистра, сохраняя исходный порядок/написание.
+function dedupeInterests(list: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of list) {
+    const key = raw.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(raw)
+  }
+  return out
+}
+
 const updateProfileSchema = z.object({
   nickname: z.string().min(1).max(64).trim().optional(),
   username: usernameSchema.optional(),
   birthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   bio: z.string().max(500).trim().optional().nullable(),
+  // Хэштеги/интересы — выбирает сам пользователь (до 10 шт.).
+  interests: z.array(interestSchema).max(10).optional(),
   // IANA-зона (напр. "Asia/Yekaterinburg"); null — сбросить.
   timezone: z.string().max(64).optional().nullable()
     .refine(v => v == null || isValidTimezone(v), { message: 'Invalid IANA timezone' }),
@@ -39,8 +57,45 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
     },
   }, async (request) => {
     const userId = BigInt(request.user.sub)
-    const user = await app.prisma.user.findUniqueOrThrow({ where: { id: userId } })
+    const user = await app.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      include: { badges: { include: { badge: true }, orderBy: { grantedAt: 'asc' } } },
+    })
     return { data: serializeUser(user) }
+  })
+
+  // GET /profile/me/stats — реальная статистика профиля.
+  // Контакты = собеседники в личных чатах; Чаты = все диалоги; Группы = групповые чаты;
+  // Устройства = активные (не отозванные) сессии.
+  app.get('/me/stats', {
+    preHandler: [authenticate],
+    schema: {
+      tags: ['Profile'],
+      summary: 'Get own profile stats',
+      security: [{ bearerAuth: [] }],
+    },
+  }, async (request) => {
+    const userId = BigInt(request.user.sub)
+
+    const [chats, groups, devices, directChats] = await Promise.all([
+      app.prisma.chatMember.count({ where: { userId } }),
+      app.prisma.chatMember.count({ where: { userId, chat: { type: 'GROUP' } } }),
+      app.prisma.deviceSession.count({ where: { userId, revokedAt: null } }),
+      app.prisma.chat.findMany({
+        where: { type: 'DIRECT', members: { some: { userId } } },
+        select: { members: { select: { userId: true } } },
+      }),
+    ])
+
+    // Контакты — уникальные собеседники в личных чатах (исключая себя).
+    const contactIds = new Set<string>()
+    for (const c of directChats) {
+      for (const m of c.members) {
+        if (m.userId !== userId) contactIds.add(m.userId.toString())
+      }
+    }
+
+    return { data: { contacts: contactIds.size, chats, groups, devices } }
   })
 
   // PATCH /profile/me
@@ -57,6 +112,7 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
           username: { type: 'string', minLength: 3, maxLength: 32 },
           birthdate: { type: 'string', nullable: true },
           bio: { type: 'string', maxLength: 500, nullable: true },
+          interests: { type: 'array', items: { type: 'string' }, maxItems: 10 },
           timezone: { type: 'string', maxLength: 64, nullable: true },
           aiSuggestReplies: { type: 'boolean' },
           notifyPopup: { type: 'boolean' },
@@ -85,12 +141,17 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
           birthdate: input.birthdate ? new Date(input.birthdate) : null,
         }),
         ...(input.bio !== undefined && { bio: input.bio ?? null }),
+        ...(input.interests !== undefined && {
+          // Нормализуем: убираем дубликаты (без учёта регистра), сохраняя порядок.
+          interests: dedupeInterests(input.interests),
+        }),
         ...(input.timezone !== undefined && { timezone: input.timezone ?? null }),
         ...(input.aiSuggestReplies !== undefined && { aiSuggestReplies: input.aiSuggestReplies }),
         ...(input.notifyPopup !== undefined && { notifyPopup: input.notifyPopup }),
         ...(input.notifySound !== undefined && { notifySound: input.notifySound }),
         ...(input.notifyVibrate !== undefined && { notifyVibrate: input.notifyVibrate }),
       },
+      include: { badges: { include: { badge: true }, orderBy: { grantedAt: 'asc' } } },
     })
 
     return { data: serializeUser(user) }
@@ -236,9 +297,14 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
     },
   }, async (request) => {
     const { username } = request.params as { username: string }
-    const user = await app.prisma.user.findUnique({ where: { username } })
+    const user = await app.prisma.user.findUnique({
+      where: { username },
+      include: { badges: { include: { badge: true }, orderBy: { grantedAt: 'asc' } } },
+    })
     if (!user) throw Errors.USER_NOT_FOUND()
 
+    // Публичный профиль: только то, что видят другие. Личные данные
+    // (email, день рождения, настройки) НЕ отдаём.
     return {
       data: {
         id: user.id.toString(),
@@ -247,9 +313,15 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
         avatarUrl: user.avatarUrl,
         coverUrl: user.coverUrl,
         bio: user.bio,
-        birthdate: user.birthdate,
-        email: user.email,
         role: user.role,
+        interests: user.interests,
+        badges: user.badges.map(b => ({
+          slug: b.badge.slug,
+          label: b.badge.label,
+          color: b.badge.color,
+          icon: b.badge.icon,
+          description: b.badge.description,
+        })),
         createdAt: user.createdAt,
         lastSeenAt: user.lastSeenAt,
       },

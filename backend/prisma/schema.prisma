@@ -114,10 +114,14 @@ model User {
   notifyPopup     Boolean   @default(true)   // показывать всплывающее уведомление
   notifySound     Boolean   @default(true)   // звук уведомления
   notifyVibrate   Boolean   @default(true)   // вибрация
+  // Хэштеги/интересы профиля — выбирает сам пользователь (видны в публичном профиле).
+  interests       String[]  @default([])
   createdAt       DateTime  @default(now())
   lastSeenAt      DateTime  @default(now())
 
   sessions                DeviceSession[]
+  badges                  UserBadge[]          @relation("BadgeHolder")
+  grantedBadges           UserBadge[]          @relation("BadgeGranter")
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens     PasswordResetToken[]
   chatMemberships         ChatMember[]
@@ -137,6 +141,40 @@ model User {
   aiConversations         AiConversation[]
 
   @@map("users")
+}
+
+// Бейдж профиля — выдаётся администратором через админ-панель.
+// Каталог полностью кастомный: админ сам задаёт название, цвет и иконку (emoji).
+model Badge {
+  id          String      @id @default(cuid())
+  // Машинное имя для ссылок/сортировки (уникально, напр. "verified").
+  slug        String      @unique @db.VarChar(40)
+  label       String      @db.VarChar(40)        // отображаемое название
+  // RGB-триплет "R,G,B" (напр. "56,189,248") — задаёт оттенок заливки и текста.
+  color       String      @db.VarChar(11)
+  icon        String      @db.VarChar(8)         // emoji-иконка
+  description String?     @db.VarChar(200)       // подсказка (необязательно)
+  createdAt   DateTime    @default(now())
+
+  users       UserBadge[]
+
+  @@map("badges")
+}
+
+// Назначение бейджа конкретному пользователю (выдал админ).
+model UserBadge {
+  userId    BigInt
+  badgeId   String
+  grantedById BigInt?                            // какой админ выдал (null если удалён)
+  grantedAt DateTime @default(now())
+
+  user      User  @relation("BadgeHolder", fields: [userId],  references: [id], onDelete: Cascade)
+  badge     Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  grantedBy User? @relation("BadgeGranter", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@id([userId, badgeId])
+  @@index([badgeId])
+  @@map("user_badges")
 }
 
 // Санкция модерации (Infy Shield): бан / мут / предупреждение

@@ -18,6 +18,7 @@ import { AdminUsersPage } from '@/pages/admin/AdminUsersPage'
 import { AdminUserProfilePage } from '@/pages/admin/AdminUserProfilePage'
 import { AdminAnalyticsPage } from '@/pages/admin/AdminAnalyticsPage'
 import { AdminModerationPage } from '@/pages/admin/AdminModerationPage'
+import { AdminBadgesPage } from '@/pages/admin/AdminBadgesPage'
 import { AdminAiCenterPage } from '@/pages/admin/AdminAiCenterPage'
 import { AdminPaymentsPage } from '@/pages/admin/AdminPaymentsPage'
 import { AdminContainersPage } from '@/pages/admin/AdminContainersPage'
@@ -80,6 +81,7 @@ export default function App() {
           <Route path="users" element={<AdminUsersPage />} />
           <Route path="users/:id" element={<AdminUserProfilePage />} />
           <Route path="moderation" element={<AdminModerationPage />} />
+          <Route path="badges" element={<AdminBadgesPage />} />
           <Route path="analytics" element={<AdminAnalyticsPage />} />
           <Route path="ai" element={<AdminAiCenterPage />} />
           <Route path="payments" element={<AdminPaymentsPage />} />

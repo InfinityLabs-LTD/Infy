@@ -1,5 +1,13 @@
 import { api } from './client'
 
+export interface Badge {
+  slug: string
+  label: string
+  color: string          // RGB-триплет "R,G,B"
+  icon: string
+  description: string | null
+}
+
 export interface User {
   id: string
   username: string
@@ -15,8 +23,32 @@ export interface User {
   notifyPopup: boolean
   notifySound: boolean
   notifyVibrate: boolean
+  interests: string[]
+  badges: Badge[]
   createdAt: string
   lastSeenAt: string
+}
+
+// Публичный профиль другого пользователя (личные данные скрыты).
+export interface PublicProfile {
+  id: string
+  username: string
+  nickname: string
+  avatarUrl: string | null
+  coverUrl: string | null
+  bio: string | null
+  role: string
+  interests: string[]
+  badges: Badge[]
+  createdAt: string
+  lastSeenAt: string
+}
+
+export interface ProfileStats {
+  contacts: number
+  chats: number
+  groups: number
+  devices: number
 }
 
 export interface AuthResponse {
@@ -69,13 +101,15 @@ export interface UserSearchResult {
 export const profileApi = {
   getMe: () => api.get<{ data: User }>('/profile/me'),
 
+  getStats: () => api.get<{ data: ProfileStats }>('/profile/me/stats'),
+
   getByUsername: (username: string) =>
-    api.get<{ data: User }>(`/profile/${username}`),
+    api.get<{ data: PublicProfile }>(`/profile/${username}`),
 
   searchUsers: (q: string) =>
     api.get<{ data: UserSearchResult[] }>('/profile/search', { params: { q } }),
 
-  updateMe: (body: { nickname?: string; username?: string; birthdate?: string | null; bio?: string | null; timezone?: string | null; aiSuggestReplies?: boolean; notifyPopup?: boolean; notifySound?: boolean; notifyVibrate?: boolean }) =>
+  updateMe: (body: { nickname?: string; username?: string; birthdate?: string | null; bio?: string | null; interests?: string[]; timezone?: string | null; aiSuggestReplies?: boolean; notifyPopup?: boolean; notifySound?: boolean; notifyVibrate?: boolean }) =>
     api.patch<{ data: User }>('/profile/me', body),
 
   uploadAvatar: (file: File) => {

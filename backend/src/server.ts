@@ -21,6 +21,7 @@ import chatRoutes from './modules/chat/chat.routes.js'
 import calendarRoutes from './modules/calendar/calendar.routes.js'
 import mediaRoutes from './modules/media/media.routes.js'
 import adminUsersRoutes from './modules/admin/admin.users.routes.js'
+import adminBadgesRoutes from './modules/admin/admin.badges.routes.js'
 import adminContainersRoutes from './modules/admin/admin.containers.routes.js'
 import adminStatsRoutes from './modules/admin/admin.stats.routes.js'
 import adminModerationRoutes from './modules/admin/admin.moderation.routes.js'
@@ -125,6 +126,7 @@ async function buildCoreServer() {
   await app.register(calendarRoutes, { prefix: '/calendar' })
   await app.register(mediaRoutes, { prefix: '/media' })
   await app.register(adminUsersRoutes, { prefix: '/admin/users' })
+  await app.register(adminBadgesRoutes, { prefix: '/admin/badges' })
   await app.register(adminContainersRoutes, { prefix: '/admin/containers' })
   await app.register(adminStatsRoutes, { prefix: '/admin/stats' })
   await app.register(adminModerationRoutes, { prefix: '/admin/moderation' })

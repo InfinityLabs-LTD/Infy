@@ -39,7 +39,29 @@ interface TokenPair {
   sessionId: string
 }
 
-export function serializeUser(user: { id: bigint; username: string; nickname: string; avatarUrl: string | null; coverUrl: string | null; bio: string | null; role: string; email: string | null; birthdate: Date | null; timezone?: string | null; aiSuggestReplies?: boolean; notifyPopup?: boolean; notifySound?: boolean; notifyVibrate?: boolean; createdAt: Date; lastSeenAt: Date }) {
+// Бейдж в сериализованном виде (то, что уходит на клиент).
+export interface SerializedBadge {
+  slug: string
+  label: string
+  color: string
+  icon: string
+  description: string | null
+}
+
+// Достаёт бейджи из связи UserBadge[] (если она была загружена через include).
+function serializeBadges(user: {
+  badges?: { badge: { slug: string; label: string; color: string; icon: string; description: string | null } }[]
+}): SerializedBadge[] {
+  return (user.badges ?? []).map(b => ({
+    slug: b.badge.slug,
+    label: b.badge.label,
+    color: b.badge.color,
+    icon: b.badge.icon,
+    description: b.badge.description,
+  }))
+}
+
+export function serializeUser(user: { id: bigint; username: string; nickname: string; avatarUrl: string | null; coverUrl: string | null; bio: string | null; role: string; email: string | null; birthdate: Date | null; timezone?: string | null; aiSuggestReplies?: boolean; notifyPopup?: boolean; notifySound?: boolean; notifyVibrate?: boolean; interests?: string[]; createdAt: Date; lastSeenAt: Date; badges?: { badge: { slug: string; label: string; color: string; icon: string; description: string | null } }[] }) {
   return {
     id: user.id.toString(),
     username: user.username,
@@ -55,6 +77,8 @@ export function serializeUser(user: { id: bigint; username: string; nickname: st
     notifyPopup: user.notifyPopup ?? true,
     notifySound: user.notifySound ?? true,
     notifyVibrate: user.notifyVibrate ?? true,
+    interests: user.interests ?? [],
+    badges: serializeBadges(user),
     createdAt: user.createdAt,
     lastSeenAt: user.lastSeenAt,
   }

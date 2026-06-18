@@ -12,9 +12,31 @@ export interface AdminUser {
   emailVerifiedAt: string | null
 }
 
+// Бейдж, назначенный пользователю (вид для админ-карточки).
+export interface AdminUserBadge {
+  badgeId: string
+  slug: string
+  label: string
+  color: string
+  icon: string
+  description: string | null
+}
+
 export interface AdminUserDetail extends AdminUser {
   birthdate: string | null
   _count: { messages: number; chatMemberships: number }
+  badges: AdminUserBadge[]
+}
+
+// Запись каталога бейджей.
+export interface AdminBadge {
+  id: string
+  slug: string
+  label: string
+  color: string
+  icon: string
+  description: string | null
+  createdAt: string
 }
 
 export interface AdminMessage {
@@ -230,6 +252,25 @@ export const adminApi = {
   // Полное удаление аккаунта
   deleteUser: (id: string) =>
     api.delete(`/admin/users/${id}`),
+
+  // Бейджи: каталог + выдача/снятие пользователю
+  listBadges: () =>
+    api.get<{ data: AdminBadge[] }>('/admin/badges'),
+
+  createBadge: (body: { slug: string; label: string; color: string; icon: string; description?: string | null }) =>
+    api.post<{ data: AdminBadge }>('/admin/badges', body),
+
+  updateBadge: (id: string, body: { label?: string; color?: string; icon?: string; description?: string | null }) =>
+    api.patch<{ data: AdminBadge }>(`/admin/badges/${id}`, body),
+
+  deleteBadge: (id: string) =>
+    api.delete(`/admin/badges/${id}`),
+
+  grantBadge: (userId: string, badgeId: string) =>
+    api.put(`/admin/users/${userId}/badges/${badgeId}`),
+
+  revokeBadge: (userId: string, badgeId: string) =>
+    api.delete(`/admin/users/${userId}/badges/${badgeId}`),
 
   // Stats
   getStats: () =>

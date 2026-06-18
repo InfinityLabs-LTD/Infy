@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { adminApi, AdminUserDetail } from '@/api/admin'
+import { adminApi, AdminUserDetail, AdminBadge } from '@/api/admin'
 import { IssueSanctionModal } from './AdminModerationPage'
 import { AdminDialogViewer } from '@/components/admin/AdminDialogViewer'
 import { useAuthStore } from '@/store/auth'
@@ -223,12 +223,93 @@ function OverviewTab({ user, isMe, onDeleted }: {
         <InfoRow label="ID" value={user.id} mono />
       </div>
 
+      {/* Бейджи профиля — выдаются администратором */}
+      <BadgesCard user={user} />
+
       {/* Безопасность — смена пароля */}
       {!isMe && <SecurityCard user={user} />}
 
       {/* Опасная зона — удаление аккаунта */}
       {!isMe && <DangerCard user={user} onDeleted={onDeleted} />}
     </motion.div>
+  )
+}
+
+// ── Бейджи профиля ───────────────────────────────────────────
+
+function BadgesCard({ user }: { user: AdminUserDetail }) {
+  const [catalog, setCatalog] = useState<AdminBadge[]>([])
+  const [granted, setGranted] = useState<Set<string>>(
+    () => new Set(user.badges.map(b => b.badgeId)),
+  )
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<unknown>(null)
+
+  useEffect(() => {
+    adminApi.listBadges().then(r => setCatalog(r.data.data)).catch(e => setError(e))
+  }, [])
+
+  async function toggle(badge: AdminBadge) {
+    const has = granted.has(badge.id)
+    setBusy(badge.id); setError(null)
+    try {
+      if (has) {
+        await adminApi.revokeBadge(user.id, badge.id)
+        setGranted(prev => { const next = new Set(prev); next.delete(badge.id); return next })
+      } else {
+        await adminApi.grantBadge(user.id, badge.id)
+        setGranted(prev => new Set(prev).add(badge.id))
+      }
+    } catch (e) { setError(e) }
+    finally { setBusy(null) }
+  }
+
+  return (
+    <div className="glass rounded-2xl p-5 space-y-3 md:col-span-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-low)' }}>
+          Бейджи профиля
+        </p>
+        <Link to="/admin/badges" className="text-xs transition-colors hover:text-white" style={{ color: '#C084FC' }}>
+          Управление каталогом
+        </Link>
+      </div>
+
+      {error !== null && <ErrorMessage error={error} />}
+
+      {catalog.length === 0 ? (
+        <p className="text-[13px]" style={{ color: 'var(--text-low)' }}>
+          Каталог пуст. Создайте бейджи в разделе «Управление каталогом».
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {catalog.map(b => {
+            const has = granted.has(b.id)
+            return (
+              <button key={b.id} onClick={() => toggle(b)} disabled={busy === b.id}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all disabled:opacity-50"
+                style={{
+                  background: has ? `rgba(${b.color},0.18)` : 'rgba(255,255,255,0.04)',
+                  color: has ? `rgb(${b.color})` : 'rgba(255,255,255,0.55)',
+                  border: has ? `1px solid rgba(${b.color},0.4)` : '1px solid rgba(255,255,255,0.08)',
+                }}
+                title={b.description ?? b.label}>
+                {busy === b.id ? <Spinner size={12} /> : <span aria-hidden>{b.icon}</span>}
+                {b.label}
+                {has && (
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
+      <p className="text-[11px]" style={{ color: 'var(--text-low)' }}>
+        Нажмите, чтобы выдать или снять бейдж. «Администратор» отображается автоматически по роли.
+      </p>
+    </div>
   )
 }
 
