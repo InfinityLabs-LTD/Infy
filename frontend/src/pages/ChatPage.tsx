@@ -960,9 +960,9 @@ export function ChatPage() {
                 {showHeaderMenu && (
                   <>
                     {/* Клик вне меню — закрыть */}
-                    <div className="fixed inset-0 z-10" onClick={() => setShowHeaderMenu(false)} />
-                    <div className="glass-pop absolute top-12 right-0 z-20 rounded-2xl overflow-hidden"
-                      style={{ minWidth: 230 }}>
+                    <div className="fixed inset-0 z-[60]" onClick={() => setShowHeaderMenu(false)} />
+                    <div className="glass-pop absolute top-12 right-0 z-[61] rounded-2xl overflow-hidden"
+                      style={{ minWidth: 230, background: 'rgba(16, 20, 38, 0.95)' }}>
 
                       {/* Группа: связь */}
                       <div className="px-4 pt-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider"
@@ -1446,9 +1446,9 @@ export function ChatPage() {
               {showAttachMenu && (
                 <>
                   {/* Затемнение для закрытия по клику вне */}
-                  <div className="fixed inset-0 z-10" onClick={() => setShowAttachMenu(false)} />
-                  <div className="glass-pop absolute bottom-12 left-0 z-20 rounded-2xl overflow-hidden"
-                    style={{ minWidth: 200 }}>
+                  <div className="fixed inset-0 z-[60]" onClick={() => setShowAttachMenu(false)} />
+                  <div className="glass-pop absolute bottom-12 left-0 z-[61] rounded-2xl overflow-hidden"
+                    style={{ minWidth: 200, background: 'rgba(16, 20, 38, 0.95)' }}>
                     <button
                       className="flex items-center gap-3 w-full px-4 py-3 text-sm text-white hover:bg-white/5 transition-colors"
                       onClick={() => { setShowAttachMenu(false); imageInputRef.current?.click() }}
