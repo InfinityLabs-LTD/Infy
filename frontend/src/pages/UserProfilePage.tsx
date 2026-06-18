@@ -113,7 +113,7 @@ export function UserProfilePage() {
               )}
               <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, transparent 40%, rgba(8,11,22,0.55) 100%)' }} />
             </div>
-            <div className="px-6 pb-6 -mt-11">
+            <div className="relative px-6 pb-6 -mt-11">
               <div className="w-[88px] h-[88px] mb-3 rounded-2xl overflow-hidden"
                 style={{ border: '3px solid #0B1020', boxShadow: '0 0 0 1px rgba(168,85,247,.4), 0 8px 28px rgba(124,58,237,.35)' }}>
                 <Avatar url={user.avatarUrl} nickname={user.nickname} size={88} rounded="2xl" />
