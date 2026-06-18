@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { Avatar } from '@/components/ui/Avatar'
 import { useCallStore } from '@/store/call'
 import { callController } from '@/lib/callController'
-import { ActiveControls, IncomingControls } from './CallControls'
+import { ActiveControls } from './CallControls'
 import { QualityBadge } from './QualityBadge'
 import { DraggableVideo } from './DraggableVideo'
 
@@ -68,7 +68,7 @@ export function CallOverlay() {
     }
   }, [s.audioOutputId, s.remoteStream])
 
-  if (s.phase === 'idle') return null
+  if (s.phase === 'idle' || s.phase === 'incoming') return null
 
   const showSelfPip = isVideo && s.camOn && !!s.localStream && (s.phase === 'active' || s.phase === 'connecting')
   const showControls = s.phase === 'active' || s.phase === 'connecting' || s.phase === 'outgoing'
@@ -175,16 +175,7 @@ export function CallOverlay() {
 
         {/* ── Низ: контролы ── */}
         <div className="relative z-10 pb-10 px-4">
-          {s.phase === 'incoming' ? (
-            <IncomingControls
-              onAccept={() => callController.accept()}
-              onDecline={() => callController.decline()}
-              onMessage={() => {
-                callController.decline()
-                if (s.peer) navigate(`/chat/${s.peer.id}`)
-              }}
-            />
-          ) : showControls ? (
+          {showControls ? (
             <ActiveControls
               micOn={s.micOn}
               camOn={s.camOn}
@@ -199,7 +190,8 @@ export function CallOverlay() {
               onSwitchVideo={(id) => void callController.switchVideoInput(id)}
               onSwitchOutput={(id) => callController.switchAudioOutput(id)}
             />
-          ) : null}
+          ) : null }
+
         </div>
       </motion.div>
     </AnimatePresence>

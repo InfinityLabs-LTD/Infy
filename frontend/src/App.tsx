@@ -25,6 +25,7 @@ import { AdminMailCenterPage } from '@/pages/admin/AdminMailCenterPage'
 import { AdminPaymentsPage } from '@/pages/admin/AdminPaymentsPage'
 import { AdminContainersPage } from '@/pages/admin/AdminContainersPage'
 import { CallOverlay } from '@/components/call/CallOverlay'
+import { IncomingCallBanner } from '@/components/call/IncomingCallBanner'
 import { useCallSignaling } from '@/hooks/useCallSignaling'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -50,7 +51,12 @@ function RequireGuest({ children }: { children: React.ReactNode }) {
 // поверх всего приложения. Внутри BrowserRouter — использует useNavigate.
 function CallLayer() {
   useCallSignaling()
-  return <CallOverlay />
+  return (
+    <>
+      <IncomingCallBanner />
+      <CallOverlay />
+    </>
+  )
 }
 
 export default function App() {
