@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { sessionsApi, Session } from '@/api/auth'
+import { authApi, sessionsApi, Session } from '@/api/auth'
 import { useAuthStore } from '@/store/auth'
 import { Spinner } from '@/components/ui/Spinner'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
+import { translateError } from '@/lib/errorMessages'
 
 export function SessionsPage() {
   const navigate = useNavigate()
@@ -13,6 +14,39 @@ export function SessionsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
   const [revoking, setRevoking] = useState<string | null>(null)
+
+  // ── Смена пароля ──
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [pwdSaving, setPwdSaving] = useState(false)
+  const [pwdError, setPwdError] = useState<string | null>(null)
+  const [pwdSaved, setPwdSaved] = useState(false)
+
+  async function handleChangePassword() {
+    setPwdError(null); setPwdSaved(false)
+    if (newPassword.length < 8) {
+      setPwdError('Новый пароль должен быть не короче 8 символов')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setPwdError('Пароли не совпадают')
+      return
+    }
+    setPwdSaving(true)
+    try {
+      await authApi.changePassword({ currentPassword, newPassword })
+      setCurrentPassword(''); setNewPassword(''); setConfirmPassword('')
+      setPwdSaved(true)
+      setTimeout(() => setPwdSaved(false), 3000)
+      // Смена пароля разлогинивает остальные устройства — обновим список.
+      await load()
+    } catch (err) {
+      setPwdError(translateError(err))
+    } finally {
+      setPwdSaving(false)
+    }
+  }
 
   async function load() {
     setLoading(true); setError(null)
@@ -64,11 +98,58 @@ export function SessionsPage() {
             <path d="M19 12H5M12 5l-7 7 7 7"/>
           </svg>
         </button>
-        <h1 className="text-base font-semibold text-white">Мои устройства</h1>
+        <h1 className="text-base font-semibold text-white">Безопасность</h1>
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-5 space-y-3">
         {error !== null && <ErrorMessage error={error} />}
+
+        {/* ── Смена пароля ── */}
+        <div className="rounded-2xl p-5" style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
+          <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-low)' }}>Смена пароля</h2>
+          <div className="space-y-3">
+            <input
+              type="password"
+              className="input"
+              placeholder="Текущий пароль"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={e => setCurrentPassword(e.target.value)}
+            />
+            <input
+              type="password"
+              className="input"
+              placeholder="Новый пароль"
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={e => setNewPassword(e.target.value)}
+            />
+            <input
+              type="password"
+              className="input"
+              placeholder="Повторите новый пароль"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)}
+            />
+          </div>
+          {pwdError && (
+            <p className="text-xs mt-2" style={{ color: '#fca5a5' }}>{pwdError}</p>
+          )}
+          <p className="text-xs mt-2" style={{ color: 'var(--text-low)' }}>
+            После смены пароля все остальные устройства будут разлогинены. Минимум 8 символов.
+          </p>
+          <button
+            onClick={handleChangePassword}
+            className="btn-primary w-full py-2.5 mt-3"
+            disabled={pwdSaving || !currentPassword || !newPassword || !confirmPassword}
+          >
+            {pwdSaving ? <Spinner size={18} /> : pwdSaved ? 'Пароль изменён ✓' : 'Сменить пароль'}
+          </button>
+        </div>
+
+        {/* ── Устройства ── */}
+        <h2 className="text-xs font-semibold uppercase tracking-wider pt-2 px-1" style={{ color: 'var(--text-low)' }}>Мои устройства</h2>
 
         {loading ? (
           <div className="flex justify-center py-12"><Spinner size={32} /></div>

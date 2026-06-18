@@ -460,10 +460,16 @@ function ActionGrid({ isAdmin }: { isAdmin: boolean }) {
       <SectionLabel className="px-2">Быстрые действия</SectionLabel>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <ActionTile to="/profile/edit" icon={<EditIcon />} label="Редактировать" />
-        <ActionTile to="/sessions" icon={<DeviceIcon />} label="Устройства" />
-        <ActionTile to="/settings" icon={<GearIcon />} label="Настройки" />
         <ActionTile to="/sessions" icon={<ShieldIcon />} label="Безопасность" />
       </div>
+      <Link to="/settings"
+        className="mt-2 flex items-center justify-center gap-2 px-3 py-3.5 rounded-xl transition-all font-medium text-sm text-white"
+        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid transparent' }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; e.currentTarget.style.borderColor = 'rgba(168,85,247,0.35)' }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'transparent' }}>
+        <span style={{ color: '#C084FC' }}><GearIcon /></span>
+        Настройки
+      </Link>
       {isAdmin && (
         <Link to="/admin"
           className="mt-2 flex items-center gap-3 px-3 py-3 rounded-xl transition-colors"
@@ -565,7 +571,6 @@ const CakeIcon = () => stroke(<><path d="M20 21v-8a2 2 0 00-2-2H6a2 2 0 00-2 2v8
 const CalendarIcon = () => stroke(<><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></>)
 const EditIcon = () => stroke(<><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></>)
 const GearIcon = () => stroke(<><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></>)
-const DeviceIcon = () => stroke(<><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></>)
 const ShieldIcon = () => stroke(<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />)
 const StarIcon = () => stroke(<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />)
 const ChevronIcon = () => (

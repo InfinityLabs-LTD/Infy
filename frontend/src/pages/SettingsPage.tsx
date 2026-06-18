@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { authApi, profileApi } from '@/api/auth'
-import { translateError } from '@/lib/errorMessages'
+import { profileApi } from '@/api/auth'
 import { useAuthStore } from '@/store/auth'
 import { useNotifications } from '@/hooks/useNotifications'
 import { Spinner } from '@/components/ui/Spinner'
@@ -64,38 +63,7 @@ export function SettingsPage() {
   const [error, setError] = useState<unknown>(null)
   const [notifBusy, setNotifBusy] = useState(false)
 
-  // ── Смена пароля ──
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [pwdSaving, setPwdSaving] = useState(false)
-  const [pwdError, setPwdError] = useState<string | null>(null)
-  const [pwdSaved, setPwdSaved] = useState(false)
-
   const timezones = timezoneList(timezone)
-
-  async function handleChangePassword() {
-    setPwdError(null); setPwdSaved(false)
-    if (newPassword.length < 8) {
-      setPwdError('Новый пароль должен быть не короче 8 символов')
-      return
-    }
-    if (newPassword !== confirmPassword) {
-      setPwdError('Пароли не совпадают')
-      return
-    }
-    setPwdSaving(true)
-    try {
-      await authApi.changePassword({ currentPassword, newPassword })
-      setCurrentPassword(''); setNewPassword(''); setConfirmPassword('')
-      setPwdSaved(true)
-      setTimeout(() => setPwdSaved(false), 3000)
-    } catch (err) {
-      setPwdError(translateError(err))
-    } finally {
-      setPwdSaving(false)
-    }
-  }
 
   async function handleSave() {
     setSaving(true); setError(null)
@@ -258,50 +226,6 @@ export function SettingsPage() {
         <button onClick={handleSave} className="btn-primary w-full py-2.5" disabled={saving}>
           {saving ? <Spinner size={18} /> : savedAt ? 'Сохранено ✓' : 'Сохранить'}
         </button>
-
-        {/* ── Смена пароля ── */}
-        <div className="rounded-2xl p-5" style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
-          <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-low)' }}>Пароль</h2>
-          <div className="space-y-3">
-            <input
-              type="password"
-              className="input"
-              placeholder="Текущий пароль"
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={e => setCurrentPassword(e.target.value)}
-            />
-            <input
-              type="password"
-              className="input"
-              placeholder="Новый пароль"
-              autoComplete="new-password"
-              value={newPassword}
-              onChange={e => setNewPassword(e.target.value)}
-            />
-            <input
-              type="password"
-              className="input"
-              placeholder="Повторите новый пароль"
-              autoComplete="new-password"
-              value={confirmPassword}
-              onChange={e => setConfirmPassword(e.target.value)}
-            />
-          </div>
-          {pwdError && (
-            <p className="text-xs mt-2" style={{ color: '#fca5a5' }}>{pwdError}</p>
-          )}
-          <p className="text-xs mt-2" style={{ color: 'var(--text-low)' }}>
-            После смены пароля все остальные устройства будут разлогинены. Минимум 8 символов.
-          </p>
-          <button
-            onClick={handleChangePassword}
-            className="btn-primary w-full py-2.5 mt-3"
-            disabled={pwdSaving || !currentPassword || !newPassword || !confirmPassword}
-          >
-            {pwdSaving ? <Spinner size={18} /> : pwdSaved ? 'Пароль изменён ✓' : 'Сменить пароль'}
-          </button>
-        </div>
       </div>
     </div>
   )

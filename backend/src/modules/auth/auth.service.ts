@@ -168,6 +168,16 @@ export async function login(
     data: { lastSeenAt: new Date() },
   })
 
+  // Дедуп: повторный вход с того же устройства (тот же User-Agent) не должен
+  // плодить новые сессии — иначе счётчик «Устройства» завышается и в списке
+  // появляются дубликаты. Гасим прежние активные сессии этого же устройства.
+  if (meta.userAgent) {
+    await prisma.deviceSession.updateMany({
+      where: { userId: user.id, revokedAt: null, userAgent: meta.userAgent },
+      data: { revokedAt: new Date() },
+    })
+  }
+
   const tokens = await createTokenPair(prisma, user.id, {
     deviceName: 'Web',
     userAgent: meta.userAgent,
