@@ -26,9 +26,13 @@ export function useCallSignaling(): void {
       if (store.phase !== 'idle') return
       store.receiveIncoming({ callId: p.callId, chatId: p.chatId, media: p.media, peer: p.from })
       // Браузерное уведомление, если вкладка свёрнута.
-      if (document.hidden && Notification.permission === 'granted') {
+      const me = useAuthStore.getState().user
+      if (document.hidden && Notification.permission === 'granted' && (me?.notifyPopup ?? true)) {
         const body = p.media === 'VIDEO' ? '📹 Входящий видеозвонок' : '📞 Входящий звонок'
-        new Notification(p.from.nickname, { body, icon: p.from.avatarUrl ?? '/logo.png', tag: 'call' })
+        new Notification(p.from.nickname, {
+          body, icon: p.from.avatarUrl ?? '/logo.png', tag: 'call',
+          silent: !(me?.notifySound ?? true),
+        } as NotificationOptions)
       }
     }
 

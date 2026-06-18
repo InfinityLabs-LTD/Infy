@@ -81,11 +81,20 @@ async function pushIncomingCall(
   try {
     const online = await isOnline(redis, calleeId)
     if (online) return   // онлайн — получит call:incoming по сокету
+    const callee = await prisma.user.findUnique({
+      where: { id: BigInt(calleeId) },
+      select: { notifyPopup: true, notifySound: true, notifyVibrate: true },
+    })
+    if (callee?.notifyPopup === false) return   // баннеры отключены
     const subs = await prisma.pushSubscription.findMany({ where: { userId: BigInt(calleeId) } })
     if (subs.length === 0) return
     const body = media === 'VIDEO' ? '📹 Входящий видеозвонок' : '📞 Входящий звонок'
     await Promise.allSettled(subs.map(sub =>
-      sendPush(sub, { title: callerName, body, icon: callerAvatar ?? '/logo.png', tag: 'call', url: '/' }),
+      sendPush(sub, {
+        title: callerName, body, icon: callerAvatar ?? '/logo.png', tag: 'call', url: '/',
+        sound: callee?.notifySound !== false,
+        vibrate: callee?.notifyVibrate !== false,
+      }),
     ))
   } catch { /* push некритичен */ }
 }

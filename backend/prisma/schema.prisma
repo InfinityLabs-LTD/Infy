@@ -110,6 +110,10 @@ model User {
   timezone        String?   @db.VarChar(64)
   // Infy Pulse: показывать ли подсказки ответов над полем ввода чата.
   aiSuggestReplies Boolean  @default(true)
+  // Настройки push-уведомлений (при включённых уведомлениях целиком):
+  notifyPopup     Boolean   @default(true)   // показывать всплывающее уведомление
+  notifySound     Boolean   @default(true)   // звук уведомления
+  notifyVibrate   Boolean   @default(true)   // вибрация
   createdAt       DateTime  @default(now())
   lastSeenAt      DateTime  @default(now())
 

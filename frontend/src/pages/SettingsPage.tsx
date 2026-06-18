@@ -55,6 +55,9 @@ export function SettingsPage() {
 
   const [timezone, setTimezone] = useState(user?.timezone ?? browserTimezone())
   const [aiSuggestReplies, setAiSuggestReplies] = useState(user?.aiSuggestReplies ?? true)
+  const [notifyPopup, setNotifyPopup] = useState(user?.notifyPopup ?? true)
+  const [notifySound, setNotifySound] = useState(user?.notifySound ?? true)
+  const [notifyVibrate, setNotifyVibrate] = useState(user?.notifyVibrate ?? true)
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [error, setError] = useState<unknown>(null)
@@ -73,6 +76,14 @@ export function SettingsPage() {
       setSavedAt(Date.now())
     } catch (err) { setError(err) }
     finally { setSaving(false) }
+  }
+
+  // Сохраняем настройку уведомления сразу при переключении (оптимистично).
+  async function patchNotifyPref(patch: { notifyPopup?: boolean; notifySound?: boolean; notifyVibrate?: boolean }) {
+    try {
+      const res = await profileApi.updateMe(patch)
+      setUser(res.data.data)
+    } catch (err) { setError(err) }
   }
 
   // Переключение уведомлений: запрос разрешения + подписка / отписка.
@@ -128,17 +139,52 @@ export function SettingsPage() {
               Уведомления заблокированы в настройках браузера. Разрешите их для этого сайта, чтобы включить.
             </p>
           ) : (
-            <div className="flex items-center gap-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-white">Push-уведомления</p>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text-low)' }}>
-                  Сообщения и напоминания, когда вкладка закрыта или неактивна.
-                </p>
+            <>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white">Push-уведомления</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-low)' }}>
+                    Сообщения и напоминания, когда вкладка закрыта или неактивна.
+                  </p>
+                </div>
+                {notifBusy ? <Spinner size={18} /> : (
+                  <Toggle checked={notifications.subscribed} onChange={toggleNotifications} />
+                )}
               </div>
-              {notifBusy ? <Spinner size={18} /> : (
-                <Toggle checked={notifications.subscribed} onChange={toggleNotifications} />
+
+              {/* Подробные настройки — только при включённых уведомлениях */}
+              {notifications.subscribed && (
+                <div className="mt-4 pt-4 space-y-4" style={{ borderTop: '1px solid var(--glass-stroke)' }}>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white">Всплывающие уведомления</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-low)' }}>Показывать баннер уведомления</p>
+                    </div>
+                    <Toggle checked={notifyPopup} onChange={() => {
+                      const v = !notifyPopup; setNotifyPopup(v); patchNotifyPref({ notifyPopup: v })
+                    }} />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white">Звук</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-low)' }}>Звуковой сигнал уведомления</p>
+                    </div>
+                    <Toggle checked={notifySound} disabled={!notifyPopup} onChange={() => {
+                      const v = !notifySound; setNotifySound(v); patchNotifyPref({ notifySound: v })
+                    }} />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white">Вибрация</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-low)' }}>Вибрация при уведомлении (на телефоне)</p>
+                    </div>
+                    <Toggle checked={notifyVibrate} disabled={!notifyPopup} onChange={() => {
+                      const v = !notifyVibrate; setNotifyVibrate(v); patchNotifyPref({ notifyVibrate: v })
+                    }} />
+                  </div>
+                </div>
               )}
-            </div>
+            </>
           )}
         </div>
 

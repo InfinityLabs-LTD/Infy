@@ -34,13 +34,15 @@ export function useSocket(): Socket | null {
       }
       addMessage(msg)
       // Browser notification when tab is not focused
-      const myId = useAuthStore.getState().user?.id
-      if (document.hidden && msg.type !== 'SYSTEM' && msg.sender.id !== myId && Notification.permission === 'granted') {
+      const me = useAuthStore.getState().user
+      const myId = me?.id
+      if (document.hidden && msg.type !== 'SYSTEM' && msg.sender.id !== myId && Notification.permission === 'granted' && (me?.notifyPopup ?? true)) {
         new Notification(msg.sender.nickname, {
           body: msg.type === 'TEXT' ? (msg.content ?? '') : '📎 Вложение',
           icon: msg.sender.avatarUrl ?? '/logo.png',
           tag: msg.chatId,  // replaces previous notification for same chat
-        })
+          silent: !(me?.notifySound ?? true),
+        } as NotificationOptions)
       }
     }
     const onMessageEdited = (msg: Message) => updateMessage(msg)
@@ -63,12 +65,14 @@ export function useSocket(): Socket | null {
       if (!r?.reminderId) return
       useReminderStore.getState().pushReminder(r)
       // System notification when tab is not focused
-      if (document.hidden && Notification.permission === 'granted') {
+      const me = useAuthStore.getState().user
+      if (document.hidden && Notification.permission === 'granted' && (me?.notifyPopup ?? true)) {
         new Notification(`📅 ${r.title}`, {
           body: `${r.categoryName}${r.notes ? ` — ${r.notes}` : ''}`,
           icon: '/logo.png',
           tag: `reminder:${r.reminderId}`,
-        })
+          silent: !(me?.notifySound ?? true),
+        } as NotificationOptions)
       }
     }
 

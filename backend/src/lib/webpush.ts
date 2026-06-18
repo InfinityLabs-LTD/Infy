@@ -9,6 +9,11 @@ export interface PushPayload {
   icon?: string
   tag?: string
   url?: string
+  // Пользовательские настройки уведомлений (читает service worker).
+  // Не заданы → SW считает включёнными.
+  popup?: boolean
+  sound?: boolean
+  vibrate?: boolean
 }
 
 export interface PushSubscriptionKeys {

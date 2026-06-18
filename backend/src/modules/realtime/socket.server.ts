@@ -50,8 +50,18 @@ async function pushToOfflineMembers(
 
     if (offlineUserIds.length === 0) return
 
+    // Настройки уведомлений получателей: пользователи с отключёнными баннерами
+    // (notifyPopup=false) исключаются из рассылки; sound/vibrate уходят в payload.
+    const prefs = await prisma.user.findMany({
+      where: { id: { in: offlineUserIds } },
+      select: { id: true, notifyPopup: true, notifySound: true, notifyVibrate: true },
+    })
+    const prefsByUser = new Map(prefs.map(p => [p.id.toString(), p]))
+    const allowedUserIds = offlineUserIds.filter(id => prefsByUser.get(id.toString())?.notifyPopup !== false)
+    if (allowedUserIds.length === 0) return
+
     const subscriptions = await prisma.pushSubscription.findMany({
-      where: { userId: { in: offlineUserIds } },
+      where: { userId: { in: allowedUserIds } },
     })
 
     const senderName = msg.sender?.nickname ?? 'Infy'
@@ -59,16 +69,19 @@ async function pushToOfflineMembers(
     const body = msg.type === 'TEXT' ? (msg.content ?? '') : '📎 Вложение'
 
     const results = await Promise.allSettled(
-      subscriptions.map(sub =>
-        sendPush(sub, {
+      subscriptions.map(sub => {
+        const pref = prefsByUser.get(sub.userId.toString())
+        return sendPush(sub, {
           title: senderName,
           body,
           icon: senderAvatar,
           tag: msg.chatId,
           // Открываем сразу нужный диалог по клику на уведомление.
           url: `/chat/${msg.chatId}`,
-        }),
-      ),
+          sound: pref?.notifySound !== false,
+          vibrate: pref?.notifyVibrate !== false,
+        })
+      }),
     )
 
     // Prune subscriptions the push service reported as gone (404/410).

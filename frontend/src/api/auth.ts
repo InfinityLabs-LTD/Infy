@@ -12,6 +12,9 @@ export interface User {
   birthdate: string | null
   timezone: string | null
   aiSuggestReplies: boolean
+  notifyPopup: boolean
+  notifySound: boolean
+  notifyVibrate: boolean
   createdAt: string
   lastSeenAt: string
 }
@@ -62,7 +65,7 @@ export const profileApi = {
   getByUsername: (username: string) =>
     api.get<{ data: User }>(`/profile/${username}`),
 
-  updateMe: (body: { nickname?: string; username?: string; birthdate?: string | null; bio?: string | null; timezone?: string | null; aiSuggestReplies?: boolean }) =>
+  updateMe: (body: { nickname?: string; username?: string; birthdate?: string | null; bio?: string | null; timezone?: string | null; aiSuggestReplies?: boolean; notifyPopup?: boolean; notifySound?: boolean; notifyVibrate?: boolean }) =>
     api.patch<{ data: User }>('/profile/me', body),
 
   uploadAvatar: (file: File) => {

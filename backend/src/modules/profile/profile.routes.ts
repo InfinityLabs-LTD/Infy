@@ -22,6 +22,10 @@ const updateProfileSchema = z.object({
     .refine(v => v == null || isValidTimezone(v), { message: 'Invalid IANA timezone' }),
   // Infy Pulse: подсказки ответов над полем ввода чата.
   aiSuggestReplies: z.boolean().optional(),
+  // Настройки push-уведомлений.
+  notifyPopup: z.boolean().optional(),
+  notifySound: z.boolean().optional(),
+  notifyVibrate: z.boolean().optional(),
 })
 
 const profileRoutes: FastifyPluginAsync = async (app) => {
@@ -55,6 +59,9 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
           bio: { type: 'string', maxLength: 500, nullable: true },
           timezone: { type: 'string', maxLength: 64, nullable: true },
           aiSuggestReplies: { type: 'boolean' },
+          notifyPopup: { type: 'boolean' },
+          notifySound: { type: 'boolean' },
+          notifyVibrate: { type: 'boolean' },
         },
       },
     },
@@ -80,6 +87,9 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
         ...(input.bio !== undefined && { bio: input.bio ?? null }),
         ...(input.timezone !== undefined && { timezone: input.timezone ?? null }),
         ...(input.aiSuggestReplies !== undefined && { aiSuggestReplies: input.aiSuggestReplies }),
+        ...(input.notifyPopup !== undefined && { notifyPopup: input.notifyPopup }),
+        ...(input.notifySound !== undefined && { notifySound: input.notifySound }),
+        ...(input.notifyVibrate !== undefined && { notifyVibrate: input.notifyVibrate }),
       },
     })
 

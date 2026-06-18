@@ -103,21 +103,23 @@ async function deliverOne(
 
   // Push для тех, у кого notify включён на этом напоминании.
   if (reminder.notify) {
-    const subs = await prisma.pushSubscription.findMany({
-      where: { userId: { in: recipients } },
+    // Часовой пояс + настройки уведомлений каждого получателя.
+    const users = await prisma.user.findMany({
+      where: { id: { in: recipients } },
+      select: { id: true, timezone: true, notifyPopup: true, notifySound: true, notifyVibrate: true },
     })
-    // Время показываем каждому получателю в ЕГО часовом поясе (момент один и тот же).
     const tzByUser = new Map<string, string | null>()
-    if (!event.allDay) {
-      const users = await prisma.user.findMany({
-        where: { id: { in: recipients } },
-        select: { id: true, timezone: true },
-      })
-      for (const u of users) tzByUser.set(u.id.toString(), u.timezone)
-    }
+    const prefsByUser = new Map(users.map(u => [u.id.toString(), u]))
+    for (const u of users) tzByUser.set(u.id.toString(), u.timezone)
+    // Получатели с отключёнными баннерами в рассылку не попадают.
+    const allowed = recipients.filter(id => prefsByUser.get(id.toString())?.notifyPopup !== false)
+    const subs = allowed.length === 0 ? [] : await prisma.pushSubscription.findMany({
+      where: { userId: { in: allowed } },
+    })
     const eventAt = new Date(event.eventAt)
     const results = await Promise.allSettled(
       subs.map(sub => {
+        const pref = prefsByUser.get(sub.userId.toString())
         const when = event.allDay
           ? 'сегодня'
           : formatTimeInTz(eventAt, tzByUser.get(sub.userId.toString()))
@@ -127,6 +129,8 @@ async function deliverOne(
           icon: event.createdBy.avatarUrl ?? '/logo.png',
           tag: `reminder:${reminder.id}`,
           url: '/',
+          sound: pref?.notifySound !== false,
+          vibrate: pref?.notifyVibrate !== false,
         })
       }),
     )
