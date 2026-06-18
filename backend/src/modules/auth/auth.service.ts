@@ -330,7 +330,7 @@ export async function requestPasswordReset(prisma: PrismaClient, email: string):
   if (!(await mailAvailable(prisma))) return
 
   const user = await prisma.user.findFirst({
-    where: { email: email.toLowerCase().trim(), emailVerified: true },
+    where: { email: email.toLowerCase().trim(), emailVerifiedAt: { not: null } },
     select: { id: true },
   })
   if (!user) return
