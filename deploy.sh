@@ -118,13 +118,16 @@ current_domain() {
   grep '^DOMAIN=' .env | head -1 | cut -d= -f2-
 }
 
-# Перегенерировать nginx/active.conf из prod.conf под указанный домен и
-# перезагрузить nginx (если контейнер запущен).
+# Перегенерировать nginx/active.conf из prod.conf под указанный домен,
+# переключить docker-compose.yml на active.conf и пересоздать nginx-контейнер.
 apply_nginx_domain() {
   local domain="$1"
   sed "s/DOMAIN/${domain}/g" nginx/prod.conf > nginx/active.conf
-  docker compose exec -T nginx nginx -s reload 2>/dev/null \
-    || docker compose up -d nginx
+  # Переключаем docker-compose.yml с dev.conf на active.conf,
+  # иначе nginx при пересоздании будет монтировать старый файл без TLS.
+  sed -i 's|nginx/dev.conf|nginx/active.conf|g' docker-compose.yml
+  # Пересоздаём контейнер, чтобы новый volume-mount вступил в силу.
+  docker compose up -d --force-recreate nginx
 }
 
 # Выпустить/перевыпустить сертификат Let's Encrypt через webroot.
@@ -194,7 +197,10 @@ server {
     location / { return 200 'Infy — смена домена...'; add_header Content-Type text/plain; }
 }
 NGINX_EOF
-  docker compose exec -T nginx nginx -s reload 2>/dev/null || docker compose up -d nginx
+  # Переключаем docker-compose.yml на active.conf и пересоздаём nginx,
+  # чтобы он монтировал правильный файл (а не dev.conf без ACME-пути).
+  sed -i 's|nginx/dev.conf|nginx/active.conf|g' docker-compose.yml
+  docker compose up -d --force-recreate nginx
 
   # 3) Выпускаем сертификат для нового домена.
   log "Запрашиваю сертификат для $new"
