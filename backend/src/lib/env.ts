@@ -29,6 +29,14 @@ const schema = z.object({
   // Берём первый из CORS_ORIGINS, если не задан явно.
   APP_PUBLIC_URL: z.string().default(''),
 
+  // ── Почта (smtp.bz HTTP API) ───────────────────────────────
+  // API-ключ из кабинета smtp.bz. Пусто = отправка писем отключена
+  // (привязка почты/смена username будут недоступны).
+  SMTP_BZ_API_KEY: z.string().default(''),
+  // Адрес и имя отправителя (домен должен быть подтверждён в smtp.bz).
+  MAIL_FROM: z.string().default('no-reply@infyme.ru'),
+  MAIL_FROM_NAME: z.string().default('Infy'),
+
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
   TRUSTED_PROXY: z.string().default('127.0.0.1'),
 

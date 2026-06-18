@@ -7,6 +7,12 @@ import { serializeUser } from '../auth/auth.service.js'
 import { usernameSchema } from '../auth/auth.schema.js'
 import { env } from '../../lib/env.js'
 import { isValidTimezone } from '../../lib/timezone.js'
+import { mailEnabled } from '../../lib/mailer.js'
+import {
+  requestEmailBinding,
+  confirmEmailBinding,
+  changeUsername,
+} from './account.service.js'
 
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp'])
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024 // 5 MB
@@ -28,9 +34,10 @@ function dedupeInterests(list: string[]): string[] {
   return out
 }
 
+// username здесь НЕ принимается: смена username идёт через отдельный
+// защищённый эндпоинт (требует подтверждённой почты и отзывает сессии).
 const updateProfileSchema = z.object({
   nickname: z.string().min(1).max(64).trim().optional(),
-  username: usernameSchema.optional(),
   birthdate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   bio: z.string().max(500).trim().optional().nullable(),
   // Хэштеги/интересы — выбирает сам пользователь (до 10 шт.).
@@ -109,7 +116,6 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
         type: 'object',
         properties: {
           nickname: { type: 'string', minLength: 1, maxLength: 64 },
-          username: { type: 'string', minLength: 3, maxLength: 32 },
           birthdate: { type: 'string', nullable: true },
           bio: { type: 'string', maxLength: 500, nullable: true },
           interests: { type: 'array', items: { type: 'string' }, maxItems: 10 },
@@ -125,18 +131,10 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
     const userId = BigInt(request.user.sub)
     const input = updateProfileSchema.parse(request.body)
 
-    if (input.username) {
-      const existing = await app.prisma.user.findFirst({
-        where: { username: input.username, id: { not: userId } },
-      })
-      if (existing) throw Errors.USERNAME_TAKEN()
-    }
-
     const user = await app.prisma.user.update({
       where: { id: userId },
       data: {
         ...(input.nickname !== undefined && { nickname: input.nickname }),
-        ...(input.username !== undefined && { username: input.username }),
         ...(input.birthdate !== undefined && {
           birthdate: input.birthdate ? new Date(input.birthdate) : null,
         }),
@@ -155,6 +153,96 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
     })
 
     return { data: serializeUser(user) }
+  })
+
+  // ── Привязка почты + смена username ──────────────────────────
+
+  // GET /profile/me/email-status — доступна ли отправка писем (для UI).
+  app.get('/me/email-status', {
+    preHandler: [authenticate],
+    schema: {
+      tags: ['Profile'],
+      summary: 'Whether email sending is configured on the server',
+      security: [{ bearerAuth: [] }],
+    },
+  }, async () => {
+    return { data: { mailEnabled: mailEnabled() } }
+  })
+
+  // POST /profile/me/email — запросить привязку почты (отправить код).
+  app.post('/me/email', {
+    preHandler: [authenticate],
+    config: {
+      rateLimit: { max: env.RATE_LIMIT_LOGIN_MAX, timeWindow: env.RATE_LIMIT_LOGIN_WINDOW_MS },
+    },
+    schema: {
+      tags: ['Profile'],
+      summary: 'Request email binding — sends a verification code',
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['email'],
+        properties: { email: { type: 'string', format: 'email' } },
+      },
+    },
+  }, async (request) => {
+    const userId = BigInt(request.user.sub)
+    const { email } = z.object({ email: z.string().email().max(255) }).parse(request.body)
+    const result = await requestEmailBinding(app.prisma, userId, email)
+    return { data: result }
+  })
+
+  // POST /profile/me/email/confirm — подтвердить почту кодом.
+  app.post('/me/email/confirm', {
+    preHandler: [authenticate],
+    config: {
+      rateLimit: { max: env.RATE_LIMIT_LOGIN_MAX, timeWindow: env.RATE_LIMIT_LOGIN_WINDOW_MS },
+    },
+    schema: {
+      tags: ['Profile'],
+      summary: 'Confirm email with the verification code',
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['code'],
+        properties: { code: { type: 'string', minLength: 6, maxLength: 6 } },
+      },
+    },
+  }, async (request) => {
+    const userId = BigInt(request.user.sub)
+    const { code } = z.object({ code: z.string().regex(/^\d{6}$/) }).parse(request.body)
+    await confirmEmailBinding(app.prisma, userId, code)
+
+    const user = await app.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      include: { badges: { include: { badge: true }, orderBy: { grantedAt: 'asc' } } },
+    })
+    return { data: serializeUser(user) }
+  })
+
+  // POST /profile/me/username — сменить username (нужна подтверждённая почта).
+  // После смены все сессии отзываются — клиент должен перелогиниться.
+  app.post('/me/username', {
+    preHandler: [authenticate],
+    config: {
+      rateLimit: { max: env.RATE_LIMIT_LOGIN_MAX, timeWindow: env.RATE_LIMIT_LOGIN_WINDOW_MS },
+    },
+    schema: {
+      tags: ['Profile'],
+      summary: 'Change username (requires a verified email; revokes all sessions)',
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['username'],
+        properties: { username: { type: 'string', minLength: 3, maxLength: 32 } },
+      },
+    },
+  }, async (request, reply) => {
+    const userId = BigInt(request.user.sub)
+    const { username } = z.object({ username: usernameSchema }).parse(request.body)
+    await changeUsername(app.prisma, userId, username)
+    // 204: смена прошла, но текущая сессия отозвана — клиент уйдёт на логин.
+    return reply.code(204).send()
   })
 
   // POST /profile/me/avatar — multipart upload

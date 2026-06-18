@@ -17,6 +17,7 @@ export interface User {
   bio: string | null
   role: string
   email: string | null
+  emailVerified: boolean
   birthdate: string | null
   timezone: string | null
   aiSuggestReplies: boolean
@@ -114,8 +115,23 @@ export const profileApi = {
   searchUsers: (q: string) =>
     api.get<{ data: UserSearchResult[] }>('/profile/search', { params: { q } }),
 
-  updateMe: (body: { nickname?: string; username?: string; birthdate?: string | null; bio?: string | null; interests?: string[]; timezone?: string | null; aiSuggestReplies?: boolean; notifyPopup?: boolean; notifySound?: boolean; notifyVibrate?: boolean }) =>
+  updateMe: (body: { nickname?: string; birthdate?: string | null; bio?: string | null; interests?: string[]; timezone?: string | null; aiSuggestReplies?: boolean; notifyPopup?: boolean; notifySound?: boolean; notifyVibrate?: boolean }) =>
     api.patch<{ data: User }>('/profile/me', body),
+
+  // Доступна ли отправка писем на сервере (настроен ли smtp.bz).
+  emailStatus: () => api.get<{ data: { mailEnabled: boolean } }>('/profile/me/email-status'),
+
+  // Привязка почты: запросить код, затем подтвердить.
+  requestEmail: (email: string) =>
+    api.post<{ data: { email: string } }>('/profile/me/email', { email }),
+
+  confirmEmail: (code: string) =>
+    api.post<{ data: User }>('/profile/me/email/confirm', { code }),
+
+  // Смена username: нужна подтверждённая почта. Ответ 204 — сервер отозвал
+  // все сессии, клиент должен перелогиниться.
+  changeUsername: (username: string) =>
+    api.post('/profile/me/username', { username }),
 
   uploadAvatar: (file: File) => {
     const form = new FormData()

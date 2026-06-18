@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { profileApi } from '@/api/auth'
 import { useAuthStore } from '@/store/auth'
 import { Spinner } from '@/components/ui/Spinner'
@@ -20,7 +20,6 @@ export function EditProfilePage() {
 
   const [form, setForm] = useState({
     nickname: user?.nickname ?? '',
-    username: user?.username ?? '',
     birthdate: toDateInput(user?.birthdate),
     bio: user?.bio ?? '',
   })
@@ -33,10 +32,7 @@ export function EditProfilePage() {
 
   function set(field: keyof typeof form) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-      setForm((prev) => ({
-        ...prev,
-        [field]: field === 'username' ? e.target.value.toLowerCase() : e.target.value,
-      }))
+      setForm((prev) => ({ ...prev, [field]: e.target.value }))
   }
 
   function addInterest(raw: string) {
@@ -68,7 +64,6 @@ export function EditProfilePage() {
     try {
       const res = await profileApi.updateMe({
         nickname: form.nickname || undefined,
-        username: form.username || undefined,
         birthdate: form.birthdate || null,
         bio: form.bio.trim() || null,
         interests,
@@ -112,10 +107,15 @@ export function EditProfilePage() {
             </div>
 
             <div>
-              <label className="label">Имя пользователя</label>
-              <input className="input" type="text" value={form.username}
-                onChange={set('username')} pattern="[a-z0-9_]+" minLength={3} maxLength={32} required />
-              <p className="text-xs mt-1" style={{ color: 'var(--text-low)' }}>3–32 символа, строчные буквы, цифры, _</p>
+              <label className="label">Имя пользователя <span className="font-normal" style={{ color: 'var(--text-low)' }}>(@{user?.username})</span></label>
+              <Link to="/sessions"
+                className="flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl text-sm transition-colors"
+                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--glass-stroke)', color: 'var(--text-low)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}>
+                Сменить можно в разделе «Безопасность»
+                <span style={{ color: '#C084FC' }}>→</span>
+              </Link>
             </div>
 
             <div>

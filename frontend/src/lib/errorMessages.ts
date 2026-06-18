@@ -18,6 +18,13 @@ const MESSAGES: Record<string, string> = {
   AUTH_RESET_TOKEN_INVALID: 'Ссылка восстановления недействительна или истекла',
   AUTH_CURRENT_PASSWORD_WRONG: 'Текущий пароль введён неверно',
   AUTH_SAME_PASSWORD:       'Новый пароль должен отличаться от текущего',
+  AUTH_USERNAME_RESERVED:   'Это имя пользователя зарезервировано системой',
+  // Привязка почты / смена username
+  EMAIL_SENDING_DISABLED:   'Отправка писем не настроена на сервере',
+  EMAIL_SEND_FAILED:        'Не удалось отправить письмо. Попробуйте позже',
+  EMAIL_ALREADY_BOUND:      'К аккаунту уже привязана подтверждённая почта',
+  EMAIL_VERIFY_CODE_INVALID:'Код неверный или устарел',
+  EMAIL_REQUIRED_FOR_USERNAME: 'Сначала привяжите и подтвердите почту, чтобы менять имя пользователя',
 
   // Profile
   PROFILE_USERNAME_INVALID:    'Имя пользователя может содержать только строчные латинские буквы, цифры и подчёркивание',

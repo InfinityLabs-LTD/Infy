@@ -28,6 +28,14 @@ export const Errors = {
   RESET_TOKEN_INVALID: () => new AppError('AUTH_RESET_TOKEN_INVALID', 'Reset link is invalid or expired', 400),
   CURRENT_PASSWORD_WRONG: () => new AppError('AUTH_CURRENT_PASSWORD_WRONG', 'Current password is incorrect', 400),
   SAME_PASSWORD:       () => new AppError('AUTH_SAME_PASSWORD', 'New password must differ from the current one', 400),
+  USERNAME_RESERVED:   () => new AppError('AUTH_USERNAME_RESERVED', 'This username is reserved by the system', 409),
+  // Email binding / verification
+  EMAIL_SENDING_DISABLED: () => new AppError('EMAIL_SENDING_DISABLED', 'Email sending is not configured', 503),
+  EMAIL_SEND_FAILED:   () => new AppError('EMAIL_SEND_FAILED', 'Failed to send the email. Try again later', 502),
+  EMAIL_ALREADY_BOUND: () => new AppError('EMAIL_ALREADY_BOUND', 'A verified email is already bound to this account', 409),
+  EMAIL_VERIFY_CODE_INVALID: () => new AppError('EMAIL_VERIFY_CODE_INVALID', 'Verification code is invalid or expired', 400),
+  // Username change
+  EMAIL_REQUIRED_FOR_USERNAME: () => new AppError('EMAIL_REQUIRED_FOR_USERNAME', 'Bind and verify an email before changing your username', 403),
   // Moderation (Infy Shield) enforcement
   ACCOUNT_BANNED:      (reason: string, expiresAt: Date | null) =>
     new AppError('MOD_ACCOUNT_BANNED', reason, 403, { expiresAt: expiresAt?.toISOString() ?? null }),

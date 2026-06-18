@@ -244,13 +244,18 @@ model DeviceSession {
   @@map("device_sessions")
 }
 
-// Schema only — email verification flow not yet implemented
+// Привязка/подтверждение почты: на e-mail отправляется 6-значный код.
+// Хранится хэш кода и адрес, который подтверждают (в users.email он попадает
+// только после успешного подтверждения).
 model EmailVerificationToken {
   id         String    @id @default(cuid())
   userId     BigInt
-  tokenHash  String    @unique
+  email      String    @db.VarChar(255)      // какой адрес подтверждаем
+  codeHash   String                          // sha256 от 6-значного кода
+  attempts   Int       @default(0)           // число неверных попыток (анти-брутфорс)
   expiresAt  DateTime
   consumedAt DateTime?
+  createdAt  DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { authApi, sessionsApi, Session } from '@/api/auth'
+import { authApi, profileApi, sessionsApi, Session } from '@/api/auth'
 import { useAuthStore } from '@/store/auth'
 import { Spinner } from '@/components/ui/Spinner'
 import { ErrorMessage } from '@/components/ui/ErrorMessage'
@@ -9,11 +9,87 @@ import { translateError } from '@/lib/errorMessages'
 export function SessionsPage() {
   const navigate = useNavigate()
   const logout = useAuthStore((s) => s.logout)
+  const user = useAuthStore((s) => s.user)
+  const setUser = useAuthStore((s) => s.setUser)
 
   const [sessions, setSessions] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
   const [revoking, setRevoking] = useState<string | null>(null)
+
+  // ── Привязка почты ──
+  const [mailEnabled, setMailEnabled] = useState(true)
+  const [emailInput, setEmailInput] = useState(user?.email ?? '')
+  const [codeInput, setCodeInput] = useState('')
+  const [codeSent, setCodeSent] = useState(false)
+  const [emailBusy, setEmailBusy] = useState(false)
+  const [emailError, setEmailError] = useState<string | null>(null)
+
+  // ── Смена username ──
+  const [usernameInput, setUsernameInput] = useState(user?.username ?? '')
+  const [usernameBusy, setUsernameBusy] = useState(false)
+  const [usernameError, setUsernameError] = useState<string | null>(null)
+
+  const emailVerified = !!user?.emailVerified
+
+  useEffect(() => {
+    profileApi.emailStatus()
+      .then(r => setMailEnabled(r.data.data.mailEnabled))
+      .catch(() => { /* по умолчанию считаем доступной */ })
+  }, [])
+
+  async function handleRequestEmail() {
+    setEmailError(null)
+    setEmailBusy(true)
+    try {
+      await profileApi.requestEmail(emailInput.trim())
+      setCodeSent(true)
+    } catch (err) {
+      setEmailError(translateError(err))
+    } finally {
+      setEmailBusy(false)
+    }
+  }
+
+  async function handleConfirmEmail() {
+    setEmailError(null)
+    setEmailBusy(true)
+    try {
+      const res = await profileApi.confirmEmail(codeInput.trim())
+      setUser(res.data.data)
+      setCodeSent(false)
+      setCodeInput('')
+      setEmailInput('')
+    } catch (err) {
+      setEmailError(translateError(err))
+    } finally {
+      setEmailBusy(false)
+    }
+  }
+
+  async function handleChangeUsername() {
+    setUsernameError(null)
+    const next = usernameInput.trim().toLowerCase()
+    if (next === user?.username) {
+      setUsernameError('Это уже ваше имя пользователя')
+      return
+    }
+    if (!/^[a-z0-9_]{3,32}$/.test(next)) {
+      setUsernameError('3–32 символа: строчные латинские буквы, цифры, _')
+      return
+    }
+    if (!confirm('После смены имени пользователя вы выйдете со всех устройств. Продолжить?')) return
+    setUsernameBusy(true)
+    try {
+      await profileApi.changeUsername(next)
+      // Сервер отозвал все сессии — выходим и уводим на логин.
+      logout()
+      navigate('/login')
+    } catch (err) {
+      setUsernameError(translateError(err))
+      setUsernameBusy(false)
+    }
+  }
 
   // ── Смена пароля ──
   const [currentPassword, setCurrentPassword] = useState('')
@@ -103,6 +179,116 @@ export function SessionsPage() {
 
       <div className="max-w-lg mx-auto px-4 py-5 space-y-3">
         {error !== null && <ErrorMessage error={error} />}
+
+        {/* ── Почта ── */}
+        <div className="rounded-2xl p-5" style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
+          <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-low)' }}>Почта</h2>
+
+          {emailVerified ? (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full shrink-0"
+                style={{ background: 'rgba(34,197,94,0.15)' }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+              </span>
+              <span className="text-white truncate">{user?.email}</span>
+              <span className="text-xs px-2 py-0.5 rounded-full shrink-0" style={{ background: 'rgba(34,197,94,0.15)', color: '#22C55E' }}>Подтверждена</span>
+            </div>
+          ) : !mailEnabled ? (
+            <p className="text-xs" style={{ color: '#FCD34D' }}>
+              Отправка писем не настроена на сервере. Привязка почты временно недоступна.
+            </p>
+          ) : !codeSent ? (
+            <>
+              <p className="text-xs mb-3" style={{ color: 'var(--text-low)' }}>
+                Привяжите почту, чтобы можно было менять имя пользователя и восстанавливать доступ.
+              </p>
+              <input
+                type="email"
+                className="input"
+                placeholder="you@example.com"
+                autoComplete="email"
+                value={emailInput}
+                onChange={e => setEmailInput(e.target.value)}
+              />
+              {emailError && <p className="text-xs mt-2" style={{ color: '#fca5a5' }}>{emailError}</p>}
+              <button
+                onClick={handleRequestEmail}
+                className="btn-primary w-full py-2.5 mt-3"
+                disabled={emailBusy || !emailInput.trim()}
+              >
+                {emailBusy ? <Spinner size={18} /> : 'Отправить код'}
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-xs mb-3" style={{ color: 'var(--text-low)' }}>
+                Код отправлен на <span className="text-white">{emailInput}</span>. Введите его ниже (действует 15 минут).
+              </p>
+              <input
+                type="text"
+                inputMode="numeric"
+                className="input text-center tracking-[0.5em] text-lg"
+                placeholder="______"
+                maxLength={6}
+                value={codeInput}
+                onChange={e => setCodeInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              />
+              {emailError && <p className="text-xs mt-2" style={{ color: '#fca5a5' }}>{emailError}</p>}
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() => { setCodeSent(false); setCodeInput(''); setEmailError(null) }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                  style={{ color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  Назад
+                </button>
+                <button
+                  onClick={handleConfirmEmail}
+                  className="btn-primary flex-1 py-2.5"
+                  disabled={emailBusy || codeInput.length !== 6}
+                >
+                  {emailBusy ? <Spinner size={18} /> : 'Подтвердить'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ── Имя пользователя ── */}
+        <div className="rounded-2xl p-5" style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>
+          <h2 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-low)' }}>Имя пользователя</h2>
+          {!emailVerified ? (
+            <p className="text-xs" style={{ color: 'var(--text-low)' }}>
+              Сменить имя пользователя можно только после привязки почты.
+            </p>
+          ) : (
+            <>
+              <div className="flex items-stretch gap-2">
+                <span className="flex items-center px-3 rounded-xl text-sm shrink-0"
+                  style={{ background: 'rgba(255,255,255,0.04)', color: 'var(--text-low)' }}>@</span>
+                <input
+                  type="text"
+                  className="input flex-1"
+                  value={usernameInput}
+                  onChange={e => setUsernameInput(e.target.value.toLowerCase())}
+                  minLength={3}
+                  maxLength={32}
+                  autoComplete="off"
+                />
+              </div>
+              {usernameError && <p className="text-xs mt-2" style={{ color: '#fca5a5' }}>{usernameError}</p>}
+              <p className="text-xs mt-2" style={{ color: 'var(--text-low)' }}>
+                После смены вы выйдете со всех устройств. 3–32 символа: строчные латинские буквы, цифры, _
+              </p>
+              <button
+                onClick={handleChangeUsername}
+                className="btn-primary w-full py-2.5 mt-3"
+                disabled={usernameBusy || usernameInput.trim() === user?.username}
+              >
+                {usernameBusy ? <Spinner size={18} /> : 'Сменить имя пользователя'}
+              </button>
+            </>
+          )}
+        </div>
 
         {/* ── Смена пароля ── */}
         <div className="rounded-2xl p-5" style={{ background: 'var(--glass-1)', border: '1px solid var(--glass-stroke)' }}>

@@ -8,6 +8,7 @@ import {
 } from '../../lib/jwt.js'
 import { Errors } from '../../lib/errors.js'
 import { getActiveSanction } from '../../lib/sanctions.js'
+import { isReservedUsername } from '../../lib/reservedUsernames.js'
 import { RegisterInput, LoginInput } from './auth.schema.js'
 
 // Человекочитаемое сообщение о бане для отказа во входе.
@@ -61,7 +62,7 @@ function serializeBadges(user: {
   }))
 }
 
-export function serializeUser(user: { id: bigint; username: string; nickname: string; avatarUrl: string | null; coverUrl: string | null; bio: string | null; role: string; email: string | null; birthdate: Date | null; timezone?: string | null; aiSuggestReplies?: boolean; notifyPopup?: boolean; notifySound?: boolean; notifyVibrate?: boolean; interests?: string[]; createdAt: Date; lastSeenAt: Date; badges?: { badge: { slug: string; label: string; color: string; icon: string; description: string | null } }[] }) {
+export function serializeUser(user: { id: bigint; username: string; nickname: string; avatarUrl: string | null; coverUrl: string | null; bio: string | null; role: string; email: string | null; emailVerifiedAt?: Date | null; birthdate: Date | null; timezone?: string | null; aiSuggestReplies?: boolean; notifyPopup?: boolean; notifySound?: boolean; notifyVibrate?: boolean; interests?: string[]; createdAt: Date; lastSeenAt: Date; badges?: { badge: { slug: string; label: string; color: string; icon: string; description: string | null } }[] }) {
   return {
     id: user.id.toString(),
     username: user.username,
@@ -71,6 +72,8 @@ export function serializeUser(user: { id: bigint; username: string; nickname: st
     bio: user.bio,
     role: user.role,
     email: user.email,
+    // Привязана ли (подтверждена) почта — нужно для смены username и UI.
+    emailVerified: user.emailVerifiedAt != null,
     birthdate: user.birthdate,
     timezone: user.timezone ?? null,
     aiSuggestReplies: user.aiSuggestReplies ?? true,
@@ -119,6 +122,8 @@ export async function register(
   input: RegisterInput,
   meta: { userAgent?: string; ip?: string },
 ) {
+  if (isReservedUsername(input.username)) throw Errors.USERNAME_RESERVED()
+
   const existing = await prisma.user.findUnique({ where: { username: input.username } })
   if (existing) throw Errors.USERNAME_TAKEN()
 
