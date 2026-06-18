@@ -33,14 +33,17 @@ function previewText(last: Chat['lastMessage']): string {
   return mediaLabel(last.type)
 }
 
-/** Статус доставки своего сообщения: одна галочка (отправлено) / две (прочитано). */
+/**
+ * Статус доставки своего сообщения: всегда две галочки.
+ * Серые — партнёр ещё не прочитал; брендовые (фиолетовые) — прочитано.
+ */
 function DeliveryTick({ read }: { read: boolean }) {
   const c = read ? 'var(--status-read)' : 'var(--status-sent)'
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.4"
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.4"
       strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
       <path d="M1 13l4.5 4.5L14 7" />
-      {read && <path d="M9 16.5L9.5 17 18 7" />}
+      <path d="M9 16.5L9.5 17 18 7" />
     </svg>
   )
 }

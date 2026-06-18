@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, useNavigate, useMatch, useLocation } from 'react-router-dom'
 import { chatApi } from '@/api/chat'
 import { profileApi } from '@/api/auth'
@@ -6,7 +6,6 @@ import { useChatStore } from '@/store/chat'
 import { useAuthStore } from '@/store/auth'
 import { useSocket } from '@/hooks/useSocket'
 import { NotificationPrompt } from '@/components/NotificationPrompt'
-import { Avatar } from '@/components/ui/Avatar'
 import { Spinner } from '@/components/ui/Spinner'
 import { AnimatePresence, motion } from 'framer-motion'
 import { NewChatModal } from '@/components/chat/NewChatModal'
@@ -15,6 +14,7 @@ import { ReminderToasts } from '@/components/chat/ReminderToasts'
 import { SanctionBanner } from '@/components/SanctionBanner'
 import { ChatCard } from '@/components/chat/ChatCard'
 import { AiPulseStrip } from '@/components/chat/AiPulseStrip'
+import { SearchResults } from '@/components/chat/SearchResults'
 
 function HoverBtn({ onClick, title, children }: { onClick: () => void; title?: string; children: React.ReactNode }) {
   const [hov, setHov] = useState(false)
@@ -32,25 +32,6 @@ function HoverBtn({ onClick, title, children }: { onClick: () => void; title?: s
   )
 }
 
-function MenuBtn({ label, onClick, danger, icon }: { label: string; onClick: () => void; danger?: boolean; icon: React.ReactNode }) {
-  const [hov, setHov] = useState(false)
-  return (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center gap-3 px-3.5 py-2.5 text-sm transition-colors"
-      style={{
-        color: danger ? '#EF4444' : 'rgba(255,255,255,0.75)',
-        background: hov ? 'rgba(255,255,255,0.07)' : 'transparent',
-      }}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-    >
-      {icon}
-      {label}
-    </button>
-  )
-}
-
 export function MessengerLayout() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -60,14 +41,11 @@ export function MessengerLayout() {
   const isProfileTab = location.pathname === '/profile'
 
   const user = useAuthStore(s => s.user)
-  const logout = useAuthStore(s => s.logout)
   const { chats, setChats } = useChatStore()
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [showNewChat, setShowNewChat] = useState(false)
   const [showPalette, setShowPalette] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
 
   useSocket()
 
@@ -100,24 +78,8 @@ export function MessengerLayout() {
       .catch(() => { /* не критично */ })
   }, [user?.id, user?.timezone])
 
-  useEffect(() => {
-    if (!menuOpen) return
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [menuOpen])
-
-  const filtered = chats.filter(c => {
-    const q = search.toLowerCase()
-    return (
-      (c.partner?.nickname ?? '').toLowerCase().includes(q) ||
-      (c.partner?.username ?? '').toLowerCase().includes(q)
-    )
-  })
-
   const totalUnread = chats.reduce((sum, c) => sum + c.unreadCount, 0)
+  const searching = search.trim().length > 0
 
   return (
     <div className="flex flex-col overflow-hidden" style={{ height: '100%', background: 'var(--bg-deep)' }}>
@@ -131,59 +93,7 @@ export function MessengerLayout() {
 
         {/* Top bar */}
         <div className="flex items-center gap-1 px-2 py-1.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-          {/* Hamburger + dropdown */}
-          <div className="relative shrink-0" ref={menuRef}>
-            <HoverBtn onClick={() => setMenuOpen(v => !v)} title="Меню">
-              {menuOpen ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                  <line x1="3" y1="6" x2="21" y2="6"/>
-                  <line x1="3" y1="12" x2="21" y2="12"/>
-                  <line x1="3" y1="18" x2="21" y2="18"/>
-                </svg>
-              )}
-            </HoverBtn>
-
-            {menuOpen && (
-              <div
-                className="glass-pop absolute top-12 left-0 z-50 w-56 rounded-2xl overflow-hidden"
-              >
-                <button
-                  onClick={() => { navigate('/profile'); setMenuOpen(false) }}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/5 transition-colors"
-                  style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
-                >
-                  <Avatar url={user?.avatarUrl ?? null} nickname={user?.nickname ?? '?'} size={36} />
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">{user?.nickname}</p>
-                    <p className="text-xs truncate" style={{ color: 'var(--text-low)' }}>@{user?.username}</p>
-                  </div>
-                </button>
-                <MenuBtn
-                  label="Мой профиль"
-                  onClick={() => { navigate('/profile'); setMenuOpen(false) }}
-                  icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>}
-                />
-                <MenuBtn
-                  label="Устройства"
-                  onClick={() => { navigate('/sessions'); setMenuOpen(false) }}
-                  icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>}
-                />
-                <div style={{ height: '1px', background: 'rgba(255,255,255,0.07)', margin: '4px 0' }} />
-                <MenuBtn
-                  label="Выйти"
-                  onClick={logout}
-                  danger
-                  icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Search bar — liquid glass, AI-aware */}
+          {/* Search bar — liquid glass */}
           <div className="flex-1 relative">
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--accent)' }}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -199,7 +109,7 @@ export function MessengerLayout() {
                 border: '1px solid var(--glass-stroke)',
                 color: 'var(--text-hi)', caretColor: '#A855F7',
               }}
-              placeholder="Поиск или спросите Infy…"
+              placeholder="Поиск"
               value={search}
               onFocus={e => { e.currentTarget.style.boxShadow = '0 0 0 2px var(--brand-ring)' }}
               onBlur={e => { e.currentTarget.style.boxShadow = 'none' }}
@@ -224,29 +134,29 @@ export function MessengerLayout() {
           </HoverBtn>
         </div>
 
-        {/* Chat list — скрыт на мобильном когда открыты Контакты */}
+        {/* Chat list / результаты поиска — скрыт на мобильном когда открыты Контакты */}
         <nav className={`flex-1 overflow-y-auto pb-2 ${isContactsTab ? 'hidden md:block' : ''}`}>
           <NotificationPrompt />
-          {!loading && !search && (
-            <AiPulseStrip unread={totalUnread} onClick={() => setShowPalette(true)} />
-          )}
-          {loading ? (
+          {searching ? (
+            <SearchResults query={search} />
+          ) : loading ? (
             <div className="flex justify-center py-10"><Spinner size={20} /></div>
-          ) : filtered.length === 0 ? (
-            <div className="text-center py-14">
-              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.2)' }}>
-                {search ? 'Не найдено' : 'Нет диалогов'}
-              </p>
-              {!search && (
-                <button onClick={() => setShowNewChat(true)} className="mt-1.5 text-sm" style={{ color: '#A855F7' }}>
-                  Начать диалог
-                </button>
-              )}
-            </div>
           ) : (
-            filtered.map(chat => (
-              <ChatCard key={chat.id} chat={chat} active={chat.partner?.id === activeChatId} />
-            ))
+            <>
+              <AiPulseStrip unread={totalUnread} onClick={() => setShowPalette(true)} />
+              {chats.length === 0 ? (
+                <div className="text-center py-14">
+                  <p className="text-sm" style={{ color: 'rgba(255,255,255,0.2)' }}>Нет диалогов</p>
+                  <button onClick={() => setShowNewChat(true)} className="mt-1.5 text-sm" style={{ color: '#A855F7' }}>
+                    Начать диалог
+                  </button>
+                </div>
+              ) : (
+                chats.map(chat => (
+                  <ChatCard key={chat.id} chat={chat} active={chat.partner?.id === activeChatId} />
+                ))
+              )}
+            </>
           )}
         </nav>
 

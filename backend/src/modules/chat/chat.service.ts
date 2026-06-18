@@ -229,6 +229,61 @@ export async function getMessages(
   }
 }
 
+// Поиск по тексту сообщений во всех чатах пользователя.
+// Возвращает совпавшие сообщения вместе с партнёром по диалогу, чтобы фронт
+// мог показать «в каком чате» и перейти в него.
+export async function searchMessages(
+  prisma: PrismaClient,
+  userId: bigint,
+  query: string,
+  limit = 30,
+) {
+  const q = query.trim()
+  if (q.length < 2) return []
+
+  // Чаты, где пользователь состоит — поиск только по ним.
+  const memberships = await prisma.chatMember.findMany({
+    where: { userId },
+    select: { chatId: true },
+  })
+  const chatIds = memberships.map(m => m.chatId)
+  if (chatIds.length === 0) return []
+
+  const messages = await prisma.message.findMany({
+    where: {
+      chatId: { in: chatIds },
+      deletedAt: null,
+      type: 'TEXT',
+      content: { contains: q, mode: 'insensitive' },
+    },
+    include: {
+      sender: true,
+      chat: { include: { members: { include: { user: true } } } },
+    },
+    orderBy: { id: 'desc' },
+    take: limit,
+  })
+
+  return messages.map(m => {
+    const partner = m.chat.members.find(mem => mem.user.id !== userId)?.user
+    return {
+      messageId: m.id,
+      chatId: m.chatId,
+      content: m.content,
+      createdAt: m.createdAt,
+      isOwn: m.senderId === userId,
+      partner: partner
+        ? {
+            id: partner.id.toString(),
+            username: partner.username,
+            nickname: partner.nickname,
+            avatarUrl: partner.avatarUrl,
+          }
+        : null,
+    }
+  })
+}
+
 export async function sendMessage(
   prisma: PrismaClient,
   chatId: string,

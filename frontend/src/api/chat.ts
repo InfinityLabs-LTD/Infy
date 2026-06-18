@@ -18,8 +18,20 @@ function toAttachment(upload: UploadResult) {
   }
 }
 
+export interface MessageSearchResult {
+  messageId: string
+  chatId: string
+  content: string | null
+  createdAt: string
+  isOwn: boolean
+  partner: { id: string; username: string; nickname: string; avatarUrl: string | null } | null
+}
+
 export const chatApi = {
   listChats: () => api.get<{ data: Chat[] }>('/chats'),
+
+  searchMessages: (q: string) =>
+    api.get<{ data: MessageSearchResult[] }>('/chats/search', { params: { q } }),
 
   createChat: (partnerId: string) =>
     api.post<{ data: Chat }>('/chats', { partnerId }),

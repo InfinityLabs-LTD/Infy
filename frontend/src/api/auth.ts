@@ -59,11 +59,21 @@ export const authApi = {
     api.post('/auth/reset-password', body),
 }
 
+export interface UserSearchResult {
+  id: string
+  username: string
+  nickname: string
+  avatarUrl: string | null
+}
+
 export const profileApi = {
   getMe: () => api.get<{ data: User }>('/profile/me'),
 
   getByUsername: (username: string) =>
     api.get<{ data: User }>(`/profile/${username}`),
+
+  searchUsers: (q: string) =>
+    api.get<{ data: UserSearchResult[] }>('/profile/search', { params: { q } }),
 
   updateMe: (body: { nickname?: string; username?: string; birthdate?: string | null; bio?: string | null; timezone?: string | null; aiSuggestReplies?: boolean; notifyPopup?: boolean; notifySound?: boolean; notifyVibrate?: boolean }) =>
     api.patch<{ data: User }>('/profile/me', body),

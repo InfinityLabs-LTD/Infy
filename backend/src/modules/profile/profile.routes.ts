@@ -182,6 +182,46 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
     return { data: { coverUrl: user.coverUrl } }
   })
 
+  // GET /profile/search?q= — find users by username or nickname (excluding self)
+  app.get('/search', {
+    preHandler: [authenticate],
+    schema: {
+      tags: ['Profile'],
+      summary: 'Search users by username or nickname',
+      security: [{ bearerAuth: [] }],
+      querystring: {
+        type: 'object',
+        required: ['q'],
+        properties: { q: { type: 'string', minLength: 2 } },
+      },
+    },
+  }, async (request) => {
+    const { q } = z.object({ q: z.string().min(2).max(64) }).parse(request.query)
+    const userId = BigInt(request.user.sub)
+    const term = q.trim().replace(/^@/, '')
+
+    const users = await app.prisma.user.findMany({
+      where: {
+        id: { not: userId },
+        OR: [
+          { username: { contains: term, mode: 'insensitive' } },
+          { nickname: { contains: term, mode: 'insensitive' } },
+        ],
+      },
+      take: 20,
+      orderBy: { username: 'asc' },
+    })
+
+    return {
+      data: users.map(u => ({
+        id: u.id.toString(),
+        username: u.username,
+        nickname: u.nickname,
+        avatarUrl: u.avatarUrl,
+      })),
+    }
+  })
+
   // GET /users/:username — public profile
   app.get('/:username', {
     preHandler: [authenticate],

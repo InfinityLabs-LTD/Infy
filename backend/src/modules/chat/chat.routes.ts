@@ -20,6 +20,25 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
     return { data: chats }
   })
 
+  // GET /chats/search?q= — search messages across the user's chats
+  app.get('/search', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'Search messages in user chats',
+      security: [{ bearerAuth: [] }],
+      querystring: {
+        type: 'object',
+        required: ['q'],
+        properties: { q: { type: 'string', minLength: 2 } },
+      },
+    },
+  }, async (request) => {
+    const { q } = z.object({ q: z.string().min(2) }).parse(request.query)
+    const userId = BigInt(request.user.sub)
+    const results = await ChatService.searchMessages(app.prisma, userId, q)
+    return { data: results }
+  })
+
   // POST /chats — create or get direct chat with a user
   app.post('/', {
     schema: {
