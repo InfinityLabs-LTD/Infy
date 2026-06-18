@@ -212,6 +212,28 @@ export interface AiSettingsUpdate {
   openaiBaseUrl?: string
 }
 
+export interface MailSettings {
+  enabled: boolean
+  host: string
+  port: number
+  secure: boolean
+  user: string
+  hasPass: boolean
+  from: string
+  fromName: string
+}
+
+export interface MailSettingsUpdate {
+  enabled?: boolean
+  host?: string
+  port?: number
+  secure?: boolean
+  user?: string
+  pass?: string
+  from?: string
+  fromName?: string
+}
+
 export const adminApi = {
   // AI settings
   getAiSettings: () =>
@@ -219,6 +241,16 @@ export const adminApi = {
 
   updateAiSettings: (body: AiSettingsUpdate) =>
     api.patch<{ data: AiSettings }>('/admin/ai/settings', body),
+
+  // Mail (SMTP) settings
+  getMailSettings: () =>
+    api.get<{ data: MailSettings }>('/admin/mail/settings'),
+
+  updateMailSettings: (body: MailSettingsUpdate) =>
+    api.patch<{ data: MailSettings }>('/admin/mail/settings', body),
+
+  sendTestEmail: (to: string) =>
+    api.post<{ data: { ok: true } }>('/admin/mail/test', { to }),
 
   // Users
   listUsers: (params?: { page?: number; limit?: number; search?: string }) =>

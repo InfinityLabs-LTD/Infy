@@ -166,7 +166,7 @@ const profileRoutes: FastifyPluginAsync = async (app) => {
       security: [{ bearerAuth: [] }],
     },
   }, async () => {
-    return { data: { mailEnabled: mailEnabled() } }
+    return { data: { mailEnabled: await mailEnabled(app.prisma) } }
   })
 
   // POST /profile/me/email — запросить привязку почты (отправить код).

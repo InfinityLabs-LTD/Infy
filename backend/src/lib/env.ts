@@ -29,11 +29,16 @@ const schema = z.object({
   // Берём первый из CORS_ORIGINS, если не задан явно.
   APP_PUBLIC_URL: z.string().default(''),
 
-  // ── Почта (smtp.bz HTTP API) ───────────────────────────────
-  // API-ключ из кабинета smtp.bz. Пусто = отправка писем отключена
-  // (привязка почты/смена username будут недоступны).
-  SMTP_BZ_API_KEY: z.string().default(''),
-  // Адрес и имя отправителя (домен должен быть подтверждён в smtp.bz).
+  // ── Почта (SMTP, напр. smtp.bz) ────────────────────────────
+  // Значения по умолчанию; всё это можно переопределить в админке (раздел «Почта»,
+  // таблица app_settings). Пустой MAIL_SMTP_HOST = отправка отключена.
+  MAIL_SMTP_HOST: z.string().default(''),
+  MAIL_SMTP_PORT: z.coerce.number().default(587),
+  // true = неявный TLS (порт 465); false = STARTTLS (порты 587/25).
+  MAIL_SMTP_SECURE: z.string().transform(v => v === 'true').default('false'),
+  MAIL_SMTP_USER: z.string().default(''),
+  MAIL_SMTP_PASS: z.string().default(''),
+  // Адрес и имя отправителя (домен должен быть подтверждён у SMTP-провайдера).
   MAIL_FROM: z.string().default('no-reply@infyme.ru'),
   MAIL_FROM_NAME: z.string().default('Infy'),
 

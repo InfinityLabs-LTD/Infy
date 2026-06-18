@@ -20,6 +20,7 @@ import { AdminAnalyticsPage } from '@/pages/admin/AdminAnalyticsPage'
 import { AdminModerationPage } from '@/pages/admin/AdminModerationPage'
 import { AdminBadgesPage } from '@/pages/admin/AdminBadgesPage'
 import { AdminAiCenterPage } from '@/pages/admin/AdminAiCenterPage'
+import { AdminMailCenterPage } from '@/pages/admin/AdminMailCenterPage'
 import { AdminPaymentsPage } from '@/pages/admin/AdminPaymentsPage'
 import { AdminContainersPage } from '@/pages/admin/AdminContainersPage'
 import { CallOverlay } from '@/components/call/CallOverlay'
@@ -84,6 +85,7 @@ export default function App() {
           <Route path="badges" element={<AdminBadgesPage />} />
           <Route path="analytics" element={<AdminAnalyticsPage />} />
           <Route path="ai" element={<AdminAiCenterPage />} />
+          <Route path="mail" element={<AdminMailCenterPage />} />
           <Route path="payments" element={<AdminPaymentsPage />} />
           <Route path="containers" element={<AdminContainersPage />} />
         </Route>

@@ -27,7 +27,7 @@ export async function requestEmailBinding(
   userId: bigint,
   rawEmail: string,
 ): Promise<{ email: string }> {
-  if (!mailEnabled()) throw Errors.EMAIL_SENDING_DISABLED()
+  if (!(await mailEnabled(prisma))) throw Errors.EMAIL_SENDING_DISABLED()
 
   const email = rawEmail.trim().toLowerCase()
 
@@ -58,7 +58,7 @@ export async function requestEmailBinding(
   })
 
   try {
-    await sendVerificationCode(email, code)
+    await sendVerificationCode(prisma, email, code)
   } catch {
     // Письмо не ушло — гасим только что созданный токен, чтобы не оставлять висяк.
     await prisma.emailVerificationToken.updateMany({
