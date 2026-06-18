@@ -52,7 +52,10 @@ do_update() {
   touches '^backend/'  && { BUILD="$BUILD $BACKEND_SVCS"; RECREATE="$RECREATE $BACKEND_SVCS"; }
   touches '^frontend/' && { BUILD="$BUILD frontend";       RECREATE="$RECREATE frontend"; }
 
-  if touches '^backend/prisma/migrations/'; then
+  # Миграции применяем при ЛЮБОМ изменении backend, а не только когда менялась
+  # папка migrations: prisma migrate deploy идемпотентен (накатывает лишь недостающее),
+  # зато БД не отстаёт от кода, если прошлый деплой не докатил миграцию до конца.
+  if touches '^backend/'; then
     log "Применяю миграции БД"
     docker compose build core
     docker compose run --rm --no-deps --entrypoint sh core -c 'npx prisma migrate deploy'
@@ -82,6 +85,8 @@ do_update() {
 do_rebuild() {
   log "Полная пересборка всех образов (--no-cache)"
   docker compose build --no-cache
+  log "Применяю миграции БД"
+  docker compose run --rm --no-deps --entrypoint sh core -c 'npx prisma migrate deploy'
   log "Пересоздаю все контейнеры"
   docker compose up -d --force-recreate
   log "Перезагружаю nginx"

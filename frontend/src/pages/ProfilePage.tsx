@@ -45,8 +45,14 @@ export function ProfilePage() {
 
   useEffect(() => {
     // Подтягиваем актуальный профиль (бейджи/интересы) и статистику.
-    profileApi.getMe().then(r => setUser(r.data.data)).catch(() => {})
-    profileApi.getStats().then(r => setStats(r.data.data)).catch(() => {})
+    profileApi.getMe().then(r => setUser(r.data.data)).catch(err => {
+      console.warn('Не удалось загрузить профиль', err)
+    })
+    profileApi.getStats().then(r => setStats(r.data.data)).catch(err => {
+      // Молчаливый catch раньше скрывал, что эндпоинт недоступен (404/500) —
+      // статистика просто показывала прочерки. Логируем, чтобы было видно в консоли.
+      console.warn('Не удалось загрузить статистику профиля', err)
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
