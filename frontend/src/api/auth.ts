@@ -83,6 +83,10 @@ export const authApi = {
 
   logout: () => api.post('/auth/logout'),
 
+  // Запрос письма для сброса пароля (всегда 204, даже если email не найден)
+  forgotPassword: (email: string) =>
+    api.post('/auth/forgot-password', { email }),
+
   // Самостоятельная смена пароля по ссылке от админа
   validateResetToken: (token: string) =>
     api.get<{ data: { valid: boolean; user: { username: string; nickname: string } | null } }>(

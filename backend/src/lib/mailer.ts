@@ -32,6 +32,9 @@ export async function mailEnabled(prisma: PrismaClient): Promise<boolean> {
   return mailAvailable(prisma)
 }
 
+// Реэкспорт для использования в других модулях без прямого импорта mailSettings.
+export { mailAvailable }
+
 /**
  * Отправляет письмо по SMTP. Бросает ошибку при неуспехе.
  * Вызывающий код должен предварительно проверять mailEnabled().
@@ -61,6 +64,30 @@ export async function sendTestEmail(prisma: PrismaClient, to: string): Promise<v
   <p style="margin:0;color:#555">Это тестовое письмо от Infy. Если вы его получили — SMTP работает.</p>
 </body></html>`
   await sendMail(prisma, { to, subject, html, text: 'Тестовое письмо от Infy. SMTP работает.' })
+}
+
+// Письмо со ссылкой для сброса пароля.
+export async function sendPasswordResetEmail(prisma: PrismaClient, to: string, resetUrl: string): Promise<void> {
+  const subject = 'Infy — сброс пароля'
+  const html = `<!doctype html>
+<html><head><meta charset="utf-8"></head>
+<body style="margin:0;background:#0B1020;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#E5E7EB;padding:32px">
+  <div style="max-width:440px;margin:0 auto;background:#11162a;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:32px;text-align:center">
+    <h1 style="margin:0 0 8px;font-size:20px;color:#fff">Сброс пароля</h1>
+    <p style="margin:0 0 24px;font-size:14px;color:#9CA3AF">
+      Вы запросили сброс пароля для аккаунта Infy. Нажмите кнопку ниже:
+    </p>
+    <a href="${resetUrl}"
+       style="display:inline-block;background:linear-gradient(135deg,#7C3AED,#A855F7);color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:14px 32px;border-radius:12px">
+      Сбросить пароль
+    </a>
+    <p style="margin:24px 0 0;font-size:12px;color:#6B7280">
+      Ссылка действует 24 часа. Если вы не запрашивали сброс пароля — просто проигнорируйте это письмо.
+    </p>
+  </div>
+</body></html>`
+  const text = `Сброс пароля Infy\nПерейдите по ссылке, чтобы задать новый пароль:\n${resetUrl}\nСсылка действует 24 часа.`
+  await sendMail(prisma, { to, subject, html, text })
 }
 
 // Письмо с кодом подтверждения почты.

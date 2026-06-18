@@ -172,6 +172,17 @@ NODE_ENV=production
 LOG_LEVEL=info
 CORS_ORIGINS=https://${DOMAIN}
 TRUSTED_PROXY=172.0.0.0/8
+
+# ----- Почта (SMTP) — необязательно, можно настроить позже в Админке → Почта -----
+# Для smtp.bz: host=connect.smtp.bz, port=587 (STARTTLS) или 465 (SSL).
+# Если не заполнено здесь, настройте через Admin Panel → Почта после запуска.
+MAIL_SMTP_HOST=
+MAIL_SMTP_PORT=587
+MAIL_SMTP_SECURE=false
+MAIL_SMTP_USER=
+MAIL_SMTP_PASS=
+MAIL_FROM=no-reply@${DOMAIN}
+MAIL_FROM_NAME=Infy
 EOF
 
 chmod 600 "$INSTALL_DIR/.env"

@@ -99,13 +99,12 @@ export function LoginPage() {
               </div>
 
               <div className="flex justify-end">
-                <button
-                  type="button"
+                <Link
+                  to="/forgot-password"
                   className="text-sm font-medium text-white/50 transition-colors hover:text-[#B388FF]"
-                  onClick={() => navigate('/register')}
                 >
                   Восстановить пароль
-                </button>
+                </Link>
               </div>
 
               <button type="submit" className="auth-btn group" disabled={loading}>

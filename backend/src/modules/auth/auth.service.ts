@@ -10,6 +10,8 @@ import { Errors } from '../../lib/errors.js'
 import { getActiveSanction } from '../../lib/sanctions.js'
 import { isReservedUsername } from '../../lib/reservedUsernames.js'
 import { RegisterInput, LoginInput } from './auth.schema.js'
+import { mailAvailable, sendPasswordResetEmail } from '../../lib/mailer.js'
+import { env } from '../../lib/env.js'
 
 // Человекочитаемое сообщение о бане для отказа во входе.
 function banMessage(reason: string, expiresAt: Date | null): string {
@@ -320,6 +322,25 @@ export async function resetPasswordWithToken(prisma: PrismaClient, rawToken: str
       data: { revokedAt: new Date() },
     }),
   ])
+}
+
+// Запрос на сброс пароля по почте. Молча завершается, если почта не найдена
+// или отправка недоступна — чтобы не раскрывать существование аккаунта.
+export async function requestPasswordReset(prisma: PrismaClient, email: string): Promise<void> {
+  if (!(await mailAvailable(prisma))) return
+
+  const user = await prisma.user.findFirst({
+    where: { email: email.toLowerCase().trim(), emailVerified: true },
+    select: { id: true },
+  })
+  if (!user) return
+
+  const rawToken = await createPasswordResetToken(prisma, user.id)
+  const base = (env.APP_PUBLIC_URL || env.CORS_ORIGINS.split(',')[0] || '').replace(/\/+$/, '')
+  const resetUrl = `${base}/reset-password?token=${rawToken}`
+  await sendPasswordResetEmail(prisma, email, resetUrl).catch(() => {
+    // Не ломаем флоу, если письмо не ушло — логируется на уровне transport
+  })
 }
 
 export async function logout(prisma: PrismaClient, sessionId: string) {

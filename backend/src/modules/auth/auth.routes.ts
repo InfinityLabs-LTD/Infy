@@ -96,6 +96,30 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ data: result })
   })
 
+  // POST /auth/forgot-password — запросить письмо для сброса пароля.
+  // Всегда возвращает 204, даже если email не найден (не раскрываем наличие аккаунта).
+  app.post('/forgot-password', {
+    config: {
+      rateLimit: {
+        max: 3,
+        timeWindow: 3600000,
+      },
+    },
+    schema: {
+      tags: ['Auth'],
+      summary: 'Request a password reset email',
+      body: {
+        type: 'object',
+        required: ['email'],
+        properties: { email: { type: 'string', format: 'email' } },
+      },
+    },
+  }, async (request, reply) => {
+    const { email } = request.body as { email: string }
+    await AuthService.requestPasswordReset(app.prisma, email)
+    return reply.code(204).send()
+  })
+
   // GET /auth/reset-password/:token — проверить, что ссылка ещё валидна
   app.get('/reset-password/:token', {
     schema: {

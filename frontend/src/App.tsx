@@ -3,6 +3,7 @@ import { useAuthStore } from '@/store/auth'
 import { LoginPage } from '@/pages/LoginPage'
 import { RegisterPage } from '@/pages/RegisterPage'
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage'
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { EditProfilePage } from '@/pages/EditProfilePage'
 import { SettingsPage } from '@/pages/SettingsPage'
@@ -74,6 +75,7 @@ export default function App() {
         {/* Auth */}
         <Route path="/login" element={<RequireGuest><LoginPage /></RequireGuest>} />
         <Route path="/register" element={<RequireGuest><RegisterPage /></RequireGuest>} />
+        <Route path="/forgot-password" element={<RequireGuest><ForgotPasswordPage /></RequireGuest>} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         {/* Admin */}
