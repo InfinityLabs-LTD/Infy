@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react'
+import React, { useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Message, MessageAttachment } from '@/store/chat'
@@ -131,6 +131,8 @@ function bubbleRadius(isOwn: boolean, pos: GroupPos): string {
   const tl = pos === 'middle' || pos === 'last' ? r : R
   return `${tl} ${R} ${R} ${r}`
 }
+
+const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
 
 export function MessageBubble({ message, showSenderName, groupPos = 'single', partnerLastReadMessageId, partnerReadAt, onReply, onEdit, onReactError, onJumpTo, onRetry, onVoiceEnded }: Props) {
   const myId = useAuthStore((s) => s.user?.id)
@@ -417,7 +419,7 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
         )}
         {message.content && (
           <p className={`whitespace-pre-wrap break-words leading-relaxed ${isMediaOnly ? 'px-3 pb-2' : ''}`}>
-            {message.content}
+            {renderMessageText(message.content)}
           </p>
         )}
       </div>
@@ -455,11 +457,10 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
         </div>
         <div
           ref={bubbleRef}
-          className={`group flex items-end gap-1.5 select-none ${isOwn ? 'justify-end' : 'justify-start'} cursor-pointer`}
+          className={`group flex items-end gap-1.5 ${isTouchDevice ? 'select-none' : ''} ${isOwn ? 'justify-end' : 'justify-start'} cursor-pointer`}
           style={{
             ...swipe.transformStyle,
-            WebkitUserSelect: 'none',
-            WebkitTouchCallout: 'none',
+            ...(isTouchDevice ? { WebkitUserSelect: 'none', WebkitTouchCallout: 'none' } : {}),
           }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -941,6 +942,28 @@ function ReactionBar({ reactions, myId, onReact }: {
 
 // Копирование текста. Clipboard API доступен только в защищённом контексте
 // (HTTPS/localhost); на обычном HTTP падаем в execCommand-фолбэк.
+// Рендер текста сообщения: обычный текст + кликабельные URL
+function renderMessageText(text: string): React.ReactNode[] {
+  const parts = text.split(/(https?:\/\/[^\s]+)/)
+  return parts.map((part, i) =>
+    i % 2 === 1
+      ? (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline break-all"
+          style={{ color: '#C084FC' }}
+          onClick={e => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      )
+      : part
+  )
+}
+
 function copyText(text: string) {
   if (navigator.clipboard && window.isSecureContext) {
     navigator.clipboard.writeText(text).catch(() => fallbackCopy(text))
@@ -953,10 +976,13 @@ function fallbackCopy(text: string) {
   const ta = document.createElement('textarea')
   ta.value = text
   ta.style.position = 'fixed'
-  ta.style.left = '-9999px'
-  ta.setAttribute('readonly', '')
+  ta.style.top = '0'
+  ta.style.left = '0'
+  ta.style.opacity = '0'
+  ta.style.fontSize = '16px' // предотвращает zoom на iOS
   document.body.appendChild(ta)
-  ta.select()
+  ta.focus()
+  ta.setSelectionRange(0, text.length)
   try { document.execCommand('copy') } catch { /* ignore */ }
   document.body.removeChild(ta)
 }
