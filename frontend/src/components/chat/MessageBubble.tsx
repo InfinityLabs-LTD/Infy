@@ -111,8 +111,10 @@ interface Props {
   groupPos?: GroupPos
   partnerLastReadMessageId?: string | null
   partnerReadAt?: string | null
+  selected?: boolean
   onReply?: (msg: Message) => void
   onEdit?: (msg: Message) => void
+  onSelect?: (msg: Message) => void
   onReactError?: () => void
   onJumpTo?: (msgId: string) => void
   onRetry?: (msg: Message) => void
@@ -134,7 +136,7 @@ function bubbleRadius(isOwn: boolean, pos: GroupPos): string {
 
 const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
 
-export function MessageBubble({ message, showSenderName, groupPos = 'single', partnerLastReadMessageId, partnerReadAt, onReply, onEdit, onReactError, onJumpTo, onRetry, onVoiceEnded }: Props) {
+export function MessageBubble({ message, showSenderName, groupPos = 'single', partnerLastReadMessageId, partnerReadAt, selected = false, onReply, onEdit, onSelect, onReactError, onJumpTo, onRetry, onVoiceEnded }: Props) {
   const myId = useAuthStore((s) => s.user?.id)
   const isOwn = message.sender.id === myId
   const { updateMessage, removeMessage, updateAttachmentListened } = useChatStore()
@@ -292,6 +294,11 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
     onEdit?.(message)
   }
 
+  function handleSelect() {
+    setShowMenu(false)
+    onSelect?.(message)
+  }
+
   // Мета — время, «изм.» и галочки — живёт снаружи пузыря.
   // Видна у последнего сообщения группы, у остальных проявляется на hover.
   const meta = (
@@ -438,7 +445,10 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
 
   return (
     <>
-      <div className={`relative msg-appear ${groupPos === 'first' || groupPos === 'single' ? 'mt-3' : 'mt-0.5'}`}>
+      <div
+        className={`relative msg-appear ${groupPos === 'first' || groupPos === 'single' ? 'mt-3' : 'mt-0.5'} transition-colors duration-150`}
+        style={selected ? { background: 'rgba(168,85,247,0.15)', marginLeft: -12, marginRight: -12, paddingLeft: 12, paddingRight: 12, borderRadius: 8 } : undefined}
+      >
         {/* Иконка ответа, проявляющаяся при свайпе */}
         <div
           className="absolute top-0 bottom-0 flex items-center pointer-events-none"
@@ -489,6 +499,8 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
           onEdit={isOwn && message.type === 'TEXT' && onEdit ? handleEdit : undefined}
           onPin={handlePin}
           onDelete={isOwn ? handleDelete : undefined}
+          onSelect={onSelect ? handleSelect : undefined}
+          isSelected={selected}
         />,
         document.body
       )}
@@ -656,7 +668,7 @@ function TypingDots() {
 // ── Context menu ──────────────────────────────────────────────
 
 function MessageContextMenu({
-  bubbleRef, isOwn, isText, isPinned, readAt, onClose, onReact, onReply, onCopy, onEdit, onPin, onDelete,
+  bubbleRef, isOwn, isText, isPinned, readAt, onClose, onReact, onReply, onCopy, onEdit, onPin, onDelete, onSelect, isSelected,
 }: {
   bubbleRef: React.RefObject<HTMLDivElement>
   isOwn: boolean
@@ -670,6 +682,8 @@ function MessageContextMenu({
   onEdit?: () => void
   onPin?: () => void
   onDelete?: () => void
+  onSelect?: () => void
+  isSelected?: boolean
 }) {
   const [showFullPicker, setShowFullPicker] = useState(false)
 
@@ -680,7 +694,7 @@ function MessageContextMenu({
   const MENU_W = 220
   const MENU_ITEM_H = 44
   const itemCount =
-    (onReply ? 1 : 0) + (onCopy ? 1 : 0) + (onEdit ? 1 : 0) + (onPin ? 1 : 0) + (onDelete ? 1 : 0)
+    (onReply ? 1 : 0) + (onCopy ? 1 : 0) + (onEdit ? 1 : 0) + (onPin ? 1 : 0) + (onDelete ? 1 : 0) + (onSelect ? 1 : 0)
   const MENU_H = itemCount * MENU_ITEM_H + (readAt ? 36 : 0)
 
   const viewW = window.innerWidth
@@ -780,6 +794,16 @@ function MessageContextMenu({
           )}
           {onDelete && (
             <CtxItem icon="🗑" label="Удалить для всех" onPointerDown={e => { e.stopPropagation(); onDelete() }} danger />
+          )}
+          {onSelect && (
+            <>
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '2px 0' }} />
+              <CtxItem
+                icon={isSelected ? '✓' : '○'}
+                label={isSelected ? 'Снять выделение' : 'Выбрать'}
+                onPointerDown={e => { e.stopPropagation(); onSelect() }}
+              />
+            </>
           )}
         </motion.div>
       )}

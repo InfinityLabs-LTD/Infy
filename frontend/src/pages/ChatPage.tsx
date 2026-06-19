@@ -187,6 +187,7 @@ export function ChatPage() {
   // Закреплённое сообщение чата (загружается отдельно — может быть вне окна истории)
   const [pinned, setPinned] = useState<Message | null>(null)
 
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [text, setText] = useState(() => (chatId ? (useChatStore.getState().drafts[chatId] ?? '') : ''))
@@ -257,6 +258,7 @@ export function ChatPage() {
   // Отмечаем открытый чат активным (для подавления unread в addMessage).
   useEffect(() => {
     setActiveChat(chatId)
+    setSelectedIds(new Set())
     return () => setActiveChat(null)
   }, [chatId])
 
@@ -1561,8 +1563,14 @@ export function ChatPage() {
                         // статус случайного участника за «прочитано» (C-3).
                         partnerLastReadMessageId={chat?.type === 'DIRECT' ? chat?.partnerLastReadMessageId : null}
                         partnerReadAt={chat?.type === 'DIRECT' ? (chat?.partnerReadAt ?? null) : null}
+                        selected={selectedIds.has(msg.id)}
                         onReply={startReply}
                         onEdit={startEdit}
+                        onSelect={(m) => setSelectedIds(prev => {
+                          const next = new Set(prev)
+                          if (next.has(m.id)) next.delete(m.id); else next.add(m.id)
+                          return next
+                        })}
                         onRetry={retrySend}
                         onJumpTo={scrollToMessage}
                         onVoiceEnded={handleVoiceEnded}
@@ -1620,8 +1628,31 @@ export function ChatPage() {
         </div>
       )}
 
+      {/* Панель выделения — заменяет композер, когда выбрано ≥1 сообщения */}
+      {selectedIds.size > 0 && (
+        <div className="shrink-0 px-4 py-3 flex items-center gap-3" style={{
+          background: 'rgba(255,255,255,0.04)',
+          backdropFilter: 'blur(24px) saturate(140%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(140%)',
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+        }}>
+          <button
+            onPointerDown={() => setSelectedIds(new Set())}
+            className="w-9 h-9 rounded-full flex items-center justify-center transition-colors active:bg-white/10"
+            style={{ color: 'rgba(255,255,255,0.6)' }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+          <span className="flex-1 text-sm font-medium" style={{ color: 'rgba(255,255,255,0.85)' }}>
+            {selectedIds.size} {selectedIds.size === 1 ? 'сообщение' : selectedIds.size < 5 ? 'сообщения' : 'сообщений'}
+          </span>
+        </div>
+      )}
+
       {/* ── Input bar ── */}
-      <div className="shrink-0 px-2 pt-2 pb-[max(4px,calc(env(safe-area-inset-bottom)-16px))]" style={{
+      <div className={`shrink-0 px-2 pt-2 pb-[max(4px,calc(env(safe-area-inset-bottom)-16px))] ${selectedIds.size > 0 ? 'hidden' : ''}`} style={{
         background: 'rgba(255,255,255,0.04)',
         backdropFilter: 'blur(24px) saturate(140%)',
         WebkitBackdropFilter: 'blur(24px) saturate(140%)',
