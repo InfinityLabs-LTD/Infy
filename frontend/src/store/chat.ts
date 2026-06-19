@@ -147,6 +147,7 @@ interface ChatState {
   // Открытый сейчас чат — чтобы addMessage не накручивал unread для активного
   // диалога (его и так помечают прочитанным). null, когда чат не открыт.
   activeChatId: string | null
+  drafts: Record<string, string>        // chatId → текст черновика
 
   setChats: (chats: Chat[]) => void
   upsertChat: (chat: Chat) => void
@@ -180,6 +181,7 @@ interface ChatState {
   // В отличие от аддитивного setUserOnline, снимает тех, кого больше нет онлайн.
   setOnlineUsers: (userIds: string[]) => void
   setTyping: (chatId: string, username: string, isTyping: boolean) => void
+  setDraft: (chatId: string, text: string) => void
 }
 
 // Сортировка списка диалогов по убыванию времени последнего сообщения
@@ -200,6 +202,7 @@ export const useChatStore = create<ChatState>((set) => ({
   typing: {},
   socketReady: false,
   activeChatId: null,
+  drafts: {},
 
   setChats: (chats) => set({ chats: sortChats(chats) }),
   setSocketReady: (v) => set({ socketReady: v }),
@@ -474,4 +477,9 @@ export const useChatStore = create<ChatState>((set) => ({
       else prev.delete(username)
       return { typing: { ...s.typing, [chatId]: prev } }
     }),
+
+  setDraft: (chatId, text) =>
+    set((s) => ({
+      drafts: text ? { ...s.drafts, [chatId]: text } : Object.fromEntries(Object.entries(s.drafts).filter(([k]) => k !== chatId)),
+    })),
 }))

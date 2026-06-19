@@ -136,7 +136,7 @@ export function ChatPage() {
   const myUser = useAuthStore(s => s.user)
   const myUsername = myUser?.username
 
-  const { chats, messages, nextCursor, socketReady, setMessages, mergeForward, prependMessages, setTyping, upsertChat, resetUnread, updateMessage, removeChat, addMessage, replaceMessage, setMessageFailed, setMessageStatus, removeMessage, setActiveChat } = useChatStore()
+  const { chats, messages, nextCursor, socketReady, setMessages, mergeForward, prependMessages, setTyping, upsertChat, resetUnread, updateMessage, removeChat, addMessage, replaceMessage, setMessageFailed, setMessageStatus, removeMessage, setActiveChat, drafts, setDraft } = useChatStore()
 
   // ── Resolve partnerId → chatId ──────────────────────────────
   const [chatId, setChatId] = useState<string | null>(() => {
@@ -169,6 +169,13 @@ export function ChatPage() {
     if (found) { setChatId(found.id); setResolving(false) }
   }, [chats, partnerId, chatId])
 
+  // Подтянуть черновик, когда chatId стал известен после mount
+  useEffect(() => {
+    if (!chatId) return
+    const saved = useChatStore.getState().drafts[chatId]
+    if (saved) setText(saved)
+  }, [chatId])
+
   // ── Derived state ────────────────────────────────────────────
   const chat = chatId ? chats.find(c => c.id === chatId) : chats.find(c => c.partner?.id === partnerId)
   const chatMessages = chatId ? (messages[chatId] ?? []) : []
@@ -182,7 +189,7 @@ export function ChatPage() {
 
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [text, setText] = useState('')
+  const [text, setText] = useState(() => (chatId ? (useChatStore.getState().drafts[chatId] ?? '') : ''))
   const [sending, setSending] = useState(false)
   const [showCircle, setShowCircle] = useState(false)
   const [showPanel, setShowPanel] = useState(false)
@@ -705,7 +712,7 @@ export function ChatPage() {
     if (/^\/ask\b/i.test(content) && !editing) {
       const question = content.replace(/^\/ask\b\s*/i, '').trim()
       if (!question) return
-      setText('')
+      setText(''); setDraft(chatId, '')
       setReplyTo(null)
       setMutedNotice(null)
       stopTyping()
@@ -714,7 +721,7 @@ export function ChatPage() {
         setMutedNotice(e.response?.status === 503
           ? 'AI-функции не настроены на сервере'
           : (e.response?.data?.error?.message ?? 'Не удалось отправить запрос AI'))
-        setText(content)
+        setText(content); setDraft(chatId, content)
       })
       inputRef.current?.focus()
       return
@@ -723,7 +730,7 @@ export function ChatPage() {
     // Режим редактирования — PATCH вместо отправки
     if (editing) {
       const target = editing
-      setText('')
+      setText(''); setDraft(chatId, '')
       setEditing(null)
       setSending(true)
       stopTyping()
@@ -735,7 +742,7 @@ export function ChatPage() {
     }
 
     const replyToId = replyTo?.id
-    setText('')
+    setText(''); setDraft(chatId, '')
     setReplyTo(null)
     setMutedNotice(null)
     stopTyping()
@@ -1000,7 +1007,7 @@ export function ChatPage() {
     // Очищаем очередь, НЕ освобождая object URL'ы — ими теперь владеет
     // оптимистичное сообщение (revoke после успешной отправки).
     setStaged([])
-    setText('')
+    setText(''); if (chatId) setDraft(chatId, '')
     setReplyTo(null)
     setMutedNotice(null)
   }
@@ -1912,7 +1919,9 @@ export function ChatPage() {
               placeholder="Сообщение…"
               value={text}
               onChange={e => {
-                setText(e.target.value)
+                const val = e.target.value
+                setText(val)
+                if (chatId) setDraft(chatId, val)
                 startTyping()
                 e.target.style.height = 'auto'
                 e.target.style.height = `${e.target.scrollHeight}px`
