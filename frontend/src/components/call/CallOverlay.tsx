@@ -134,7 +134,7 @@ export function CallOverlay() {
               className="relative mb-6"
             >
               {/* Пульсирующий ореол при дозвоне */}
-              {(s.phase === 'outgoing' || s.phase === 'incoming') && (
+              {s.phase === 'outgoing' && (
                 <span className="absolute inset-0 rounded-full animate-[callRipple_2s_ease-out_infinite]"
                   style={{ boxShadow: '0 0 0 0 rgba(168,85,247,0.5)' }} />
               )}
@@ -156,13 +156,6 @@ export function CallOverlay() {
               ? fmtDuration(s.durationSec)
               : statusText(s.phase, s.isCaller, s.endedReason)}
           </p>
-
-          {/* Подпись типа звонка на входящем */}
-          {s.phase === 'incoming' && (
-            <p className="mt-1 text-sm text-white/50">
-              {isVideo ? '📹 Видеозвонок Infy' : '📞 Аудиозвонок Infy'}
-            </p>
-          )}
 
           {/* Индикатор «собеседник без звука» */}
           {s.phase === 'active' && !s.peerMicOn && (
