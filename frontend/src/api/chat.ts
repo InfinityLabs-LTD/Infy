@@ -51,21 +51,25 @@ export const chatApi = {
       { params: { cursor, limit } },
     ),
 
-  sendMessage: (chatId: string, content: string, replyToId?: string) =>
-    api.post<{ data: Message }>(`/chats/${chatId}/messages`, { content, replyToId }),
+  sendMessage: (chatId: string, content: string, replyToId?: string, clientMessageId?: string) =>
+    api.post<{ data: Message }>(`/chats/${chatId}/messages`, {
+      content, replyToId, ...(clientMessageId ? { clientMessageId } : {}),
+    }),
 
-  sendMedia: (chatId: string, type: MediaMessageType, upload: UploadResult) =>
+  sendMedia: (chatId: string, type: MediaMessageType, upload: UploadResult, clientMessageId?: string) =>
     api.post<{ data: Message }>(`/chats/${chatId}/messages`, {
       type,
       attachment: toAttachment(upload),
+      ...(clientMessageId ? { clientMessageId } : {}),
     }),
 
   // Альбом: несколько вложений (фото/видео/документы) в одном сообщении + общая подпись.
   // Если файл один — отправляем как обычное медиа-сообщение соответствующего типа.
-  sendAlbum: (chatId: string, uploads: UploadResult[], content?: string, replyToId?: string) =>
+  sendAlbum: (chatId: string, uploads: UploadResult[], content?: string, replyToId?: string, clientMessageId?: string) =>
     api.post<{ data: Message }>(`/chats/${chatId}/messages`, {
       ...(content ? { content } : {}),
       ...(replyToId ? { replyToId } : {}),
+      ...(clientMessageId ? { clientMessageId } : {}),
       attachments: uploads.map(toAttachment),
     }),
 

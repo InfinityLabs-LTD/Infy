@@ -22,8 +22,16 @@ import { callController } from '@/lib/callController'
 import { useCallStore } from '@/store/call'
 import {
   addPendingJob, getPendingJob, removePendingJob, setPendingExpireHandler,
+  setOutboxRunner, flushOutbox, restoreOutbox, isInFlight,
   startPendingSweeper, sweepExpired, type PendingJob, type PendingLocal,
 } from '@/lib/pendingMedia'
+
+// Идемпотентный ключ отправки. crypto.randomUUID доступен в secure-context;
+// запасной вариант — на случай старых окружений.
+function newClientMessageId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
+  return `cmid-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`
+}
 
 const TYPING_DEBOUNCE_MS = 1500
 const GROUP_WINDOW_MS = 60_000
@@ -268,14 +276,64 @@ export function ChatPage() {
     return () => { setStaged(prev => { prev.forEach(s => s.previewUrl && URL.revokeObjectURL(s.previewUrl)); return [] }) }
   }, [chatId])
 
-  // Реестр оптимистичных отправок: если задание истекло (прошло больше суток),
-  // убираем неотправленное сообщение из ленты. Чистку запускаем на маунте.
+  // Раннер очереди в ref — чтобы регистрация в outbox всегда вызывала свежую
+  // версию (замыкает актуальные стор-экшены и setMutedNotice).
+  const runJobRef = useRef<(job: PendingJob) => Promise<void>>(() => Promise.resolve())
+  runJobRef.current = runJob
+
+  // Очередь исходящих (outbox): восстановление со старта, авто-повтор при
+  // возврате сети/реконнекте сокета, чистка просроченных (>24ч).
   useEffect(() => {
     setPendingExpireHandler((job) => {
       useChatStore.getState().removeMessage(job.chatId, job.tempId)
+      removePendingJob(job.tempId)
     })
+    setOutboxRunner((job) => runJobRef.current(job))
     startPendingSweeper()
+
+    // Восстанавливаем сохранённые задания и возвращаем их плейсхолдеры в ленту.
+    void restoreOutbox().then((restored) => {
+      const myId = useAuthStore.getState().user?.id
+      for (const job of restored) {
+        // Если сообщение уже есть в сторе (та же сессия) — не дублируем.
+        const existing = useChatStore.getState().messages[job.chatId] ?? []
+        if (existing.some(m => m.id === job.tempId || m.clientMessageId === job.clientMessageId)) continue
+        const optimistic: Message = {
+          id: job.tempId,
+          chatId: job.chatId,
+          content: job.msgType === 'TEXT' ? (job.content ?? null) : (job.caption || null),
+          type: job.msgType,
+          createdAt: new Date(job.createdAt).toISOString(),
+          editedAt: null,
+          clientMessageId: job.clientMessageId,
+          sender: {
+            id: myId ?? '',
+            username: myUser?.username ?? '',
+            nickname: myUser?.nickname ?? '',
+            avatarUrl: myUser?.avatarUrl ?? null,
+          },
+          attachments: job.msgType === 'TEXT'
+            ? undefined
+            : job.locals.map((l, i) => buildOptimisticAttachment(l, i, job.tempId)),
+          pending: false,
+          failed: true,  // показываем как «не отправлено» — авто-flush подхватит
+        }
+        useChatStore.getState().addMessage(optimistic)
+      }
+      flushOutbox()
+    })
+
     sweepExpired()
+
+    // Авто-повтор при восстановлении сети. Реконнект сокета покрывается
+    // отдельным эффектом по socketReady (ниже).
+    const onOnline = () => flushOutbox()
+    window.addEventListener('online', onOnline)
+
+    return () => {
+      window.removeEventListener('online', onOnline)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Mark read when new messages arrive while chat is open
@@ -295,6 +353,8 @@ export function ChatPage() {
   useEffect(() => {
     if (!chatId || !socketReady) return
     joinChatRoom(chatId)
+    // Сокет (пере)подключился — до-отправляем накопившуюся очередь.
+    flushOutbox()
   }, [chatId, socketReady])
 
   // Загружаем закреплённое сообщение
@@ -369,15 +429,17 @@ export function ChatPage() {
     } finally { setLoadingMore(false) }
   }
 
-  // Создаёт оптимистичный плейсхолдер текстового сообщения (pending: true)
-  // и запускает отправку в фоне. При успехе — заменяет реальным; при ошибке —
-  // помечает failed, тап по значку ошибки повторяет отправку.
+  // Создаёт оптимистичный плейсхолдер текстового сообщения (pending: true),
+  // регистрирует задание в персистентной очереди (outbox) и запускает отправку.
+  // При успехе — заменяет реальным; при ошибке — помечает failed (повтор по тапу
+  // или автоматически при восстановлении сети).
   function optimisticSendText(
     targetChatId: string,
     content: string,
     replyToId?: string,
   ) {
-    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const clientMessageId = newClientMessageId()
+    const tempId = `temp-${clientMessageId}`
     const optimistic: Message = {
       id: tempId,
       chatId: targetChatId,
@@ -385,6 +447,7 @@ export function ChatPage() {
       type: 'TEXT',
       createdAt: new Date().toISOString(),
       editedAt: null,
+      clientMessageId,
       sender: {
         id: myUser?.id ?? '',
         username: myUser?.username ?? '',
@@ -407,51 +470,61 @@ export function ChatPage() {
     }
     addMessage(optimistic)
 
-    const doSend = async () => {
-      try {
-        const socket = getActiveSocket()
-        let real: Message | null = null
-        // Если есть replyToId — всегда REST (сокет не поддерживает ответы)
-        if (socket?.connected && !replyToId) {
-          real = await new Promise<Message | null>((resolve) => {
-            socket.emit('join_chat', targetChatId)
-            socket.emit('send_message', { chatId: targetChatId, content }, (res: { ok: boolean; error?: string; code?: string }) => {
-              if (res?.ok) {
-                // Реальное сообщение придёт по сокету — addMessage с реконсиляцией
-                // заменит плейсхолдер по тексту совпадения. Нам достаточно снять pending.
-                resolve(null)
-              } else if (res?.code === 'MOD_ACCOUNT_MUTED' || res?.code === 'MOD_ACCOUNT_BANNED') {
-                setMutedNotice(res.error ?? 'Вы не можете отправлять сообщения')
-                resolve(null)
-                // Не удалось из-за санкции — убираем оптимистичное сообщение
-                removeMessage(targetChatId, tempId)
-              } else {
-                // Сокет вернул ошибку — fallback на REST
-                chatApi.sendMessage(targetChatId, content, replyToId)
-                  .then(r => resolve(r.data.data))
-                  .catch(() => resolve(null))
-              }
-            })
+    addPendingJob({
+      tempId, clientMessageId, chatId: targetChatId,
+      msgType: 'TEXT', locals: [], content, replyToId,
+    })
+    flushOutbox()
+  }
+
+  // Отправка текстового задания (через сокет с ack либо REST-фолбэк).
+  // Идемпотентность по clientMessageId на сервере исключает дубли при ретрае.
+  async function runTextJob(job: PendingJob) {
+    const { chatId: targetChatId, tempId, clientMessageId, content, replyToId } = job
+    if (!content) { removePendingJob(tempId); removeMessage(targetChatId, tempId); return }
+    // Маркер «отправлено через сокет, broadcast придёт позже».
+    const SENT_VIA_SOCKET = Symbol('sent-via-socket')
+    try {
+      const socket = getActiveSocket()
+      let real: Message | typeof SENT_VIA_SOCKET
+      // Если есть replyToId — всегда REST (сокет не поддерживает ответы).
+      if (socket?.connected && !replyToId) {
+        real = await new Promise<Message | typeof SENT_VIA_SOCKET>((resolve, reject) => {
+          socket.emit('join_chat', targetChatId)
+          socket.emit('send_message', { chatId: targetChatId, content, clientMessageId }, (res: { ok: boolean; message?: Message; error?: string; code?: string }) => {
+            if (res?.ok) {
+              // Сервер может вернуть готовое сообщение в ack — используем его
+              // (надёжнее, чем ждать broadcast вслепую). Иначе ждём broadcast,
+              // который реконсилируется по clientMessageId.
+              resolve(res.message ?? SENT_VIA_SOCKET)
+            } else if (res?.code === 'MOD_ACCOUNT_MUTED' || res?.code === 'MOD_ACCOUNT_BANNED') {
+              setMutedNotice(res.error ?? 'Вы не можете отправлять сообщения')
+              removePendingJob(tempId)
+              removeMessage(targetChatId, tempId)
+              resolve(SENT_VIA_SOCKET)
+            } else {
+              chatApi.sendMessage(targetChatId, content, replyToId, clientMessageId)
+                .then(r => resolve(r.data.data))
+                .catch(reject)
+            }
           })
-        } else {
-          const r = await chatApi.sendMessage(targetChatId, content, replyToId)
-          real = r.data.data
-        }
-        if (real) {
-          replaceMessage(targetChatId, tempId, real)
-        } else {
-          // Сообщение отправлено через сокет; broadcast придёт и реконсиляция
-          // в addMessage заменит плейсхолдер. Страхуемся таймаутом: если через
-          // 5 сек плейсхолдер всё ещё есть — снимаем pending вручную.
-          setTimeout(() => {
-            setMessageStatus(targetChatId, tempId, { pending: false })
-          }, 5000)
-        }
-      } catch {
-        setMessageFailed(targetChatId, tempId, true)
+        })
+      } else {
+        const r = await chatApi.sendMessage(targetChatId, content, replyToId, clientMessageId)
+        real = r.data.data
       }
+      if (real !== SENT_VIA_SOCKET) {
+        replaceMessage(targetChatId, tempId, real)
+      } else {
+        // Реальное сообщение придёт broadcast'ом и реконсилируется по
+        // clientMessageId в addMessage. Снимать pending вслепую не нужно.
+        setMessageStatus(targetChatId, tempId, { pending: true, failed: false })
+      }
+      removePendingJob(tempId)
+    } catch (err) {
+      setMessageFailed(targetChatId, tempId, true)
+      throw err
     }
-    void doSend()
   }
 
   async function sendText() {
@@ -576,48 +649,54 @@ export function ChatPage() {
   // При ошибке сообщение помечается как неотправленное — повтор по тапу;
   // исходные файлы хранятся в памяти сутки (см. lib/pendingMedia).
 
-  function buildOptimisticAttachment(la: PendingLocal, idx: number): MessageAttachment {
+  function buildOptimisticAttachment(la: PendingLocal, idx: number, tempId: string): MessageAttachment {
     return {
-      id: `temp-att-${idx}`,
+      // Уникальный id вложения — иначе при нескольких pending-альбомах ключи
+      // React'а (temp-att-0…) совпали бы.
+      id: `${tempId}-att-${idx}`,
       storageKey: '',
-      fileName: la.kind === 'document' ? la.file.name : undefined,
+      fileName: la.kind === 'document' && la.file instanceof File ? la.file.name : undefined,
       thumbnailKey: null,
       mimeType: la.file.type,
       sizeBytes: la.file.size,
       width: null,
       height: null,
-      durationMs: null,
+      durationMs: la.durationMs ?? null,
       waveform: null,
       // Локальный object URL — мгновенный предпросмотр до завершения загрузки.
       publicUrl: la.previewUrl,
     }
   }
 
-  // Загружает файлы задания и отправляет сообщение. На успехе — заменяет
-  // плейсхолдер реальным сообщением и снимает задание из реестра; на ошибке —
-  // помечает сообщение как неотправленное (задание остаётся для повтора).
-  async function runJob(job: PendingJob, optimistic: Message) {
+  // Загружает файлы задания и отправляет медиа-сообщение. На успехе — заменяет
+  // плейсхолдер реальным сообщением и снимает задание; на ошибке — помечает
+  // сообщение неотправленным (задание остаётся в очереди для авто/ручного повтора).
+  // Идемпотентность по clientMessageId исключает дубль при ретрае.
+  async function runMediaJob(job: PendingJob) {
+    const optimistic = useChatStore.getState().messages[job.chatId]?.find(m => m.id === job.tempId)
     try {
+      setMessageStatus(job.chatId, job.tempId, { pending: true, failed: false })
       const uploads = await Promise.all(
         job.locals.map(l => mediaApi.upload(l.file, l.hint, l.durationMs).then(r => r.data.data)),
       )
-      // Помечаем плейсхолдер реальными storageKey'ями: если широковещание
-      // по сокету придёт раньше REST-ответа, addMessage сопоставит его с
-      // плейсхолдером и не покажет дубль.
-      updateMessage({
-        ...optimistic,
-        pending: true,
-        failed: false,
-        attachments: (optimistic.attachments ?? []).map((a, i) => ({
-          ...a, storageKey: uploads[i]?.storageKey ?? a.storageKey,
-        })),
-      })
+      // Помечаем плейсхолдер реальными storageKey'ями (на случай прихода
+      // broadcast раньше REST-ответа — addMessage сопоставит по clientMessageId).
+      if (optimistic) {
+        updateMessage({
+          ...optimistic,
+          pending: true,
+          failed: false,
+          attachments: (optimistic.attachments ?? []).map((a, i) => ({
+            ...a, storageKey: uploads[i]?.storageKey ?? a.storageKey,
+          })),
+        })
+      }
       let real: Message
       if (job.msgType === 'ALBUM') {
-        const res = await chatApi.sendAlbum(job.chatId, uploads, job.caption || undefined, job.replyToId)
+        const res = await chatApi.sendAlbum(job.chatId, uploads, job.caption || undefined, job.replyToId, job.clientMessageId)
         real = res.data.data
       } else {
-        const res = await chatApi.sendMedia(job.chatId, job.msgType, uploads[0])
+        const res = await chatApi.sendMedia(job.chatId, job.msgType as 'IMAGE' | 'VIDEO' | 'AUDIO' | 'CIRCLE_VIDEO' | 'FILE', uploads[0], job.clientMessageId)
         real = res.data.data
       }
       replaceMessage(job.chatId, job.tempId, real)
@@ -625,17 +704,25 @@ export function ChatPage() {
     } catch (err) {
       setMessageFailed(job.chatId, job.tempId, true)
       handleSendError(err)
+      throw err
     }
+  }
+
+  // Единый раннер очереди: маршрутизирует задание по типу. Регистрируется в
+  // outbox, чтобы flushOutbox (по online/reconnect/старту) мог до-отправлять.
+  function runJob(job: PendingJob): Promise<void> {
+    return job.msgType === 'TEXT' ? runTextJob(job) : runMediaJob(job)
   }
 
   // Создаёт оптимистичное сообщение, регистрирует задание и запускает отправку.
   function backgroundSendMedia(
     targetChatId: string,
-    msgType: PendingJob['msgType'],
+    msgType: Exclude<PendingJob['msgType'], 'TEXT'>,
     locals: PendingLocal[],
     opts?: { caption?: string; replyToId?: string },
   ) {
-    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const clientMessageId = newClientMessageId()
+    const tempId = `temp-${clientMessageId}`
     const optimistic: Message = {
       id: tempId,
       chatId: targetChatId,
@@ -643,41 +730,36 @@ export function ChatPage() {
       type: msgType,
       createdAt: new Date().toISOString(),
       editedAt: null,
+      clientMessageId,
       sender: {
         id: myUser?.id ?? '',
         username: myUser?.username ?? '',
         nickname: myUser?.nickname ?? '',
         avatarUrl: myUser?.avatarUrl ?? null,
       },
-      attachments: locals.map(buildOptimisticAttachment),
+      attachments: locals.map((l, i) => buildOptimisticAttachment(l, i, tempId)),
       pending: true,
     }
     addMessage(optimistic)
 
-    const job: PendingJob = {
-      tempId, chatId: targetChatId, msgType, locals,
-      caption: opts?.caption, replyToId: opts?.replyToId, createdAt: Date.now(),
-    }
-    addPendingJob(job)
-    void runJob(job, optimistic)
+    addPendingJob({
+      tempId, clientMessageId, chatId: targetChatId, msgType, locals,
+      caption: opts?.caption, replyToId: opts?.replyToId,
+    })
+    flushOutbox()
   }
 
   // Повтор отправки по тапу на неотправленном сообщении.
   function retrySend(msg: Message) {
-    // Текстовое сообщение — повторяем оптимистичную отправку напрямую.
-    if (msg.type === 'TEXT' && msg.content) {
-      removeMessage(msg.chatId, msg.id)
-      optimisticSendText(msg.chatId, msg.content, msg.replyTo?.id)
-      return
-    }
     const job = getPendingJob(msg.id)
     if (!job) {
       // Задание истекло (прошло больше суток) — просто убираем плашку.
       removeMessage(msg.chatId, msg.id)
       return
     }
+    if (isInFlight(msg.id)) return  // уже отправляется — не дёргаем повторно
     setMessageStatus(msg.chatId, msg.id, { pending: true, failed: false })
-    void runJob(job, msg)
+    flushOutbox()
   }
 
   function sendMediaFile(file: File, msgType: 'IMAGE' | 'VIDEO') {

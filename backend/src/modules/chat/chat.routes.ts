@@ -159,6 +159,7 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
           content: { type: 'string', minLength: 1, maxLength: 4000 },
           type: { type: 'string', enum: ['TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'CIRCLE_VIDEO', 'FILE', 'ALBUM'] },
           replyToId: { type: 'string' },
+          clientMessageId: { type: 'string', maxLength: 64 },
           attachment: {
             type: 'object',
             properties: {
@@ -211,6 +212,7 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
       content: z.string().min(1).max(4000).optional(),
       type: z.enum(['TEXT', 'IMAGE', 'VIDEO', 'AUDIO', 'CIRCLE_VIDEO', 'FILE', 'ALBUM']).optional(),
       replyToId: z.string().optional(),
+      clientMessageId: z.string().max(64).optional(),
       attachment: attachmentSchema.optional(),
       attachments: z.array(attachmentSchema).max(10).optional(),
     }).parse(request.body)

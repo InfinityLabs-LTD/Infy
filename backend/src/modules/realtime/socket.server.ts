@@ -268,11 +268,11 @@ export function createSocketServer(
 
     // ── send_message ────────────────────────────────────────
     socket.on('send_message', async (
-      payload: { chatId: string; content: string; type?: string },
+      payload: { chatId: string; content: string; type?: string; clientMessageId?: string },
       ack?: (res: { ok: boolean; message?: unknown; error?: string; code?: string }) => void,
     ) => {
       try {
-        const { chatId, content, type } = payload
+        const { chatId, content, type, clientMessageId } = payload
         if (!chatId || !content?.trim()) {
           ack?.({ ok: false, error: 'Invalid payload' })
           return
@@ -301,7 +301,7 @@ export function createSocketServer(
           prisma,
           chatId,
           BigInt(userId),
-          { content: content.trim(), type: (type as 'TEXT') ?? 'TEXT' },
+          { content: content.trim(), type: (type as 'TEXT') ?? 'TEXT', clientMessageId },
         )
 
         io.to(`chat:${chatId}`).emit('message_new', message)

@@ -80,11 +80,32 @@ export interface Message {
   sender: MessageSender
   attachments?: MessageAttachment[]
   reactions?: MessageReaction[]
+  // Идемпотентный ключ отправки: совпадает у оптимистичного плейсхолдера и у
+  // реального сообщения с сервера — по нему происходит реконсиляция без дублей.
+  clientMessageId?: string | null
   // Локальный статус отправки медиа (только клиент): сообщение уже видно
   // отправителю, но файл ещё грузится в фоне.
   pending?: boolean
   // Отправка не удалась — показываем значок ошибки и кнопку повтора.
   failed?: boolean
+}
+
+// Вставка сообщения в массив с сохранением порядка по id (ULID/UUIDv7
+// лексикографически монотонны во времени). Оптимистичные плейсхолдеры имеют id
+// вида `temp-…` — они не сравнимы с серверными ULID, поэтому всегда кладутся
+// в конец (самые свежие, ещё не подтверждённые). Возвращает новый массив.
+function insertOrdered(list: Message[], msg: Message): Message[] {
+  const isTemp = msg.id.startsWith('temp-')
+  if (isTemp) return [...list, msg]
+  // Ищем позицию первого реального сообщения с id больше нового.
+  let i = list.length
+  while (i > 0) {
+    const prev = list[i - 1]
+    if (prev.id.startsWith('temp-')) { i--; continue }  // temp всегда после реальных
+    if (prev.id <= msg.id) break
+    i--
+  }
+  return [...list.slice(0, i), msg, ...list.slice(i)]
 }
 
 interface TypingState {
@@ -172,10 +193,27 @@ export const useChatStore = create<ChatState>((set) => ({
     }),
 
   setMessages: (chatId, messages, nextCursor) =>
-    set((s) => ({
-      messages: { ...s.messages, [chatId]: messages },
-      nextCursor: { ...s.nextCursor, [chatId]: nextCursor },
-    })),
+    set((s) => {
+      // Неразрушающая замена истории: серверный список — источник истины для
+      // подтверждённых сообщений, но локальные неотправленные плейсхолдеры
+      // (pending/failed, ещё не существующие на сервере) сохраняем в хвосте —
+      // иначе ресинк при возврате фокуса стирал бы их (потеря сообщения).
+      const prev = s.messages[chatId] ?? []
+      const serverIds = new Set(messages.map((m) => m.id))
+      const serverClientIds = new Set(
+        messages.map((m) => m.clientMessageId).filter(Boolean) as string[],
+      )
+      const localUnsent = prev.filter(
+        (m) =>
+          (m.pending || m.failed) &&
+          !serverIds.has(m.id) &&
+          !(m.clientMessageId && serverClientIds.has(m.clientMessageId)),
+      )
+      return {
+        messages: { ...s.messages, [chatId]: [...messages, ...localUnsent] },
+        nextCursor: { ...s.nextCursor, [chatId]: nextCursor },
+      }
+    }),
 
   prependMessages: (chatId, messages, nextCursor) =>
     set((s) => ({
@@ -194,72 +232,44 @@ export const useChatStore = create<ChatState>((set) => ({
       const myId = useAuthStore.getState().user?.id
       const isOwn = msg.sender.id === myId
 
-      // Реконсиляция оптимистичной отправки: своё сообщение приходит
-      // и REST-ответом, и широковещанием по сокету — нужно заменить
-      // pending-плейсхолдер реальным, а не добавить дубль.
-      if (isOwn) {
-        // Медиа: сопоставляем по storageKey вложения.
-        const incomingKeys = (msg.attachments ?? []).map((a) => a.storageKey).filter(Boolean)
-        if (incomingKeys.length > 0) {
-          const idx = existing.findIndex((m) =>
-            m.pending &&
-            (m.attachments ?? []).some((a) => incomingKeys.includes(a.storageKey)),
+      // Реконсиляция оптимистичной отправки: своё сообщение приходит и
+      // REST-ответом, и широковещанием по сокету. Сопоставляем плейсхолдер с
+      // реальным по идемпотентному ключу clientMessageId — детерминированно,
+      // без эвристик по тексту/времени (исключает дубли и ложные схлопывания).
+      if (isOwn && msg.clientMessageId) {
+        const idx = existing.findIndex((m) => m.clientMessageId === msg.clientMessageId)
+        if (idx >= 0) {
+          const tempId = existing[idx].id
+          const merged = [...existing]
+          merged[idx] = msg
+          const chats = s.chats.map((c) =>
+            c.id === msg.chatId && (c.lastMessage?.id === tempId || c.lastMessage?.id === msg.id)
+              ? { ...c, lastMessage: { id: msg.id, content: msg.content, type: msg.type, createdAt: msg.createdAt, isOwn } }
+              : c,
           )
-          if (idx >= 0) {
-            const tempId = existing[idx].id
-            const merged = [...existing]
-            merged[idx] = msg
-            const chats = s.chats.map((c) =>
-              c.id === msg.chatId && (c.lastMessage?.id === tempId || c.lastMessage?.id === msg.id)
-                ? { ...c, lastMessage: { id: msg.id, content: msg.content, type: msg.type, createdAt: msg.createdAt, isOwn } }
-                : c,
-            )
-            return { messages: { ...s.messages, [msg.chatId]: merged }, chats: sortChats(chats) }
-          }
-        }
-
-        // Текст: сопоставляем по содержимому — ищем последний pending-плейсхолдер
-        // того же отправителя с тем же текстом (не старше 30 сек).
-        if (msg.type === 'TEXT' && msg.content) {
-          const cutoff = Date.now() - 30_000
-          // findLastIndex недоступен в ES2020 — ищем с конца вручную
-          let idx = -1
-          for (let i = existing.length - 1; i >= 0; i--) {
-            const m = existing[i]
-            if (
-              m.pending &&
-              m.type === 'TEXT' &&
-              m.sender.id === myId &&
-              m.content === msg.content &&
-              new Date(m.createdAt).getTime() > cutoff
-            ) { idx = i; break }
-          }
-          if (idx >= 0) {
-            const tempId = existing[idx].id
-            const merged = [...existing]
-            merged[idx] = msg
-            const chats = s.chats.map((c) =>
-              c.id === msg.chatId && (c.lastMessage?.id === tempId || c.lastMessage?.id === msg.id)
-                ? { ...c, lastMessage: { id: msg.id, content: msg.content, type: msg.type, createdAt: msg.createdAt, isOwn } }
-                : c,
-            )
-            return { messages: { ...s.messages, [msg.chatId]: merged }, chats: sortChats(chats) }
-          }
+          return { messages: { ...s.messages, [msg.chatId]: merged }, chats: sortChats(chats) }
         }
       }
 
-      const updated = [...existing, msg]
+      // Реальное сообщение вставляем в порядке по id (ULID монотонен), а не
+      // слепо в конец — иначе пришедшее с задержкой/из другого канала встанет
+      // не на своё место.
+      const updated = insertOrdered(existing, msg)
+      // Превью в сайдбаре — по реально последнему сообщению (могло прийти
+      // старое out-of-order, тогда last остаётся прежним).
+      const newest = updated[updated.length - 1] ?? msg
+      const newestIsOwn = newest.sender.id === myId
 
       const chats = s.chats.map((c) => {
         if (c.id !== msg.chatId) return c
         return {
           ...c,
           lastMessage: {
-            id: msg.id,
-            content: msg.content,
-            type: msg.type,
-            createdAt: msg.createdAt,
-            isOwn,
+            id: newest.id,
+            content: newest.content,
+            type: newest.type,
+            createdAt: newest.createdAt,
+            isOwn: newestIsOwn,
           },
           unreadCount: isOwn ? c.unreadCount : c.unreadCount + 1,
         }

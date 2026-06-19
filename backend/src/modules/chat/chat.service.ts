@@ -47,6 +47,8 @@ export interface SendMessageInput {
   attachment?: AttachmentInput          // одиночное вложение (обратная совместимость)
   attachments?: AttachmentInput[]       // альбом: несколько вложений
   replyToId?: string
+  // Идемпотентный ключ от клиента: повтор с тем же ключом не создаёт дубль.
+  clientMessageId?: string
 }
 
 const MAX_ALBUM_ATTACHMENTS = 10
@@ -328,35 +330,65 @@ export async function sendMessage(
     input.type ??
     (attList.length > 1 ? 'ALBUM' : attList.length === 1 ? attachmentMessageType(attList[0]) : 'TEXT')
 
+  // Идемпотентность: если клиент передал clientMessageId и сообщение с такой
+  // парой (chatId, clientMessageId) уже есть — это повтор (ретрай после потери
+  // ответа). Возвращаем существующее сообщение, не создавая дубль.
+  if (input.clientMessageId) {
+    const dup = await prisma.message.findUnique({
+      where: { chatId_clientMessageId: { chatId, clientMessageId: input.clientMessageId } },
+      include: messageInclude,
+    })
+    if (dup) return serializeMessage(dup)
+  }
+
   const id = ulid()
-  const message = await prisma.message.create({
-    data: {
-      id,
-      chatId,
-      senderId,
-      content: input.content ?? null,
-      type: resolvedType,
-      replyToId: input.replyToId ?? null,
-      ...(attList.length
-        ? {
-            attachments: {
-              create: attList.map(a => ({
-                storageKey:   a.storageKey,
-                fileName:     a.fileName,
-                thumbnailKey: a.thumbnailKey,
-                mimeType:     a.mimeType,
-                sizeBytes:    BigInt(a.sizeBytes),
-                width:        a.width,
-                height:       a.height,
-                durationMs:   a.durationMs,
-                waveform:     a.waveform ?? undefined,
-              })),
-            },
-          }
-        : {}),
-    },
-    include: messageInclude,
-  })
+  let message
+  try {
+    message = await prisma.message.create({
+      data: {
+        id,
+        chatId,
+        senderId,
+        content: input.content ?? null,
+        type: resolvedType,
+        replyToId: input.replyToId ?? null,
+        clientMessageId: input.clientMessageId ?? null,
+        ...(attList.length
+          ? {
+              attachments: {
+                create: attList.map(a => ({
+                  storageKey:   a.storageKey,
+                  fileName:     a.fileName,
+                  thumbnailKey: a.thumbnailKey,
+                  mimeType:     a.mimeType,
+                  sizeBytes:    BigInt(a.sizeBytes),
+                  width:        a.width,
+                  height:       a.height,
+                  durationMs:   a.durationMs,
+                  waveform:     a.waveform ?? undefined,
+                })),
+              },
+            }
+          : {}),
+      },
+      include: messageInclude,
+    })
+  } catch (e) {
+    // Гонка двух параллельных ретраев с одним ключом: один выиграл вставку,
+    // второй получил unique-конфликт (P2002) — возвращаем уже созданное.
+    if (
+      input.clientMessageId &&
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      e.code === 'P2002'
+    ) {
+      const dup = await prisma.message.findUnique({
+        where: { chatId_clientMessageId: { chatId, clientMessageId: input.clientMessageId } },
+        include: messageInclude,
+      })
+      if (dup) return serializeMessage(dup)
+    }
+    throw e
+  }
 
   return serializeMessage(message)
 }
@@ -707,6 +739,7 @@ type MessageWithSender = {
   deletedAt: Date | null
   pinnedAt?: Date | null
   replyToId?: string | null
+  clientMessageId?: string | null
   replyTo?: {
     id: string
     content: string | null
@@ -758,6 +791,7 @@ export function serializeMessage(msg: MessageWithSender) {
     createdAt: msg.createdAt,
     editedAt: msg.editedAt,
     pinnedAt: msg.pinnedAt ?? null,
+    clientMessageId: msg.clientMessageId ?? null,
     replyTo: msg.replyTo
       ? {
           id: msg.replyTo.id,

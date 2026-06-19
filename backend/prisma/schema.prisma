@@ -321,6 +321,11 @@ model Message {
   deletedAt DateTime?
   pinnedAt  DateTime?                  // when this message was pinned in its chat
   replyToId String?                    // message this one replies to
+  // Идемпотентный ключ от клиента: уникален в паре с chatId. При повторной
+  // отправке (ретрай после потери ответа/сети) сервер возвращает уже созданное
+  // сообщение вместо создания дубля. null — для сообщений без ключа (системные,
+  // старые клиенты).
+  clientMessageId String?
 
   chat        Chat              @relation(fields: [chatId], references: [id], onDelete: Cascade)
   sender      User              @relation(fields: [senderId], references: [id])
@@ -329,6 +334,7 @@ model Message {
   replyTo     Message?          @relation("MessageReply", fields: [replyToId], references: [id], onDelete: SetNull)
   replies     Message[]         @relation("MessageReply")
 
+  @@unique([chatId, clientMessageId])   // идемпотентность отправки
   @@index([chatId, id])   // range scan for cursor pagination
   @@index([senderId])
   @@map("messages")
