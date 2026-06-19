@@ -105,6 +105,10 @@ export function SessionsPage() {
       setPwdError('Новый пароль должен быть не короче 8 символов')
       return
     }
+    if (newPassword.length > 128) {
+      setPwdError('Новый пароль не может быть длиннее 128 символов')
+      return
+    }
     if (newPassword !== confirmPassword) {
       setPwdError('Пароли не совпадают')
       return
@@ -302,19 +306,29 @@ export function SessionsPage() {
               value={currentPassword}
               onChange={e => setCurrentPassword(e.target.value)}
             />
-            <input
-              type="password"
-              className="input"
-              placeholder="Новый пароль"
-              autoComplete="new-password"
-              value={newPassword}
-              onChange={e => setNewPassword(e.target.value)}
-            />
+            <div className="relative">
+              <input
+                type="password"
+                className="input pr-14"
+                placeholder="Новый пароль"
+                autoComplete="new-password"
+                maxLength={128}
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+              />
+              {newPassword.length > 0 && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs tabular-nums pointer-events-none"
+                  style={{ color: newPassword.length > 120 ? (newPassword.length >= 128 ? '#f87171' : '#fbbf24') : 'var(--text-low)' }}>
+                  {newPassword.length}/128
+                </span>
+              )}
+            </div>
             <input
               type="password"
               className="input"
               placeholder="Повторите новый пароль"
               autoComplete="new-password"
+              maxLength={128}
               value={confirmPassword}
               onChange={e => setConfirmPassword(e.target.value)}
             />
@@ -323,7 +337,7 @@ export function SessionsPage() {
             <p className="text-xs mt-2" style={{ color: '#fca5a5' }}>{pwdError}</p>
           )}
           <p className="text-xs mt-2" style={{ color: 'var(--text-low)' }}>
-            После смены пароля все остальные устройства будут разлогинены. Минимум 8 символов.
+            После смены пароля все остальные устройства будут разлогинены. 8–128 символов.
           </p>
           <button
             onClick={handleChangePassword}

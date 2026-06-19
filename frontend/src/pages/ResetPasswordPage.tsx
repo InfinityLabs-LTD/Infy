@@ -40,6 +40,7 @@ export function ResetPasswordPage() {
     e.preventDefault()
     setError(null)
     if (password.length < 8) { setError(new Error('Пароль должен быть не короче 8 символов')); return }
+    if (password.length > 128) { setError(new Error('Пароль не может быть длиннее 128 символов')); return }
     if (password !== confirm) { setError(new Error('Пароли не совпадают')); return }
     setLoading(true)
     try {
@@ -136,6 +137,7 @@ export function ResetPasswordPage() {
                       autoComplete="new-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
+                      maxLength={128}
                       required
                     />
                   </div>
@@ -149,6 +151,7 @@ export function ResetPasswordPage() {
                       autoComplete="new-password"
                       value={confirm}
                       onChange={(e) => setConfirm(e.target.value)}
+                      maxLength={128}
                       required
                     />
                   </div>

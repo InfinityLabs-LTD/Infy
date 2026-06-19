@@ -24,6 +24,8 @@ export function RegisterPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (form.password.length < 8) { setError(new Error('Пароль должен быть не короче 8 символов')); return }
+    if (form.password.length > 128) { setError(new Error('Пароль не может быть длиннее 128 символов')); return }
     if (form.password !== form.passwordConfirm) { setError(new Error('Пароли не совпадают')); return }
     setLoading(true); setError(null)
     try {
@@ -107,9 +109,9 @@ export function RegisterPage() {
               <div className="relative">
                 <Lock size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/40" />
                 <input
-                  className="auth-input" type="password" placeholder="Пароль (мин. 8 символов)"
+                  className="auth-input" type="password" placeholder="Пароль (8–128 символов)"
                   autoComplete="new-password" value={form.password} onChange={set('password')}
-                  minLength={8} required
+                  minLength={8} maxLength={128} required
                 />
               </div>
 
@@ -117,7 +119,8 @@ export function RegisterPage() {
                 <ShieldCheck size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/40" />
                 <input
                   className="auth-input" type="password" placeholder="Повторите пароль"
-                  autoComplete="new-password" value={form.passwordConfirm} onChange={set('passwordConfirm')} required
+                  autoComplete="new-password" value={form.passwordConfirm} onChange={set('passwordConfirm')}
+                  maxLength={128} required
                 />
               </div>
 
