@@ -5,7 +5,7 @@ import Redis from 'ioredis'
 import { PrismaClient } from '@prisma/client'
 import { verifyAccessToken } from '../../lib/jwt.js'
 import { AppError } from '../../lib/errors.js'
-import { subscribeToChannel } from '../../lib/pubsub.js'
+import { subscribeToChannel, publishMessage } from '../../lib/pubsub.js'
 import { setOnline, setOffline, refreshPresence, isOnline, getOnlineUserIds } from '../../lib/presence.js'
 import { sendPush } from '../../lib/webpush.js'
 import * as ChatService from '../chat/chat.service.js'
@@ -304,9 +304,10 @@ export function createSocketServer(
           { content: content.trim(), type: (type as 'TEXT') ?? 'TEXT', clientMessageId },
         )
 
-        io.to(`chat:${chatId}`).emit('message_new', message)
-        pushToOfflineMembers(pubClient, prisma, message, userId).catch(() => {})
-        deliverToNewMembers(io, prisma, chatId, message).catch(() => {})
+        // Доставка — строго через Redis pub/sub (как REST-путь). Единая точка
+        // рассылки в подписчике делает broadcast/push/deliverToNewMembers
+        // кросс-инстансными и не зависящими от ретрансляции io.to адаптером.
+        await publishMessage(pubClient, 'chat:message', { event: 'message_new', data: message })
         ack?.({ ok: true, message })
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Error'

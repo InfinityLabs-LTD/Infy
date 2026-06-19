@@ -143,6 +143,34 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
     return { data: result }
   })
 
+  // GET /chats/:id/messages/after — forward-sync (messages strictly newer than `after`)
+  // Для залечивания разрыва после оффлайна/реконнекта.
+  app.get('/:id/messages/after', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'Get messages newer than a given id (forward sync)',
+      security: [{ bearerAuth: [] }],
+      params: {
+        type: 'object',
+        properties: { id: { type: 'string' } },
+      },
+      querystring: {
+        type: 'object',
+        required: ['after'],
+        properties: {
+          after: { type: 'string' },
+          limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+        },
+      },
+    },
+  }, async (request) => {
+    const { id } = request.params as { id: string }
+    const { after, limit } = request.query as { after: string; limit?: number }
+    const userId = BigInt(request.user.sub)
+    const result = await ChatService.getMessagesAfter(app.prisma, id, userId, after, limit ?? 50)
+    return { data: result }
+  })
+
   // POST /chats/:id/messages — send message via REST (also publishes to Redis)
   app.post('/:id/messages', {
     schema: {

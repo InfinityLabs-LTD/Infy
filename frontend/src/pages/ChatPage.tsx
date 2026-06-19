@@ -120,7 +120,7 @@ export function ChatPage() {
   const myUser = useAuthStore(s => s.user)
   const myUsername = myUser?.username
 
-  const { chats, messages, nextCursor, socketReady, setMessages, prependMessages, setTyping, upsertChat, resetUnread, updateMessage, removeChat, addMessage, replaceMessage, setMessageFailed, setMessageStatus, removeMessage } = useChatStore()
+  const { chats, messages, nextCursor, socketReady, setMessages, mergeForward, prependMessages, setTyping, upsertChat, resetUnread, updateMessage, removeChat, addMessage, replaceMessage, setMessageFailed, setMessageStatus, removeMessage, setActiveChat } = useChatStore()
 
   // ── Resolve partnerId → chatId ──────────────────────────────
   const [chatId, setChatId] = useState<string | null>(() => {
@@ -201,7 +201,15 @@ export function ChatPage() {
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const topSentinelRef = useRef<HTMLDivElement>(null)
   const prevMsgLengthRef = useRef(0)
+  // Прижат ли вьюпорт к низу: новое сообщение автоскроллит вниз ТОЛЬКО если да,
+  // иначе показываем пилюлю «↓ новые», не выдёргивая пользователя из чтения.
+  const atBottomRef = useRef(true)
+  const [showNewPill, setShowNewPill] = useState(false)
+  // Сохранение позиции при догрузке старых сообщений вверх (prepend): фиксируем
+  // scrollHeight до вставки, восстанавливаем после, чтобы список не «прыгал».
+  const restoreScrollRef = useRef<number | null>(null)
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isTypingRef = useRef(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -223,6 +231,12 @@ export function ChatPage() {
   const voiceRecorder = useMediaRecorder()
   const isRecording = voiceRecorder.state === 'recording'
 
+  // Отмечаем открытый чат активным (для подавления unread в addMessage).
+  useEffect(() => {
+    setActiveChat(chatId)
+    return () => setActiveChat(null)
+  }, [chatId])
+
   // Load messages once chatId is known; mark read after load.
   // Если в сторе уже есть сообщения для этого чата (вернулись назад или
   // переключились), показываем их мгновенно и тихо обновляем в фоне.
@@ -233,7 +247,10 @@ export function ChatPage() {
     if (!hasCached) setLoading(true)
     chatApi.getMessages(chatId)
       .then(r => {
-        setMessages(chatId, r.data.data.messages, r.data.data.nextCursor)
+        // Холодное открытие: серверное окно — источник истины. Но если в сторе
+        // уже была подгруженная вверх история (вернулись в чат), объединяем,
+        // чтобы не схлопнуть её до последних 50.
+        setMessages(chatId, r.data.data.messages, r.data.data.nextCursor, hasCached ? 'merge' : 'replace')
         const msgs = r.data.data.messages
         const lastId = msgs.at(-1)?.id
         if (lastId) {
@@ -244,32 +261,59 @@ export function ChatPage() {
       .finally(() => setLoading(false))
   }, [chatId])
 
-  // Досинхронизация при возврате в приложение (из уведомления / из фона).
-  // Пока вкладка свёрнута, сообщение по сокету могло не дойти; при фокусе
-  // дочитываем актуальную историю и помечаем прочитанным — иначе нового
-  // сообщения не видно, пока не перезайти в чат.
-  useEffect(() => {
+  // Досинхронизация при возврате в приложение (из уведомления / из фона) и при
+  // реконнекте сокета. Пока вкладка свёрнута/сеть лежала, `message_new` могли не
+  // дойти; залечиваем разрыв forward-синком: дочитываем ВСЁ, что новее последнего
+  // известного реального сообщения, порциями — без дыр и без схлопывания истории.
+  const resyncForward = useRef<() => void>(() => {})
+  resyncForward.current = () => {
     if (!chatId) return
-    const resync = () => {
-      if (document.hidden) return
+    const list = useChatStore.getState().messages[chatId] ?? []
+    const lastReal = [...list].reverse().find(m => !m.id.startsWith('temp-'))
+    if (!lastReal) {
+      // Истории ещё нет — обычная загрузка последнего окна.
       chatApi.getMessages(chatId)
+        .then(r => setMessages(chatId, r.data.data.messages, r.data.data.nextCursor, 'merge'))
+        .catch(() => { /* не критично */ })
+      return
+    }
+    const drain = (after: string) => {
+      chatApi.getMessagesAfter(chatId, after)
         .then(r => {
-          setMessages(chatId, r.data.data.messages, r.data.data.nextCursor)
-          const lastId = r.data.data.messages.at(-1)?.id
-          if (lastId) {
-            getActiveSocket()?.emit('mark_read', { chatId, messageId: lastId })
-            resetUnread(chatId)
+          const { messages: batch, nextAfter, hasMoreForward } = r.data.data
+          if (batch.length) mergeForward(chatId, batch)
+          if (hasMoreForward && nextAfter) {
+            drain(nextAfter)  // ещё есть — дочитываем следующую порцию
+          } else {
+            const lastId = (useChatStore.getState().messages[chatId] ?? []).at(-1)?.id
+            if (lastId) {
+              getActiveSocket()?.emit('mark_read', { chatId, messageId: lastId })
+              resetUnread(chatId)
+            }
           }
         })
         .catch(() => { /* не критично */ })
     }
-    document.addEventListener('visibilitychange', resync)
-    window.addEventListener('focus', resync)
+    drain(lastReal.id)
+  }
+
+  useEffect(() => {
+    if (!chatId) return
+    const onVisibility = () => { if (!document.hidden) resyncForward.current() }
+    const onFocus = () => resyncForward.current()
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('focus', onFocus)
     return () => {
-      document.removeEventListener('visibilitychange', resync)
-      window.removeEventListener('focus', resync)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('focus', onFocus)
     }
   }, [chatId])
+
+  // Реконнект сокета — тоже залечиваем разрыв (события за время простоя потеряны).
+  useEffect(() => {
+    if (chatId && socketReady) resyncForward.current()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socketReady, chatId])
 
   // Сбрасываем выбранные файлы при смене чата и освобождаем object URL'ы
   useEffect(() => {
@@ -396,6 +440,25 @@ export function ChatPage() {
     return () => { socket.off('typing', handler) }
   }, [chatId, socketReady])
 
+  // Порог «считаем, что пользователь у нижней границы» (px).
+  const BOTTOM_THRESHOLD = 120
+
+  // Отслеживаем позицию скролла: прижат ли вьюпорт к низу. Снимаем пилюлю,
+  // когда пользователь сам долистал донизу.
+  function onScroll() {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_THRESHOLD
+    atBottomRef.current = atBottom
+    if (atBottom && showNewPill) setShowNewPill(false)
+  }
+
+  function scrollToBottom(behavior: ScrollBehavior = 'smooth') {
+    bottomRef.current?.scrollIntoView({ behavior })
+    atBottomRef.current = true
+    setShowNewPill(false)
+  }
+
   // Instant scroll to bottom after initial load (or chat switch)
   useEffect(() => {
     if (loading) return
@@ -404,30 +467,77 @@ export function ChatPage() {
       requestAnimationFrame(() => {
         const el = scrollContainerRef.current
         if (el) el.scrollTop = el.scrollHeight
+        atBottomRef.current = true
         prevMsgLengthRef.current = chatMessages.length
       })
     })
     return () => cancelAnimationFrame(raf)
   }, [loading, chatId])
 
-  // Smooth scroll only for a single newly appended message (incoming/sent)
+  // Реакция на изменение количества сообщений.
   useEffect(() => {
     if (loading) return
     const prev = prevMsgLengthRef.current
     prevMsgLengthRef.current = chatMessages.length
-    if (prev > 0 && chatMessages.length === prev + 1) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+
+    // Догрузка старых сообщений вверх (prepend) — восстанавливаем позицию, чтобы
+    // список не прыгал, и НЕ скроллим вниз.
+    if (restoreScrollRef.current != null) {
+      const el = scrollContainerRef.current
+      if (el) {
+        // После вставки сверху scrollHeight вырос — компенсируем дельту.
+        requestAnimationFrame(() => {
+          el.scrollTop = el.scrollHeight - restoreScrollRef.current!
+          restoreScrollRef.current = null
+        })
+      } else {
+        restoreScrollRef.current = null
+      }
+      return
+    }
+
+    // Появились новые сообщения снизу.
+    if (chatMessages.length > prev && prev > 0) {
+      const last = chatMessages.at(-1)
+      const myId = useAuthStore.getState().user?.id
+      const isOwn = last?.sender.id === myId
+      // Своё сообщение или пользователь у низа — плавно доскроллим. Иначе —
+      // показываем пилюлю, не выдёргивая из чтения верхней части.
+      if (isOwn || atBottomRef.current) {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+        atBottomRef.current = true
+      } else {
+        setShowNewPill(true)
+      }
     }
   }, [chatMessages.length])
 
   async function loadMore() {
     if (!chatId || !cursor || loadingMore) return
     setLoadingMore(true)
+    const el = scrollContainerRef.current
+    // Запоминаем «расстояние от низа» до вставки — оно инвариантно к добавлению
+    // контента сверху, поэтому по нему точно восстановим позицию.
+    if (el) restoreScrollRef.current = el.scrollHeight - el.scrollTop
     try {
       const r = await chatApi.getMessages(chatId, cursor)
       prependMessages(chatId, r.data.data.messages, r.data.data.nextCursor)
     } finally { setLoadingMore(false) }
   }
+
+  // FIX-6: бесконечная догрузка вверх — верхний сентинель в зоне видимости.
+  useEffect(() => {
+    const sentinel = topSentinelRef.current
+    const root = scrollContainerRef.current
+    if (!sentinel || !root || !cursor) return
+    const obs = new IntersectionObserver(
+      (entries) => { if (entries[0]?.isIntersecting) loadMore() },
+      { root, rootMargin: '200px 0px 0px 0px' },
+    )
+    obs.observe(sentinel)
+    return () => obs.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cursor, chatId, loadingMore])
 
   // Создаёт оптимистичный плейсхолдер текстового сообщения (pending: true),
   // регистрирует задание в персистентной очереди (outbox) и запускает отправку.
@@ -1293,11 +1403,13 @@ export function ChatPage() {
       )}
 
       {/* ── Messages ── */}
-      <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2 py-2 chat-bg">
+      <div ref={scrollContainerRef} onScroll={onScroll} className="relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2 py-2 chat-bg">
         {resolving ? (
           <div className="flex justify-center py-12"><Spinner size={28} /></div>
         ) : (
           <div className="mx-auto w-full max-w-[880px]">
+            {/* Верхний сентинель — триггер бесконечной догрузки старых сообщений */}
+            {cursor && <div ref={topSentinelRef} aria-hidden style={{ height: 1 }} />}
             {cursor && (
               <div className="flex justify-center mb-2">
                 <button onClick={loadMore} disabled={loadingMore}
@@ -1387,6 +1499,21 @@ export function ChatPage() {
             )}
             <div ref={bottomRef} />
           </div>
+        )}
+
+        {/* Пилюля «↓ новые сообщения» — показываем, когда пришло новое, а
+            пользователь читает выше (не выдёргиваем вьюпорт вниз). */}
+        {showNewPill && (
+          <button
+            onClick={() => scrollToBottom('smooth')}
+            className="absolute left-1/2 -translate-x-1/2 bottom-3 z-20 flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium text-white shadow-lg active:scale-95 transition-transform"
+            style={{ background: 'var(--grad-own)', boxShadow: 'var(--glow-primary)' }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+            Новые сообщения
+          </button>
         )}
       </div>
 

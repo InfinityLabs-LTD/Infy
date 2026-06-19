@@ -51,6 +51,14 @@ export const chatApi = {
       { params: { cursor, limit } },
     ),
 
+  // Forward-sync: сообщения строго новее `after` (залечивание разрыва после
+  // оффлайна/реконнекта). hasMoreForward=true → есть ещё, дочитываем по nextAfter.
+  getMessagesAfter: (chatId: string, after: string, limit = 50) =>
+    api.get<{ data: { messages: Message[]; nextAfter: string | null; hasMoreForward: boolean } }>(
+      `/chats/${chatId}/messages/after`,
+      { params: { after, limit } },
+    ),
+
   sendMessage: (chatId: string, content: string, replyToId?: string, clientMessageId?: string) =>
     api.post<{ data: Message }>(`/chats/${chatId}/messages`, {
       content, replyToId, ...(clientMessageId ? { clientMessageId } : {}),

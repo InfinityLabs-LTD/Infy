@@ -108,6 +108,30 @@ function insertOrdered(list: Message[], msg: Message): Message[] {
   return [...list.slice(0, i), msg, ...list.slice(i)]
 }
 
+// Объединяет два набора сообщений без потерь и дублей, восстанавливая порядок:
+// реальные — по возрастанию id (ULID монотонен), оптимистичные плейсхолдеры
+// (temp-…) — всегда в хвосте в порядке их createdAt. При совпадении id выигрывает
+// `incoming` (свежая версия с сервера: реакции/правки/вложения). Используется при
+// forward-sync и неразрушающем ресинке, чтобы НЕ схлопывать уже подгруженную
+// вверх историю до серверного окна.
+function mergeMessages(base: Message[], incoming: Message[]): Message[] {
+  const byId = new Map<string, Message>()
+  for (const m of base) byId.set(m.id, m)
+  for (const m of incoming) byId.set(m.id, m)  // incoming перекрывает base
+
+  const all = [...byId.values()]
+  const real = all
+    .filter((m) => !m.id.startsWith('temp-'))
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  // Реконсиляция оптимистичных плейсхолдеров: если реальное сообщение с тем же
+  // clientMessageId уже пришло (forward-sync), временный дубль отбрасываем.
+  const realClientIds = new Set(real.map((m) => m.clientMessageId).filter(Boolean) as string[])
+  const temps = all
+    .filter((m) => m.id.startsWith('temp-') && !(m.clientMessageId && realClientIds.has(m.clientMessageId)))
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+  return [...real, ...temps]
+}
+
 interface TypingState {
   [chatId: string]: Set<string>   // set of usernames typing
 }
@@ -120,12 +144,23 @@ interface ChatState {
   lastSeenMap: Record<string, string>   // userId → ISO string
   typing: TypingState
   socketReady: boolean
+  // Открытый сейчас чат — чтобы addMessage не накручивал unread для активного
+  // диалога (его и так помечают прочитанным). null, когда чат не открыт.
+  activeChatId: string | null
 
   setChats: (chats: Chat[]) => void
   upsertChat: (chat: Chat) => void
   removeChat: (chatId: string) => void
   setSocketReady: (v: boolean) => void
-  setMessages: (chatId: string, messages: Message[], nextCursor: string | null) => void
+  setActiveChat: (chatId: string | null) => void
+  // mode:
+  //   'replace' — холодное открытие: серверное окно — источник истины (+ хвост
+  //               неотправленных плейсхолдеров).
+  //   'merge'   — ресинк по фокусу/реконнекту: объединяем с уже загруженным,
+  //               не теряя подгруженную вверх историю (cursor не трогаем).
+  setMessages: (chatId: string, messages: Message[], nextCursor: string | null, mode?: 'replace' | 'merge') => void
+  // Forward-sync: вмерживает порцию «новее, чем …» без потерь и дублей.
+  mergeForward: (chatId: string, messages: Message[]) => void
   prependMessages: (chatId: string, messages: Message[], nextCursor: string | null) => void
   addMessage: (msg: Message) => void
   updateMessage: (msg: Message) => void
@@ -161,9 +196,11 @@ export const useChatStore = create<ChatState>((set) => ({
   lastSeenMap: {},
   typing: {},
   socketReady: false,
+  activeChatId: null,
 
   setChats: (chats) => set({ chats: sortChats(chats) }),
   setSocketReady: (v) => set({ socketReady: v }),
+  setActiveChat: (chatId) => set({ activeChatId: chatId }),
 
   upsertChat: (chat) =>
     set((s) => {
@@ -192,27 +229,42 @@ export const useChatStore = create<ChatState>((set) => ({
       }
     }),
 
-  setMessages: (chatId, messages, nextCursor) =>
+  setMessages: (chatId, messages, nextCursor, mode = 'replace') =>
     set((s) => {
-      // Неразрушающая замена истории: серверный список — источник истины для
-      // подтверждённых сообщений, но локальные неотправленные плейсхолдеры
-      // (pending/failed, ещё не существующие на сервере) сохраняем в хвосте —
-      // иначе ресинк при возврате фокуса стирал бы их (потеря сообщения).
       const prev = s.messages[chatId] ?? []
       const serverIds = new Set(messages.map((m) => m.id))
       const serverClientIds = new Set(
         messages.map((m) => m.clientMessageId).filter(Boolean) as string[],
       )
+      // Локальные неотправленные плейсхолдеры (pending/failed, которых ещё нет
+      // на сервере) сохраняем всегда — иначе ресинк стирал бы их (потеря).
       const localUnsent = prev.filter(
         (m) =>
           (m.pending || m.failed) &&
           !serverIds.has(m.id) &&
           !(m.clientMessageId && serverClientIds.has(m.clientMessageId)),
       )
+
+      if (mode === 'merge') {
+        // Ресинк по фокусу/реконнекту: НЕ схлопываем уже подгруженную вверх
+        // историю до серверного окна — объединяем по id без потерь и дублей.
+        // nextCursor (граница «загрузить ранее») сохраняем прежним.
+        const merged = mergeMessages(prev, messages)
+        return { messages: { ...s.messages, [chatId]: merged } }
+      }
+
+      // 'replace' — холодное открытие: серверное окно как есть + хвост unsent.
       return {
         messages: { ...s.messages, [chatId]: [...messages, ...localUnsent] },
         nextCursor: { ...s.nextCursor, [chatId]: nextCursor },
       }
+    }),
+
+  mergeForward: (chatId, messages) =>
+    set((s) => {
+      if (messages.length === 0) return s
+      const prev = s.messages[chatId] ?? []
+      return { messages: { ...s.messages, [chatId]: mergeMessages(prev, messages) } }
     }),
 
   prependMessages: (chatId, messages, nextCursor) =>
@@ -260,6 +312,10 @@ export const useChatStore = create<ChatState>((set) => ({
       const newest = updated[updated.length - 1] ?? msg
       const newestIsOwn = newest.sender.id === myId
 
+      // Не накручиваем unread для своего сообщения и для открытого сейчас чата
+      // (он и так помечается прочитанным эффектом в ChatPage) — иначе бейдж
+      // дребезжит при быстром потоке.
+      const isActive = s.activeChatId === msg.chatId
       const chats = s.chats.map((c) => {
         if (c.id !== msg.chatId) return c
         return {
@@ -271,7 +327,7 @@ export const useChatStore = create<ChatState>((set) => ({
             createdAt: newest.createdAt,
             isOwn: newestIsOwn,
           },
-          unreadCount: isOwn ? c.unreadCount : c.unreadCount + 1,
+          unreadCount: isOwn || isActive ? c.unreadCount : c.unreadCount + 1,
         }
       })
       return {
@@ -328,8 +384,12 @@ export const useChatStore = create<ChatState>((set) => ({
           },
         }
       })
+      // Реальное сообщение могло оказаться не на своём месте по времени (temp
+      // держался в хвосте, а за это время пришли чужие сообщения). Убираем temp
+      // и вставляем real в позицию по ULID, восстанавливая хронологию.
+      const withoutTemp = existing.filter((m) => m.id !== tempId)
       return {
-        messages: { ...s.messages, [chatId]: existing.map((m) => (m.id === tempId ? msg : m)) },
+        messages: { ...s.messages, [chatId]: insertOrdered(withoutTemp, msg) },
         chats,
       }
     }),

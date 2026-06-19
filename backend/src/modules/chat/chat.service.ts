@@ -231,6 +231,45 @@ export async function getMessages(
   }
 }
 
+// Forward-sync: вернуть сообщения СТРОГО НОВЕЕ, чем `after` (по ULID-порядку).
+// Нужен для залечивания разрыва после оффлайна/реконнекта: пока сокет лежал,
+// `message_new` не доходили, и обычный getMessages (последние N) может оставить
+// дыру между «последним известным» и «последними N». Клиент дочитывает forward
+// порциями, пока hasMoreForward=false (окна сомкнулись без потерь).
+export async function getMessagesAfter(
+  prisma: PrismaClient,
+  chatId: string,
+  userId: bigint,
+  after: string,
+  limit = 50,
+) {
+  const member = await prisma.chatMember.findUnique({
+    where: { chatId_userId: { chatId, userId } },
+  })
+  if (!member) throw new AppError('CHAT_NOT_MEMBER', 'You are not a member of this chat', 403)
+
+  const messages = await prisma.message.findMany({
+    where: {
+      chatId,
+      deletedAt: null,
+      id: { gt: after },
+    },
+    include: messageInclude,
+    orderBy: { id: 'asc' },
+    take: limit + 1,
+  })
+
+  const hasMoreForward = messages.length > limit
+  if (hasMoreForward) messages.pop()
+
+  return {
+    messages: messages.map(serializeMessage),
+    // Курсор для следующей порции вперёд — id последнего отданного сообщения.
+    nextAfter: hasMoreForward ? messages.at(-1)?.id ?? null : null,
+    hasMoreForward,
+  }
+}
+
 // Поиск по тексту сообщений во всех чатах пользователя.
 // Возвращает совпавшие сообщения вместе с партнёром по диалогу, чтобы фронт
 // мог показать «в каком чате» и перейти в него.
