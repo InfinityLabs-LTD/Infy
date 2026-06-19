@@ -788,7 +788,42 @@ export function serializeMessage(msg: MessageWithSender) {
       durationMs: a.durationMs,
       waveform: a.waveform,
       transcript: a.transcript ?? null,
+      listenedAt: a.listenedAt ?? null,
     })),
     reactions: Object.values(reactionsMap),
   }
+}
+
+// Отмечает голосовое сообщение / кружок прослушанным собеседником.
+// Вызывается только получателем (не отправителем). Idempotent.
+export async function markVoiceListened(
+  prisma: PrismaClient,
+  messageId: string,
+  userId: bigint,
+): Promise<{ chatId: string; messageId: string; listenedAt: string }> {
+  const msg = await prisma.message.findUnique({
+    where: { id: messageId },
+    include: { chat: { include: { members: true } }, attachments: true },
+  })
+  if (!msg || msg.deletedAt) throw new AppError('MESSAGE_NOT_FOUND', 'Message not found', 404)
+  if (!msg.chat.members.some(m => m.userId === userId)) {
+    throw new AppError('CHAT_NOT_MEMBER', 'Not a member', 403)
+  }
+  if (msg.type !== 'AUDIO' && msg.type !== 'CIRCLE_VIDEO') {
+    throw new AppError('TRANSCRIBE_UNSUPPORTED', 'Не голосовое сообщение / кружок', 400)
+  }
+  // Отправитель не должен сам себе ставить listenedAt
+  if (msg.senderId === userId) {
+    throw new AppError('MESSAGE_NOT_FOUND', 'Нельзя отметить собственное сообщение прослушанным', 400)
+  }
+
+  const att = msg.attachments[0]
+  if (!att) throw new AppError('MESSAGE_NOT_FOUND', 'Вложение не найдено', 404)
+
+  const now = att.listenedAt ?? new Date()
+  if (!att.listenedAt) {
+    await prisma.attachment.update({ where: { id: att.id }, data: { listenedAt: now } })
+  }
+
+  return { chatId: msg.chatId, messageId, listenedAt: now.toISOString() }
 }

@@ -5,26 +5,48 @@ interface Props {
   durationMs?: number | null
   waveform?: number[] | null
   isOwn: boolean
+  listenedAt?: string | null
+  onListened?: () => void
+  onEnded?: () => void
 }
 
 const SPEEDS = [1, 1.5, 2] as const
 
-export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
+export function AudioMessage({ url, durationMs, waveform, isOwn, listenedAt, onListened, onEnded }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [elapsed, setElapsed] = useState(0)
   const [speedIdx, setSpeedIdx] = useState(0)
+  const notifiedRef = useRef(false)
+  const onListenedRef = useRef(onListened)
+  const onEndedRef = useRef(onEnded)
+  useEffect(() => { onListenedRef.current = onListened }, [onListened])
+  useEffect(() => { onEndedRef.current = onEnded }, [onEnded])
 
   const speed = SPEEDS[speedIdx]
   const totalSec = durationMs ? Math.round(durationMs / 1000) : 0
+
+  // Считаем «непрослушанным» только если нет listenedAt.
+  // Для своих сообщений точка показывается пока собеседник не прослушал,
+  // для чужих — пока я сам не прослушал.
+  const unlistened = !listenedAt
 
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
     const onPlay = () => setPlaying(true)
     const onPause = () => setPlaying(false)
-    const onEnded = () => { setPlaying(false); setProgress(0); setElapsed(0) }
+    const handleEnded = () => {
+      setPlaying(false)
+      setProgress(0)
+      setElapsed(0)
+      if (!notifiedRef.current) {
+        notifiedRef.current = true
+        onListened?.()
+      }
+      onEnded?.()
+    }
     const onTimeUpdate = () => {
       if (!audio.duration) return
       setProgress(audio.currentTime / audio.duration)
@@ -32,19 +54,24 @@ export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
     }
     audio.addEventListener('play', onPlay)
     audio.addEventListener('pause', onPause)
-    audio.addEventListener('ended', onEnded)
+    audio.addEventListener('ended', handleEnded)
     audio.addEventListener('timeupdate', onTimeUpdate)
     return () => {
       audio.removeEventListener('play', onPlay)
       audio.removeEventListener('pause', onPause)
-      audio.removeEventListener('ended', onEnded)
+      audio.removeEventListener('ended', handleEnded)
       audio.removeEventListener('timeupdate', onTimeUpdate)
     }
-  }, [])
+  }, [onListened, onEnded])
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.playbackRate = speed
   }, [speed])
+
+  // Сброс notifiedRef если listenedAt появился снаружи
+  useEffect(() => {
+    if (listenedAt) notifiedRef.current = true
+  }, [listenedAt])
 
   function toggle() {
     const audio = audioRef.current
@@ -74,21 +101,30 @@ export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
     <div className="flex items-center gap-2.5 w-full" style={{ maxWidth: '100%' }}>
       <audio ref={audioRef} src={url} preload="metadata" />
 
-      <button
-        onClick={toggle}
-        className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-colors"
-        style={{ background: isOwn ? 'rgba(255,255,255,0.2)' : 'rgba(168,85,247,0.18)', color: isOwn ? 'white' : '#A855F7' }}
-      >
-        {playing ? (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
-          </svg>
-        ) : (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <polygon points="5,3 19,12 5,21"/>
-          </svg>
+      <div className="relative shrink-0">
+        <button
+          data-voice-play
+          onClick={toggle}
+          className="w-9 h-9 rounded-full flex items-center justify-center transition-colors"
+          style={{ background: isOwn ? 'rgba(255,255,255,0.2)' : 'rgba(168,85,247,0.18)', color: isOwn ? 'white' : '#A855F7' }}
+        >
+          {playing ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5,3 19,12 5,21"/>
+            </svg>
+          )}
+        </button>
+        {unlistened && (
+          <span
+            className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-[var(--bg,#0a0d1a)]"
+            style={{ background: '#A855F7' }}
+          />
         )}
-      </button>
+      </div>
 
       <div className="flex-1 min-w-0 flex flex-col gap-1">
         {/* Waveform */}
@@ -135,6 +171,15 @@ export function AudioMessage({ url, durationMs, waveform, isOwn }: Props) {
       </div>
     </div>
   )
+}
+
+export function playAudioMessage(url: string): Promise<void> {
+  return new Promise((resolve) => {
+    const audio = new Audio(url)
+    audio.addEventListener('ended', () => resolve())
+    audio.addEventListener('error', () => resolve())
+    audio.play().catch(() => resolve())
+  })
 }
 
 function formatSec(s: number): string {

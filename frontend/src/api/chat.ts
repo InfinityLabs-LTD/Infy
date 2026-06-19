@@ -90,6 +90,9 @@ export const chatApi = {
   transcribe: (messageId: string) =>
     api.post<{ data: Message }>(`/chats/messages/${messageId}/transcribe`),
 
+  listenVoice: (messageId: string) =>
+    api.post<{ data: { chatId: string; messageId: string; listenedAt: string } }>(`/chats/messages/${messageId}/listen`),
+
   getPinned: (chatId: string) =>
     api.get<{ data: Message | null }>(`/chats/${chatId}/pinned`),
 }

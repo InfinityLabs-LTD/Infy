@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Message, MessageAttachment } from '@/store/chat'
@@ -116,6 +116,7 @@ interface Props {
   onReactError?: () => void
   onJumpTo?: (msgId: string) => void
   onRetry?: (msg: Message) => void
+  onVoiceEnded?: (msgId: string) => void
 }
 
 // Каскадные радиусы группы: внешние углы 20px, примыкающие и «хвост» — 6px.
@@ -131,10 +132,21 @@ function bubbleRadius(isOwn: boolean, pos: GroupPos): string {
   return `${tl} ${R} ${R} ${r}`
 }
 
-export function MessageBubble({ message, showSenderName, groupPos = 'single', partnerLastReadMessageId, partnerReadAt, onReply, onEdit, onReactError, onJumpTo, onRetry }: Props) {
+export function MessageBubble({ message, showSenderName, groupPos = 'single', partnerLastReadMessageId, partnerReadAt, onReply, onEdit, onReactError, onJumpTo, onRetry, onVoiceEnded }: Props) {
   const myId = useAuthStore((s) => s.user?.id)
   const isOwn = message.sender.id === myId
-  const { updateMessage, removeMessage } = useChatStore()
+  const { updateMessage, removeMessage, updateAttachmentListened } = useChatStore()
+
+  const handleVoiceListened = useCallback(() => {
+    if (isOwn) return
+    chatApi.listenVoice(message.id).then(r => {
+      updateAttachmentListened(message.chatId, message.id, r.data.data.listenedAt)
+    }).catch(() => {})
+  }, [isOwn, message.id, message.chatId, updateAttachmentListened])
+
+  const handleVoiceEnded = useCallback(() => {
+    onVoiceEnded?.(message.id)
+  }, [message.id, onVoiceEnded])
 
   const [showMenu, setShowMenu] = useState(false)
   const bubbleRef = useRef<HTMLDivElement>(null)
@@ -332,6 +344,9 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
         url={mediaUrl(att.publicUrl, att.storageKey)}
         thumbnailUrl={att.thumbnailKey ? mediaUrl(null, att.thumbnailKey) : null}
         durationMs={att.durationMs}
+        listenedAt={att.listenedAt}
+        onListened={handleVoiceListened}
+        onEnded={handleVoiceEnded}
       />
       <TranscriptButton message={message} isOwn={isOwn} />
       {reactions.length > 0 && <ReactionBar reactions={reactions} myId={myId} onReact={handleReact} />}
@@ -385,6 +400,9 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
                   durationMs={att.durationMs}
                   waveform={att.waveform as number[] | null}
                   isOwn={isOwn}
+                  listenedAt={att.listenedAt}
+                  onListened={handleVoiceListened}
+                  onEnded={handleVoiceEnded}
                 />
               </AudioWithTranscript>
             )}

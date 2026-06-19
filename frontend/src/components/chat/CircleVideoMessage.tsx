@@ -1,22 +1,31 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface Props {
   url: string
   thumbnailUrl?: string | null
   durationMs?: number | null
   mirrored?: boolean
+  listenedAt?: string | null
+  onListened?: () => void
+  onEnded?: () => void
 }
 
 const SPEEDS = [1, 1.5, 2] as const
 
-export function CircleVideoMessage({ url, thumbnailUrl, durationMs, mirrored = true }: Props) {
+export function CircleVideoMessage({ url, thumbnailUrl, durationMs, mirrored = true, listenedAt, onListened, onEnded }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [speedIdx, setSpeedIdx] = useState(0)
+  const notifiedRef = useRef(false)
   const SIZE = 180
 
   const speed = SPEEDS[speedIdx]
+  const unlistened = !listenedAt
+
+  useEffect(() => {
+    if (listenedAt) notifiedRef.current = true
+  }, [listenedAt])
 
   function toggle() {
     const v = videoRef.current
@@ -31,11 +40,16 @@ export function CircleVideoMessage({ url, thumbnailUrl, durationMs, mirrored = t
     setProgress(v.currentTime / v.duration)
   }
 
-  function onEnded() {
+  function handleEnded() {
     setPlaying(false)
     setProgress(0)
     const v = videoRef.current
     if (v) v.currentTime = 0
+    if (!notifiedRef.current) {
+      notifiedRef.current = true
+      onListened?.()
+    }
+    onEnded?.()
   }
 
   function cycleSpeed(e: React.MouseEvent) {
@@ -50,59 +64,70 @@ export function CircleVideoMessage({ url, thumbnailUrl, durationMs, mirrored = t
   const strokeDash = circumference * progress
 
   return (
-    <div
-      className="relative cursor-pointer select-none"
-      style={{ width: SIZE, height: SIZE }}
-      onClick={toggle}
-    >
-      <video
-        ref={videoRef}
-        src={url}
-        poster={thumbnailUrl ?? undefined}
-        playsInline
-        preload="metadata"
-        onTimeUpdate={onTimeUpdate}
-        onEnded={onEnded}
-        className="absolute inset-0 w-full h-full object-cover"
-        style={{ borderRadius: '50%', transform: mirrored ? 'scaleX(-1)' : 'none' }}
-      />
+    <div className="relative" style={{ width: SIZE, height: SIZE }}>
+      <div
+        data-voice-play
+        className="relative cursor-pointer select-none"
+        style={{ width: SIZE, height: SIZE }}
+        onClick={toggle}
+      >
+        <video
+          ref={videoRef}
+          src={url}
+          poster={thumbnailUrl ?? undefined}
+          playsInline
+          preload="metadata"
+          onTimeUpdate={onTimeUpdate}
+          onEnded={handleEnded}
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ borderRadius: '50%', transform: mirrored ? 'scaleX(-1)' : 'none' }}
+        />
 
-      {/* Progress ring */}
-      {playing && (
-        <svg className="absolute inset-0 -rotate-90" width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
-          <circle cx={SIZE/2} cy={SIZE/2} r={radius} fill="none"
-            stroke="white" strokeWidth="3" strokeOpacity="0.5"
-            strokeDasharray={circumference}
-            strokeDashoffset={circumference - strokeDash}
-            strokeLinecap="round"
-          />
-        </svg>
-      )}
+        {/* Progress ring */}
+        {playing && (
+          <svg className="absolute inset-0 -rotate-90" width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
+            <circle cx={SIZE/2} cy={SIZE/2} r={radius} fill="none"
+              stroke="white" strokeWidth="3" strokeOpacity="0.5"
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference - strokeDash}
+              strokeLinecap="round"
+            />
+          </svg>
+        )}
 
-      {/* Speed button while playing */}
-      {playing && (
-        <button
-          onClick={cycleSpeed}
-          className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs font-bold px-2 py-0.5 rounded-full"
-          style={{ background: 'rgba(0,0,0,0.55)', color: 'white', backdropFilter: 'blur(4px)' }}>
-          {speed}x
-        </button>
-      )}
+        {/* Speed button while playing */}
+        {playing && (
+          <button
+            onClick={cycleSpeed}
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 text-xs font-bold px-2 py-0.5 rounded-full"
+            style={{ background: 'rgba(0,0,0,0.55)', color: 'white', backdropFilter: 'blur(4px)' }}>
+            {speed}x
+          </button>
+        )}
 
-      {/* Play overlay */}
-      {!playing && (
-        <div className="absolute inset-0 rounded-full flex items-center justify-center bg-black/20">
-          <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-              <polygon points="5,3 19,12 5,21"/>
-            </svg>
+        {/* Play overlay */}
+        {!playing && (
+          <div className="absolute inset-0 rounded-full flex items-center justify-center bg-black/20">
+            <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                <polygon points="5,3 19,12 5,21"/>
+              </svg>
+            </div>
+            {durationMs && (
+              <span className="absolute bottom-3 right-3 text-xs text-white bg-black/50 px-1.5 py-0.5 rounded">
+                {formatDuration(durationMs)}
+              </span>
+            )}
           </div>
-          {durationMs && (
-            <span className="absolute bottom-3 right-3 text-xs text-white bg-black/50 px-1.5 py-0.5 rounded">
-              {formatDuration(durationMs)}
-            </span>
-          )}
-        </div>
+        )}
+      </div>
+
+      {/* Точка непрослушанности */}
+      {unlistened && (
+        <span
+          className="absolute bottom-1 right-1 w-3 h-3 rounded-full border-2 border-[var(--bg,#0a0d1a)]"
+          style={{ background: '#A855F7' }}
+        />
       )}
     </div>
   )

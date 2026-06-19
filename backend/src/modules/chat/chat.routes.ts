@@ -288,6 +288,23 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
     return { data: message }
   })
 
+  // POST /messages/:id/listen — отметить голосовое / кружок прослушанным
+  app.post('/messages/:id/listen', {
+    schema: {
+      tags: ['Chat'],
+      summary: 'Mark a voice message or circle video as listened',
+      security: [{ bearerAuth: [] }],
+      params: { type: 'object', properties: { id: { type: 'string' } } },
+    },
+  }, async (request) => {
+    const { id } = request.params as { id: string }
+    const userId = BigInt(request.user.sub)
+    const result = await ChatService.markVoiceListened(app.prisma, id, userId)
+    // Уведомляем отправителя (второго участника) через Redis → realtime
+    await publishMessage(app.redis, 'chat:voice', { event: 'voice_listened', data: result })
+    return { data: result }
+  })
+
   // POST /messages/:id/pin — toggle pin (one pinned message per chat)
   app.post('/messages/:id/pin', {
     schema: {

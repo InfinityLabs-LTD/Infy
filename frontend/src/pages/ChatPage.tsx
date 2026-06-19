@@ -901,6 +901,24 @@ export function ChatPage() {
     setTimeout(() => setHighlightedMsgId(null), 1800)
   }
 
+  // Автоплей: после окончания ГС/кружка запускаем следующий подряд идущий
+  // от того же отправителя (цепочка), кликая на кнопку воспроизведения.
+  function handleVoiceEnded(msgId: string) {
+    const idx = chatMessages.findIndex(m => m.id === msgId)
+    if (idx < 0) return
+    const current = chatMessages[idx]
+    const next = chatMessages[idx + 1]
+    if (!next) return
+    const isVoice = (m: Message) => m.type === 'AUDIO' || m.type === 'CIRCLE_VIDEO'
+    if (!isVoice(next)) return
+    // Одинаковый отправитель и сообщения идут подряд (не через другие типы)
+    if (next.sender.id !== current.sender.id) return
+    const el = document.getElementById(`msg-${next.id}`)
+    if (!el) return
+    const btn = el.querySelector<HTMLElement>('[data-voice-play]')
+    if (btn) btn.click()
+  }
+
   const searchResults = searchQuery.trim().length > 1
     ? chatMessages.filter(m =>
         m.type !== 'SYSTEM' && m.content?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -1274,6 +1292,7 @@ export function ChatPage() {
                         onEdit={startEdit}
                         onRetry={retrySend}
                         onJumpTo={scrollToMessage}
+                        onVoiceEnded={handleVoiceEnded}
                         onReactError={() => {
                           setReactLimitToast(true)
                           setTimeout(() => setReactLimitToast(false), 2500)

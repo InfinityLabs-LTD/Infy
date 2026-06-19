@@ -14,7 +14,7 @@ export function useSocket(): Socket | null {
   const {
     addMessage, updateMessage, removeMessage, removeChat,
     setUserOnline, setUserOffline, setSocketReady,
-    updatePartnerRead, upsertChat,
+    updatePartnerRead, updateAttachmentListened, upsertChat,
   } = useChatStore()
 
   useEffect(() => {
@@ -61,6 +61,9 @@ export function useSocket(): Socket | null {
     const onMessagesRead = ({ chatId, messageId, readAt }: { chatId: string; userId: string; messageId: string; readAt?: string }) => {
       updatePartnerRead(chatId, messageId, readAt)
     }
+    const onVoiceListened = ({ chatId, messageId, listenedAt }: { chatId: string; messageId: string; listenedAt: string }) => {
+      updateAttachmentListened(chatId, messageId, listenedAt)
+    }
     const onReminderDue = (r: Omit<DueReminder, 'receivedAt'>) => {
       if (!r?.reminderId) return
       useReminderStore.getState().pushReminder(r)
@@ -87,6 +90,7 @@ export function useSocket(): Socket | null {
     socket.on('connect', onConnect)
     socket.on('disconnect', onDisconnect)
     socket.on('messages_read', onMessagesRead)
+    socket.on('voice_listened', onVoiceListened)
     socket.on('reminder_due', onReminderDue)
 
     if (socket.connected) setSocketReady(true)
@@ -103,6 +107,7 @@ export function useSocket(): Socket | null {
       socket.off('connect', onConnect)
       socket.off('disconnect', onDisconnect)
       socket.off('messages_read', onMessagesRead)
+      socket.off('voice_listened', onVoiceListened)
       socket.off('reminder_due', onReminderDue)
       setSocketReady(false)
     }

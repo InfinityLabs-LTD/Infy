@@ -198,6 +198,18 @@ export function createSocketServer(
     },
   )
 
+  // ── Subscribe to voice listened events from core ─────────────
+  const unsubVoice = subscribeToChannel(
+    pubClient.duplicate(),
+    'chat:voice',
+    (payload) => {
+      const p = payload as { event: string; data: { chatId?: string } }
+      if (p.data?.chatId) {
+        io.to(`chat:${p.data.chatId}`).emit(p.event, p.data)
+      }
+    },
+  )
+
   // ── Subscribe to due reminders from scheduler ─────────────
   // Доставляем в персональную комнату каждого адресата (по userIds).
   const unsubReminder = subscribeToChannel(

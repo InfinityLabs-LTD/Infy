@@ -50,6 +50,8 @@ export interface MessageAttachment {
   thumbnailUrl?: string
   // Распознанный текст голосового/кружка (заполняется по запросу).
   transcript?: string | null
+  // Когда собеседник прослушал (null = ещё не прослушано).
+  listenedAt?: string | null
 }
 
 export interface MessageReaction {
@@ -115,6 +117,7 @@ interface ChatState {
   removeMessage: (chatId: string, id: string) => void
   resetUnread: (chatId: string) => void
   updatePartnerRead: (chatId: string, messageId: string, readAt?: string) => void
+  updateAttachmentListened: (chatId: string, messageId: string, listenedAt: string) => void
   setUserOnline: (userId: string) => void
   setUserOffline: (userId: string, lastSeenAt: string) => void
   setTyping: (chatId: string, username: string, isTyping: boolean) => void
@@ -362,6 +365,22 @@ export const useChatStore = create<ChatState>((set) => ({
           : c
       ),
     })),
+
+  updateAttachmentListened: (chatId, messageId, listenedAt) =>
+    set((s) => {
+      const msgs = s.messages[chatId]
+      if (!msgs) return s
+      return {
+        messages: {
+          ...s.messages,
+          [chatId]: msgs.map((m) =>
+            m.id === messageId && m.attachments?.length
+              ? { ...m, attachments: m.attachments.map((a, i) => i === 0 ? { ...a, listenedAt } : a) }
+              : m
+          ),
+        },
+      }
+    }),
 
   setUserOnline: (userId) =>
     set((s) => ({ onlineUsers: new Set([...s.onlineUsers, userId]) })),
