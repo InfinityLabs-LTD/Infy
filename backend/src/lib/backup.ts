@@ -202,10 +202,17 @@ export async function deleteBackup(minio: Minio.Client, name: string): Promise<v
 }
 
 // Presigned URL для скачивания (живёт 5 минут).
+// MinIO SDK подставляет внутренний хост (minio:9000) — заменяем на публичный.
 export async function presignBackup(minio: Minio.Client, name: string): Promise<string> {
   assertSafeName(name)
   await minio.statObject(BACKUP_BUCKET, name)   // 404, если нет
-  return minio.presignedGetObject(BACKUP_BUCKET, name, 5 * 60)
+  const raw = await minio.presignedGetObject(BACKUP_BUCKET, name, 5 * 60)
+  const publicBase = new URL(env.MINIO_PUBLIC_URL)
+  const u = new URL(raw)
+  u.protocol = publicBase.protocol
+  u.hostname = publicBase.hostname
+  u.port     = publicBase.port
+  return u.toString()
 }
 
 // Стрим объекта (для прокси-скачивания через бэкенд).
