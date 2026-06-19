@@ -1563,7 +1563,6 @@ export function ChatPage() {
                         // статус случайного участника за «прочитано» (C-3).
                         partnerLastReadMessageId={chat?.type === 'DIRECT' ? chat?.partnerLastReadMessageId : null}
                         partnerReadAt={chat?.type === 'DIRECT' ? (chat?.partnerReadAt ?? null) : null}
-                        selected={selectedIds.has(msg.id)}
                         onReply={startReply}
                         onEdit={startEdit}
                         onSelect={(m) => setSelectedIds(prev => {
