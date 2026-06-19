@@ -49,12 +49,15 @@ export function AdminBackupsPage() {
   }
 
   async function load() {
+    setError(null)
     try {
       const r = await adminApi.getBackups()
       setBackups(r.data.data.backups)
       setSchedule(r.data.data.schedule)
-    } catch {
-      setError('Не удалось загрузить список резервных копий')
+    } catch (err) {
+      // Показываем реальную причину с сервера, а не общую заглушку —
+      // иначе по «Что-то пошло не так» невозможно понять, что чинить.
+      setError(translateError(err))
     } finally {
       setLoading(false)
     }

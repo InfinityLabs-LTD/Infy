@@ -14,12 +14,35 @@ import { env } from './env.js'
 
 export const BACKUP_BUCKET = env.MINIO_BUCKET_BACKUPS
 
+// Минимальный логгер на уровне библиотеки: сюда заходит и scheduler-воркер,
+// у которого нет fastify-логгера. Пишем стадию операции и ошибку с stack —
+// чтобы из логов контейнера было видно, на каком шаге всё сломалось.
+function blog(stage: string, extra?: Record<string, unknown>): void {
+  console.log(JSON.stringify({ scope: 'backup', stage, ...extra }))
+}
+function blogErr(stage: string, err: unknown, extra?: Record<string, unknown>): void {
+  const e = err instanceof Error ? err : new Error(String(err))
+  console.error(JSON.stringify({
+    scope: 'backup', stage,
+    err: { name: e.name, message: e.message, code: (e as { code?: unknown }).code, stack: e.stack },
+    ...extra,
+  }))
+}
+
 let bucketReady = false
 async function ensureBucket(minio: Minio.Client): Promise<void> {
   if (bucketReady) return
-  const exists = await minio.bucketExists(BACKUP_BUCKET)
-  if (!exists) await minio.makeBucket(BACKUP_BUCKET)
-  bucketReady = true
+  try {
+    const exists = await minio.bucketExists(BACKUP_BUCKET)
+    if (!exists) {
+      blog('ensureBucket.create', { bucket: BACKUP_BUCKET })
+      await minio.makeBucket(BACKUP_BUCKET)
+    }
+    bucketReady = true
+  } catch (err) {
+    blogErr('ensureBucket', err, { bucket: BACKUP_BUCKET })
+    throw err
+  }
 }
 
 // ── Разбор DATABASE_URL для pg_dump/pg_restore ────────────────
@@ -86,15 +109,21 @@ export async function createBackup(
   const tmpFile = path.join(dir, name)
 
   try {
+    blog('dump.start', { name, host: conn.host, db: conn.database, trigger })
     await runDump(conn, tmpFile)
     const { size } = await stat(tmpFile)
+    blog('dump.done', { name, size })
 
     await minio.fPutObject(BACKUP_BUCKET, name, tmpFile, {
       'Content-Type': 'application/gzip',
       'x-amz-meta-trigger': trigger,
     })
+    blog('put.done', { name, size })
 
     return { name, size, createdAt: new Date().toISOString(), trigger }
+  } catch (err) {
+    blogErr('createBackup', err, { name, trigger })
+    throw err
   } finally {
     await unlink(tmpFile).catch(() => {})
     await rmdir(dir).catch(() => {})
@@ -237,9 +266,15 @@ export async function restoreBackup(minio: Minio.Client, name: string): Promise<
   const tmpFile = path.join(dir, 'restore.sql')
   try {
     // Скачиваем + разжимаем во временный .sql.
+    blog('restore.fetch', { name })
     const objStream = await minio.getObject(BACKUP_BUCKET, name)
     await pipeline(objStream, createGunzip(), createWriteStream(tmpFile))
+    blog('restore.psql', { name })
     await runRestore(conn, tmpFile)
+    blog('restore.done', { name })
+  } catch (err) {
+    blogErr('restoreBackup', err, { name })
+    throw err
   } finally {
     await unlink(tmpFile).catch(() => {})
     await rmdir(dir).catch(() => {})
