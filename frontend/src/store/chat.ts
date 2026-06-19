@@ -176,6 +176,9 @@ interface ChatState {
   updateAttachmentListened: (chatId: string, messageId: string, listenedAt: string) => void
   setUserOnline: (userId: string) => void
   setUserOffline: (userId: string, lastSeenAt: string) => void
+  // Полная замена набора онлайн-пользователей (снапшот при connect/реконнекте).
+  // В отличие от аддитивного setUserOnline, снимает тех, кого больше нет онлайн.
+  setOnlineUsers: (userIds: string[]) => void
   setTyping: (chatId: string, username: string, isTyping: boolean) => void
 }
 
@@ -454,6 +457,8 @@ export const useChatStore = create<ChatState>((set) => ({
 
   setUserOnline: (userId) =>
     set((s) => ({ onlineUsers: new Set([...s.onlineUsers, userId]) })),
+
+  setOnlineUsers: (userIds) => set({ onlineUsers: new Set(userIds) }),
 
   setUserOffline: (userId, lastSeenAt) =>
     set((s) => {

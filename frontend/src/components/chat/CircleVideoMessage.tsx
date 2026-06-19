@@ -12,12 +12,20 @@ interface Props {
 
 const SPEEDS = [1, 1.5, 2] as const
 
+// Доля воспроизведения, с которой кружок считается просмотренным, даже если
+// `ended` не наступил (перемотка, пауза у конца, фон). C-2.
+const VIEWED_THRESHOLD = 0.9
+
 export function CircleVideoMessage({ url, thumbnailUrl, durationMs, mirrored = true, listenedAt, onListened, onEnded }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0)
   const [speedIdx, setSpeedIdx] = useState(0)
   const notifiedRef = useRef(false)
+  const onListenedRef = useRef(onListened)
+  const onEndedRef = useRef(onEnded)
+  useEffect(() => { onListenedRef.current = onListened }, [onListened])
+  useEffect(() => { onEndedRef.current = onEnded }, [onEnded])
   const SIZE = 180
 
   const speed = SPEEDS[speedIdx]
@@ -27,17 +35,29 @@ export function CircleVideoMessage({ url, thumbnailUrl, durationMs, mirrored = t
     if (listenedAt) notifiedRef.current = true
   }, [listenedAt])
 
+  // Идемпотентная локально отметка «просмотрено».
+  function markViewed() {
+    if (notifiedRef.current) return
+    notifiedRef.current = true
+    onListenedRef.current?.()
+  }
+
   function toggle() {
     const v = videoRef.current
     if (!v) return
-    if (playing) { v.pause(); setPlaying(false) }
-    else { v.playbackRate = speed; v.play(); setPlaying(true) }
+    if (playing) {
+      v.pause(); setPlaying(false)
+      // Пауза у конца засчитывается как просмотрено (C-2).
+      if (v.duration && v.currentTime / v.duration >= VIEWED_THRESHOLD) markViewed()
+    } else { v.playbackRate = speed; v.play(); setPlaying(true) }
   }
 
   function onTimeUpdate() {
     const v = videoRef.current
     if (!v || !v.duration) return
     setProgress(v.currentTime / v.duration)
+    // Достигли порога (в т.ч. после перемотки/в фоне) — отмечаем без `ended`.
+    if (v.currentTime / v.duration >= VIEWED_THRESHOLD) markViewed()
   }
 
   function handleEnded() {
@@ -45,11 +65,8 @@ export function CircleVideoMessage({ url, thumbnailUrl, durationMs, mirrored = t
     setProgress(0)
     const v = videoRef.current
     if (v) v.currentTime = 0
-    if (!notifiedRef.current) {
-      notifiedRef.current = true
-      onListened?.()
-    }
-    onEnded?.()
+    markViewed()
+    onEndedRef.current?.()
   }
 
   function cycleSpeed(e: React.MouseEvent) {

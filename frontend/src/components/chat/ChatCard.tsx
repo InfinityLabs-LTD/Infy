@@ -54,8 +54,11 @@ export function ChatCard({ chat, active }: { chat: Chat; active: boolean }) {
   const unread = !active && chat.unreadCount > 0
   const last = chat.lastMessage
   const isAi = last?.type === 'AI' || last?.type === 'AI_QUERY'
-  // Партнёр прочитал моё последнее сообщение → двойная галочка
-  const readByPartner = !!last?.isOwn && chat.partnerLastReadMessageId === last.id
+  // Партнёр прочитал моё последнее сообщение → двойная галочка.
+  // Достоверно только в 1:1 (в группах partnerLastRead — указатель одного
+  // случайного участника, не «все прочитали»), поэтому статус прочтения там
+  // не показываем (C-3).
+  const readByPartner = chat.type === 'DIRECT' && !!last?.isOwn && chat.partnerLastReadMessageId === last.id
 
   return (
     <motion.div layout transition={{ type: 'spring', stiffness: 520, damping: 42 }}>

@@ -42,6 +42,13 @@ function newClientMessageId(): string {
   return `cmid-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`
 }
 
+// Чат считается «фактически видимым» (можно помечать прочитанным) только если
+// вкладка на переднем плане. Иначе пришедшее в открытый, но свёрнутый чат
+// сообщение получало бы ложный статус «прочитано» у отправителя (C-1).
+function isChatVisible(): boolean {
+  return typeof document === 'undefined' || document.visibilityState === 'visible'
+}
+
 const TYPING_DEBOUNCE_MS = 1500
 const GROUP_WINDOW_MS = 60_000
 const ALLOWED_IMAGE = 'image/jpeg,image/png,image/gif,image/webp'
@@ -262,7 +269,8 @@ export function ChatPage() {
         setMessages(chatId, r.data.data.messages, r.data.data.nextCursor, hasCached ? 'merge' : 'replace')
         const msgs = r.data.data.messages
         const lastId = msgs.at(-1)?.id
-        if (lastId) {
+        // Помечаем прочитанным только если чат реально на экране (C-1).
+        if (lastId && isChatVisible()) {
           const socket = getActiveSocket()
           socket?.emit('mark_read', { chatId, messageId: lastId })
         }
@@ -295,7 +303,8 @@ export function ChatPage() {
             drain(nextAfter)  // ещё есть — дочитываем следующую порцию
           } else {
             const lastId = (useChatStore.getState().messages[chatId] ?? []).at(-1)?.id
-            if (lastId) {
+            // Залечили разрыв — но прочитанным помечаем только при видимом чате (C-1).
+            if (lastId && isChatVisible()) {
               getActiveSocket()?.emit('mark_read', { chatId, messageId: lastId })
               resetUnread(chatId)
             }
@@ -304,6 +313,22 @@ export function ChatPage() {
         .catch(() => { /* не критично */ })
     }
     drain(lastReal.id)
+  }
+
+  // Ресинк статусов уже загруженных сообщений после реконнекта (H-1/H-10):
+  // forward-sync тянет только НОВЫЕ сообщения и не обновит listenedAt/реакции на
+  // уже отрисованных, а указатель прочтения собеседника (partnerLastRead) живёт
+  // на самом чате. Перечитываем последнее окно в режиме merge (incoming
+  // перекрывает существующие по id) и обновляем сам чат.
+  const refreshStatuses = useRef<() => void>(() => {})
+  refreshStatuses.current = () => {
+    if (!chatId) return
+    chatApi.getMessages(chatId)
+      .then(r => setMessages(chatId, r.data.data.messages, r.data.data.nextCursor, 'merge'))
+      .catch(() => { /* не критично */ })
+    chatApi.getChat(chatId)
+      .then(r => upsertChat(r.data.data))
+      .catch(() => { /* не критично */ })
   }
 
   useEffect(() => {
@@ -318,9 +343,13 @@ export function ChatPage() {
     }
   }, [chatId])
 
-  // Реконнект сокета — тоже залечиваем разрыв (события за время простоя потеряны).
+  // Реконнект сокета — залечиваем разрыв (новые сообщения) и ресинкаем статусы
+  // уже загруженных (прочтение/прослушанность), т.к. события за простой потеряны.
   useEffect(() => {
-    if (chatId && socketReady) resyncForward.current()
+    if (chatId && socketReady) {
+      resyncForward.current()
+      refreshStatuses.current()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socketReady, chatId])
 
@@ -389,19 +418,38 @@ export function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Mark read when new messages arrive while chat is open
+  // Mark read when new messages arrive while chat is open AND visible.
+  // Helper: помечает прочитанным последнее сообщение, если оно не своё и чат виден.
+  const markLastReadIfVisible = useRef<() => void>(() => {})
+  markLastReadIfVisible.current = () => {
+    if (!chatId || !isChatVisible()) return
+    const list = useChatStore.getState().messages[chatId] ?? []
+    const lastMsg = list.at(-1)
+    if (!lastMsg) return
+    const myId = useAuthStore.getState().user?.id
+    if (lastMsg.sender.id === myId) return  // own message, no need to mark
+    getActiveSocket()?.emit('mark_read', { chatId, messageId: lastMsg.id })
+    resetUnread(chatId)
+  }
+
   const chatMessagesLen = chatMessages.length
   useEffect(() => {
     if (!chatId || chatMessagesLen === 0) return
-    const lastId = chatMessages.at(-1)?.id
-    if (!lastId) return
-    const lastMsg = chatMessages.at(-1)!
-    const myId = useAuthStore.getState().user?.id
-    if (lastMsg.sender.id === myId) return  // own message, no need to mark
-    const socket = getActiveSocket()
-    socket?.emit('mark_read', { chatId, messageId: lastId })
-    resetUnread(chatId)
+    markLastReadIfVisible.current()
   }, [chatMessagesLen, chatId])
+
+  // При возврате вкладки на передний план — отмечаем прочитанным то, что
+  // пришло, пока вкладка была свёрнута (мы намеренно не слали mark_read тогда).
+  useEffect(() => {
+    if (!chatId) return
+    const onVisible = () => markLastReadIfVisible.current()
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
+  }, [chatId])
 
   useEffect(() => {
     if (!chatId || !socketReady) return
@@ -1498,8 +1546,11 @@ export function ChatPage() {
                       <MessageBubble
                         message={msg}
                         groupPos={groupPos}
-                        partnerLastReadMessageId={chat?.partnerLastReadMessageId}
-                        partnerReadAt={chat?.partnerReadAt ?? null}
+                        {/* Read-receipt достоверен только в 1:1: partnerLastRead —
+                            указатель одного собеседника. В группах не показываем,
+                            чтобы не выдавать статус случайного участника за «прочитано» (C-3). */}
+                        partnerLastReadMessageId={chat?.type === 'DIRECT' ? chat?.partnerLastReadMessageId : null}
+                        partnerReadAt={chat?.type === 'DIRECT' ? (chat?.partnerReadAt ?? null) : null}
                         onReply={startReply}
                         onEdit={startEdit}
                         onRetry={retrySend}

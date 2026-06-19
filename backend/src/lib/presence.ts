@@ -1,8 +1,10 @@
 import Redis from 'ioredis'
 
 const PREFIX = 'presence:'
+const CONN_PREFIX = 'presence:conns:'   // счётчик активных сокетов пользователя
 const SET_KEY = 'presence:online'   // SET всех потенциально-онлайн userId
 const TTL_SEC = 35   // client pings every 25s; expire after 35s if silent
+const CONN_TTL_SEC = 120   // страховочный TTL счётчика соединений (от утечек при крэше)
 
 // Presence хранится двумя структурами:
 //   1) per-user TTL-ключ `presence:<id>` — источник истины «онлайн ли юзер»
@@ -45,11 +47,53 @@ export async function areOnline(redis: Redis, userIds: string[]): Promise<Set<st
   return online
 }
 
+/**
+ * Регистрирует новое соединение (сокет) пользователя: атомарно инкрементит
+ * счётчик соединений и помечает онлайн. Возвращает число активных соединений
+ * после инкремента. Используется вместо ненадёжного fetchSockets().length для
+ * определения «есть ли ещё активные сокеты» (H-3).
+ */
+export async function addConnection(redis: Redis, userId: string): Promise<number> {
+  const res = await redis
+    .multi()
+    .incr(`${CONN_PREFIX}${userId}`)
+    .expire(`${CONN_PREFIX}${userId}`, CONN_TTL_SEC)
+    .setex(`${PREFIX}${userId}`, TTL_SEC, '1')
+    .sadd(SET_KEY, userId)
+    .exec()
+  const count = res?.[0]?.[1]
+  return typeof count === 'number' ? count : 1
+}
+
+/**
+ * Снимает соединение пользователя: декрементит счётчик. Если он достиг 0 (или
+ * ушёл в минус из-за рассинхрона) — переводит в offline и чистит индекс.
+ * Возвращает оставшееся число активных соединений (>=0).
+ */
+export async function removeConnection(redis: Redis, userId: string): Promise<number> {
+  const res = await redis.decr(`${CONN_PREFIX}${userId}`)
+  const remaining = typeof res === 'number' ? res : 0
+  if (remaining <= 0) {
+    await redis
+      .multi()
+      .del(`${CONN_PREFIX}${userId}`)
+      .del(`${PREFIX}${userId}`)
+      .srem(SET_KEY, userId)
+      .exec()
+    return 0
+  }
+  // Ещё есть живые соединения — продлеваем страховочный TTL счётчика.
+  await redis.expire(`${CONN_PREFIX}${userId}`, CONN_TTL_SEC).catch(() => {})
+  return remaining
+}
+
 export async function refreshPresence(redis: Redis, userId: string): Promise<void> {
-  // Продлеваем TTL и гарантируем членство в SET (на случай гонки с setOffline).
+  // Продлеваем TTL присутствия и страховочный TTL счётчика соединений, а также
+  // гарантируем членство в SET (на случай гонки с setOffline).
   await redis
     .multi()
     .expire(`${PREFIX}${userId}`, TTL_SEC)
+    .expire(`${CONN_PREFIX}${userId}`, CONN_TTL_SEC)
     .sadd(SET_KEY, userId)
     .exec()
 }

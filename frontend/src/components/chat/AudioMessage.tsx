@@ -12,6 +12,10 @@ interface Props {
 
 const SPEEDS = [1, 1.5, 2] as const
 
+// Доля воспроизведения, начиная с которой ГС считается прослушанным, даже если
+// событие `ended` не наступило (перемотка в конец, пауза у конца, фон). C-2.
+const LISTENED_THRESHOLD = 0.9
+
 export function AudioMessage({ url, durationMs, waveform, isOwn, listenedAt, onListened, onEnded }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
@@ -35,22 +39,33 @@ export function AudioMessage({ url, durationMs, waveform, isOwn, listenedAt, onL
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
+    // Единая точка отметки прослушанности — идемпотентна локально (notifiedRef).
+    const markListened = () => {
+      if (notifiedRef.current) return
+      notifiedRef.current = true
+      onListenedRef.current?.()
+    }
     const onPlay = () => setPlaying(true)
-    const onPause = () => setPlaying(false)
+    const onPause = () => {
+      setPlaying(false)
+      // Пауза у самого конца засчитывается как прослушано (C-2): пользователь
+      // дослушал, но `ended` мог не наступить (ручная пауза / фон).
+      if (audio.duration && audio.currentTime / audio.duration >= LISTENED_THRESHOLD) markListened()
+    }
     const handleEnded = () => {
       setPlaying(false)
       setProgress(0)
       setElapsed(0)
-      if (!notifiedRef.current) {
-        notifiedRef.current = true
-        onListened?.()
-      }
-      onEnded?.()
+      markListened()
+      onEndedRef.current?.()
     }
     const onTimeUpdate = () => {
       if (!audio.duration) return
       setProgress(audio.currentTime / audio.duration)
       setElapsed(Math.floor(audio.currentTime))
+      // Достигли порога во время воспроизведения (в т.ч. после перемотки в
+      // конец или при доигрывании в фоне) — отмечаем, не дожидаясь `ended`.
+      if (audio.currentTime / audio.duration >= LISTENED_THRESHOLD) markListened()
     }
     audio.addEventListener('play', onPlay)
     audio.addEventListener('pause', onPause)
@@ -62,7 +77,7 @@ export function AudioMessage({ url, durationMs, waveform, isOwn, listenedAt, onL
       audio.removeEventListener('ended', handleEnded)
       audio.removeEventListener('timeupdate', onTimeUpdate)
     }
-  }, [onListened, onEnded])
+  }, [])
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.playbackRate = speed

@@ -13,8 +13,8 @@ export function useSocket(): Socket | null {
 
   const {
     addMessage, updateMessage, removeMessage, removeChat,
-    setUserOnline, setUserOffline, setSocketReady,
-    updatePartnerRead, updateAttachmentListened, upsertChat,
+    setUserOnline, setUserOffline, setSocketReady, setOnlineUsers,
+    updatePartnerRead, updateAttachmentListened, upsertChat, resetUnread,
   } = useChatStore()
 
   useEffect(() => {
@@ -55,10 +55,19 @@ export function useSocket(): Socket | null {
     }
     const onUserOnline = ({ userId }: { userId: string }) => setUserOnline(userId)
     const onUserOffline = ({ userId, lastSeenAt }: { userId: string; lastSeenAt: string }) => setUserOffline(userId, lastSeenAt)
-    const onOnlineUsers = ({ userIds }: { userIds: string[] }) => userIds.forEach(id => setUserOnline(id))
+    // Снапшот — это ПОЛНЫЙ список онлайна на момент (ре)коннекта. Замещаем им
+    // набор целиком, иначе ушедшие за время простоя оставались бы «в сети» (H-2).
+    const onOnlineUsers = ({ userIds }: { userIds: string[] }) => setOnlineUsers(userIds)
     const onConnect = () => setSocketReady(true)
     const onDisconnect = () => setSocketReady(false)
-    const onMessagesRead = ({ chatId, messageId, readAt }: { chatId: string; userId: string; messageId: string; readAt?: string }) => {
+    const onMessagesRead = ({ chatId, userId, messageId, readAt }: { chatId: string; userId: string; messageId: string; readAt?: string }) => {
+      const myId = useAuthStore.getState().user?.id
+      // Прочтение с другого устройства того же пользователя — синхронизируем
+      // локальный счётчик непрочитанного (multi-device read-sync).
+      if (userId === myId) {
+        resetUnread(chatId)
+        return
+      }
       updatePartnerRead(chatId, messageId, readAt)
     }
     const onVoiceListened = ({ chatId, messageId, listenedAt }: { chatId: string; messageId: string; listenedAt: string }) => {

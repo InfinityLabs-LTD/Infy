@@ -804,6 +804,7 @@ type MessageWithSender = {
     durationMs: number | null
     waveform: unknown
     transcript?: string | null
+    listenedAt?: Date | null
   }>
   reactions?: Array<{
     id: string

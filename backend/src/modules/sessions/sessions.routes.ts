@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify'
 import { authenticate } from '../../middleware/authenticate.js'
 import { Errors } from '../../lib/errors.js'
+import { publishMessage } from '../../lib/pubsub.js'
 import { z } from 'zod'
 
 const sessionsRoutes: FastifyPluginAsync = async (app) => {
@@ -57,6 +58,12 @@ const sessionsRoutes: FastifyPluginAsync = async (app) => {
       data: { revokedAt: new Date() },
     })
 
+    // Немедленно рвём сокет(ы) этой сессии в realtime — чтобы пользователь не
+    // «висел в сети» и презенс обновился сразу (H-4).
+    await publishMessage(app.redis, 'realtime:control', {
+      event: 'force_disconnect', userId: userId.toString(), sessionIds: [id],
+    }).catch(() => {})
+
     return reply.code(204).send()
   })
 
@@ -81,10 +88,21 @@ const sessionsRoutes: FastifyPluginAsync = async (app) => {
       ? { userId, revokedAt: null, id: { not: request.user.sessionId } }
       : { userId, revokedAt: null }
 
+    // Собираем id отзываемых сессий заранее — нужны для адресного отключения
+    // сокетов в realtime (updateMany не возвращает строки).
+    const toRevoke = await app.prisma.deviceSession.findMany({ where, select: { id: true } })
+
     const result = await app.prisma.deviceSession.updateMany({
       where,
       data: { revokedAt: new Date() },
     })
+
+    if (toRevoke.length > 0) {
+      // Рвём именно отозванные сессии (текущая, если exceptCurrent, не входит) (H-4).
+      await publishMessage(app.redis, 'realtime:control', {
+        event: 'force_disconnect', userId: userId.toString(), sessionIds: toRevoke.map(s => s.id),
+      }).catch(() => {})
+    }
 
     return reply.send({ data: { revokedCount: result.count } })
   })

@@ -6,7 +6,7 @@ import { PrismaClient } from '@prisma/client'
 import { verifyAccessToken } from '../../lib/jwt.js'
 import { AppError } from '../../lib/errors.js'
 import { subscribeToChannel, publishMessage } from '../../lib/pubsub.js'
-import { setOnline, setOffline, refreshPresence, areOnline, getOnlineUserIds } from '../../lib/presence.js'
+import { setOnline, setOffline, refreshPresence, areOnline, getOnlineUserIds, addConnection, removeConnection } from '../../lib/presence.js'
 import { sendPush } from '../../lib/webpush.js'
 import * as ChatService from '../chat/chat.service.js'
 import { registerCallHandlers } from '../calls/calls.signaling.js'
@@ -240,6 +240,29 @@ export function createSocketServer(
     },
   )
 
+  // ── Subscribe to control events (session revoke / force logout) ──
+  // Когда core отзывает сессию (logout-all, удаление сессии, админ-отзыв),
+  // соответствующие сокеты нужно немедленно отключить — иначе пользователь
+  // «висит в сети» до ping-фейла, а presence не обновляется (H-4). При закрытии
+  // сокета сработает обычный disconnect → removeConnection → user_offline.
+  const unsubControl = subscribeToChannel(
+    pubClient.duplicate(),
+    'realtime:control',
+    (payload) => {
+      const p = payload as { event?: string; userId?: string; sessionIds?: string[] }
+      if (p.event !== 'force_disconnect' || !p.userId) return
+      const sessionSet = Array.isArray(p.sessionIds) ? new Set(p.sessionIds) : null
+      io.in(`user:${p.userId}`).fetchSockets().then((sockets) => {
+        for (const sk of sockets) {
+          const sid = (sk.data as { sessionId?: string }).sessionId
+          // Если переданы конкретные сессии — рвём только их; иначе все сокеты юзера.
+          if (sessionSet && sid && !sessionSet.has(sid)) continue
+          sk.disconnect(true)
+        }
+      }).catch(() => { /* non-critical */ })
+    },
+  )
+
   // ── Subscribe to due reminders from scheduler ─────────────
   // Доставляем в персональную комнату каждого адресата (по userIds).
   const unsubReminder = subscribeToChannel(
@@ -259,8 +282,13 @@ export function createSocketServer(
     const s = socket as AuthSocket
     const { userId, username } = s
 
-    // Mark online + join personal room
-    await setOnline(pubClient, userId)
+    // Mark online + join personal room. Учитываем соединение в счётчике (H-3):
+    // строгое определение «есть ли ещё активные сокеты» при дисконнекте.
+    socket.data.active = true
+    // Кладём sessionId в data — иначе он недоступен на RemoteSocket из
+    // fetchSockets() при адресном force_disconnect (H-4).
+    socket.data.sessionId = s.sessionId
+    await addConnection(pubClient, userId)
     socket.join(`user:${userId}`)
 
     // Send current online users snapshot to the newly connected client
@@ -362,6 +390,10 @@ export function createSocketServer(
           if (m.userId.toString() === userId) continue
           socket.to(`user:${m.userId.toString()}`).emit('messages_read', payload)
         }
+        // Свои ДРУГИЕ устройства/вкладки (multi-device read-sync): прочитал на
+        // телефоне — на ПК тоже снимаем непрочитанное. socket.to исключает
+        // текущий сокет, поэтому эхо самому себе не приходит.
+        socket.to(`user:${userId}`).emit('messages_read', payload)
       } catch { /* non-critical */ }
     })
 
@@ -412,10 +444,11 @@ export function createSocketServer(
 
     // ── disconnect ──────────────────────────────────────────
     socket.on('disconnect', async () => {
-      // Check if user has other active sockets before marking offline
-      const sockets = await io.in(`user:${userId}`).fetchSockets()
-      if (sockets.length === 0) {
-        await setOffline(pubClient, userId)
+      // Строгий счётчик соединений вместо fetchSockets().length: тот под
+      // Redis-адаптером мог вернуть уже отключившийся сокет (гонка реестра),
+      // из-за чего пользователь залипал «в сети» до TTL (H-3).
+      const remaining = await removeConnection(pubClient, userId)
+      if (remaining <= 0) {
         await prisma.user.update({
           where: { id: BigInt(userId) },
           data: { lastSeenAt: new Date() },
