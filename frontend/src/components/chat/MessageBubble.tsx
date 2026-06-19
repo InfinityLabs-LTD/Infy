@@ -1178,7 +1178,12 @@ export function MediaLightbox({ items, index, onClose, onIndex }: {
         {kind === 'video' ? (
           <video src={url} controls autoPlay className="max-w-full max-h-full rounded-lg" />
         ) : (
-          <img src={url} alt="" className="max-w-full max-h-full object-contain rounded-lg" />
+          <img
+            src={url}
+            alt=""
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onContextMenu={e => { if (window.matchMedia('(pointer: fine)').matches) e.stopPropagation() }}
+          />
         )}
 
         {hasPrev && (
