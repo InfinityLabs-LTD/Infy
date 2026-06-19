@@ -139,9 +139,13 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
 
   const handleVoiceListened = useCallback(() => {
     if (isOwn) return
+    // Оптимистично убираем точку сразу — не ждём ответа сервера.
+    updateAttachmentListened(message.chatId, message.id, new Date().toISOString())
     chatApi.listenVoice(message.id).then(r => {
       updateAttachmentListened(message.chatId, message.id, r.data.data.listenedAt)
-    }).catch(() => {})
+    }).catch((err) => {
+      console.error('[voice] listen failed:', err?.response?.data ?? err)
+    })
   }, [isOwn, message.id, message.chatId, updateAttachmentListened])
 
   const handleVoiceEnded = useCallback(() => {
