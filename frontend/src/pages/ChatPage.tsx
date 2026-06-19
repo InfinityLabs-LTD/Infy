@@ -1008,6 +1008,9 @@ export function ChatPage() {
   function sendCircle(blob: Blob) {
     if (!chatId) return
     setShowCircle(false); setCircleAutoSend(false)
+    recordLockedRef.current = false
+    setRecordLocked(false)
+    isHoldingRef.current = false
     const file = new File([blob], 'circle.webm', { type: blob.type })
     backgroundSendMedia(chatId, 'CIRCLE_VIDEO', [
       { file, kind: 'video', hint: 'circle_video', previewUrl: URL.createObjectURL(blob) },
