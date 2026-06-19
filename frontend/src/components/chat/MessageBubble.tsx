@@ -447,7 +447,7 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
     <>
       <div
         className={`relative msg-appear ${groupPos === 'first' || groupPos === 'single' ? 'mt-3' : 'mt-0.5'} transition-colors duration-150`}
-        style={selected ? { background: 'rgba(168,85,247,0.15)', marginLeft: -12, marginRight: -12, paddingLeft: 12, paddingRight: 12, borderRadius: 8 } : undefined}
+        style={selected ? { background: 'rgba(139,92,246,0.28)', marginLeft: -16, marginRight: -16, paddingLeft: 16, paddingRight: 16 } : undefined}
       >
         {/* Иконка ответа, проявляющаяся при свайпе */}
         <div
@@ -471,6 +471,7 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
           style={{
             ...swipe.transformStyle,
             ...(isTouchDevice ? { WebkitUserSelect: 'none', WebkitTouchCallout: 'none' } : {}),
+            ...(onSelect ? { paddingLeft: 32 } : {}),
           }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -479,6 +480,24 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
           onClick={onClick}
           onContextMenu={onContextMenu}
         >
+          {/* Чекбокс-кружок — появляется только в режиме выделения */}
+          {onSelect && (
+            <button
+              onPointerDown={e => { e.stopPropagation(); onSelect(message) }}
+              className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-150 shrink-0"
+              style={{
+                background: selected ? 'var(--accent)' : 'transparent',
+                border: `2px solid ${selected ? 'var(--accent)' : 'rgba(255,255,255,0.35)'}`,
+                boxShadow: selected ? '0 0 8px rgba(139,92,246,0.5)' : 'none',
+              }}
+            >
+              {selected && (
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="2,6 5,9 10,3" />
+                </svg>
+              )}
+            </button>
+          )}
           {isOwn && <>{reactBtn}{meta}</>}
           {bubbleContent}
           {!isOwn && <>{meta}{reactBtn}</>}
