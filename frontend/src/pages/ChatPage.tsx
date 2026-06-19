@@ -1546,9 +1546,9 @@ export function ChatPage() {
                       <MessageBubble
                         message={msg}
                         groupPos={groupPos}
-                        {/* Read-receipt достоверен только в 1:1: partnerLastRead —
-                            указатель одного собеседника. В группах не показываем,
-                            чтобы не выдавать статус случайного участника за «прочитано» (C-3). */}
+                        // Read-receipt достоверен только в 1:1: partnerLastRead — указатель
+                        // одного собеседника. В группах не показываем, чтобы не выдавать
+                        // статус случайного участника за «прочитано» (C-3).
                         partnerLastReadMessageId={chat?.type === 'DIRECT' ? chat?.partnerLastReadMessageId : null}
                         partnerReadAt={chat?.type === 'DIRECT' ? (chat?.partnerReadAt ?? null) : null}
                         onReply={startReply}
