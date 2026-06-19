@@ -56,41 +56,52 @@ export async function createCall(
   })
   if (existing) throw new AppError('CALL_ALREADY_ACTIVE', 'A call is already in progress in this chat', 409)
 
-  return prisma.callSession.create({
-    data: {
-      id: ulid(),
-      chatId,
-      initiatorId,
-      media,
-      status: 'RINGING',
-      participants: {
-        create: [{ userId: initiatorId }, { userId: partnerId }],
+  try {
+    return await prisma.callSession.create({
+      data: {
+        id: ulid(),
+        chatId,
+        initiatorId,
+        media,
+        status: 'RINGING',
+        participants: {
+          create: [{ userId: initiatorId }, { userId: partnerId }],
+        },
       },
-    },
-    include: callInclude,
-  })
+      include: callInclude,
+    })
+  } catch (e) {
+    // Гонка: партиал-уникальный индекс call_sessions_chatId_active_key поймал
+    // параллельное создание второго звонка в чате между findFirst и create.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      throw new AppError('CALL_ALREADY_ACTIVE', 'A call is already in progress in this chat', 409)
+    }
+    throw e
+  }
 }
 
-/** Помечает звонок принятым: RINGING → ACTIVE, фиксирует joinedAt получателя. */
+/**
+ * Помечает звонок принятым: RINGING → ACTIVE, фиксирует joinedAt получателя.
+ * Переход атомарный: updateMany с условием status='RINGING' меняет ровно одну
+ * строку только если звонок ещё звонил. Это исключает гонку accept/decline и
+ * двойной accept с разных вкладок (read-then-write окна больше нет).
+ */
 export async function markAnswered(
   prisma: PrismaClient,
   callId: string,
   userId: bigint,
 ): Promise<CallWithRelations | null> {
-  const call = await prisma.callSession.findUnique({ where: { id: callId } })
-  if (!call || call.status !== 'RINGING') return null
-
   const now = new Date()
-  await prisma.$transaction([
-    prisma.callSession.update({
-      where: { id: callId },
-      data: { status: 'ACTIVE', answeredAt: now },
-    }),
-    prisma.callParticipant.updateMany({
-      where: { callId, userId, joinedAt: null },
-      data: { joinedAt: now },
-    }),
-  ])
+  const res = await prisma.callSession.updateMany({
+    where: { id: callId, status: 'RINGING' },
+    data: { status: 'ACTIVE', answeredAt: now },
+  })
+  if (res.count === 0) return null   // уже не RINGING — гонку выиграл кто-то другой
+
+  await prisma.callParticipant.updateMany({
+    where: { callId, userId, joinedAt: null },
+    data: { joinedAt: now },
+  })
 
   return prisma.callSession.findUnique({ where: { id: callId }, include: callInclude })
 }
@@ -126,16 +137,21 @@ export async function endCall(
   else if (reason === 'missed') status = 'MISSED'
   else status = 'CANCELLED'
 
-  await prisma.$transaction([
-    prisma.callSession.update({
-      where: { id: callId },
-      data: { status, endedAt: now, durationSec },
-    }),
-    prisma.callParticipant.updateMany({
-      where: { callId, leftAt: null },
-      data: { leftAt: now },
-    }),
-  ])
+  // Атомарный переход в терминальный статус: меняем строку только если она ещё
+  // НЕ терминальная. Если параллельный вызов уже завершил звонок (res.count=0),
+  // не перетираем его статус — возвращаем то, что записал победитель гонки.
+  const res = await prisma.callSession.updateMany({
+    where: { id: callId, status: { notIn: TERMINAL } },
+    data: { status, endedAt: now, durationSec },
+  })
+  if (res.count === 0) {
+    return prisma.callSession.findUnique({ where: { id: callId }, include: callInclude })
+  }
+
+  await prisma.callParticipant.updateMany({
+    where: { callId, leftAt: null },
+    data: { leftAt: now },
+  })
 
   return prisma.callSession.findUnique({ where: { id: callId }, include: callInclude })
 }

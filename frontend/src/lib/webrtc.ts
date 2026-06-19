@@ -71,6 +71,12 @@ export class CallEngine {
   private lastBytesSent = 0
   private lastStatsTs = 0
 
+  // ICE-restart: при кратковременном разрыве (смена сети Wi-Fi↔LTE) даём grace,
+  // затем перезапускаем ICE вместо мгновенного обрыва звонка.
+  private iceRestartTimer: ReturnType<typeof setTimeout> | null = null
+  private closed = false
+  private static readonly ICE_GRACE_MS = 3500
+
   constructor(iceServers: IceServer[], polite: boolean, private cb: RtcCallbacks) {
     this.polite = polite
     this.pc = new RTCPeerConnection({
@@ -160,6 +166,42 @@ export class CallEngine {
       this.cb.onConnectionState(st)
       if (st === 'connected' && !this.statsTimer) this.startStats()
     }
+
+    // H-1: восстановление при смене сети. На 'disconnected' не рвём звонок сразу —
+    // ждём grace, и если соединение не восстановилось само, инициируем ICE-restart
+    // (только «невежливый» пир = инициатор, чтобы не было встречных рестартов).
+    this.pc.oniceconnectionstatechange = () => {
+      const ice = this.pc.iceConnectionState
+      if (ice === 'connected' || ice === 'completed') {
+        this.cancelIceRestart()
+      } else if (ice === 'disconnected') {
+        this.scheduleIceRestart()
+      } else if (ice === 'failed') {
+        // failed уже фатально для текущего набора кандидатов — рестартим немедленно.
+        this.cancelIceRestart()
+        this.doIceRestart()
+      }
+    }
+  }
+
+  private scheduleIceRestart(): void {
+    if (this.iceRestartTimer || this.closed) return
+    this.iceRestartTimer = setTimeout(() => {
+      this.iceRestartTimer = null
+      const ice = this.pc.iceConnectionState
+      if (ice === 'disconnected' || ice === 'failed') this.doIceRestart()
+    }, CallEngine.ICE_GRACE_MS)
+  }
+
+  private cancelIceRestart(): void {
+    if (this.iceRestartTimer) { clearTimeout(this.iceRestartTimer); this.iceRestartTimer = null }
+  }
+
+  private doIceRestart(): void {
+    if (this.closed || this.polite) return   // рестарт инициирует только невежливый пир
+    try {
+      this.pc.restartIce()   // вызовет onnegotiationneeded → новый offer с ice-restart
+    } catch { /* браузер без restartIce — соединение завершится штатно через failed */ }
   }
 
   /** Обработка входящего сигнала от второго пира. */
@@ -312,6 +354,8 @@ export class CallEngine {
 
   // ── Завершение ──────────────────────────────────────────────
   close(): void {
+    this.closed = true
+    this.cancelIceRestart()
     if (this.statsTimer) { clearInterval(this.statsTimer); this.statsTimer = null }
     this.localStream?.getTracks().forEach(t => t.stop())
     this.screenStream?.getTracks().forEach(t => t.stop())

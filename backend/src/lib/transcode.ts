@@ -132,19 +132,14 @@ export async function transcodeAudio(inputPath: string, outputPath: string): Pro
 export async function generateWaveform(inputPath: string, samples = 100): Promise<number[]> {
   try {
     const tmpOut = path.join(os.tmpdir(), `waveform-${Date.now()}.txt`)
+    // RMS-уровни по чанкам пишем в tmpOut. (Раньше здесь был лишний первый
+    // прогон ffmpeg, результат которого игнорировался — убран, экономит CPU.)
     await execFileAsync(ffmpegPath(), [
-      '-i', inputPath,
-      '-af', `aresample=8000,asetnsamples=${samples},astats=metadata=1:reset=1`,
-      '-f', 'null',
-      '-',
-    ])
-    // Simpler approach: use volumedetect + split into chunks
-    const { stdout } = await execFileAsync(ffmpegPath(), [
       '-i', inputPath,
       '-af', `aformat=channel_layouts=mono,compand,astats=metadata=1:reset=1:length=0.1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=${tmpOut}`,
       '-f', 'null',
       '-',
-    ]).catch(() => ({ stdout: '' }))
+    ]).catch(() => {})
 
     const text = await fs.readFile(tmpOut, 'utf8').catch(() => '')
     await fs.unlink(tmpOut).catch(() => {})

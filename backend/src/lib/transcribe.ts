@@ -17,6 +17,10 @@ export async function transcribeAudio(
   const client = new OpenAI({
     apiKey: config.apiKey,
     baseURL: config.baseUrl ?? undefined,
+    // H-4: тайм-аут, чтобы зависший запрос к провайдеру не держал HTTP-соединение
+    // и слот обработки бесконечно; ограничиваем число повторов SDK.
+    timeout: 120_000,
+    maxRetries: 1,
   })
 
   // Whisper определяет формат по расширению имени файла — нормализуем .opus → .ogg.

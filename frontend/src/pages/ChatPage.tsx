@@ -22,9 +22,18 @@ import { callController } from '@/lib/callController'
 import { useCallStore } from '@/store/call'
 import {
   addPendingJob, getPendingJob, removePendingJob, setPendingExpireHandler,
-  setOutboxRunner, flushOutbox, restoreOutbox, isInFlight,
+  setOutboxRunner, flushOutbox, restoreOutbox, isInFlight, scheduleRetry, setUploadedLocal,
   startPendingSweeper, sweepExpired, type PendingJob, type PendingLocal,
 } from '@/lib/pendingMedia'
+
+// Извлекает Retry-After (сек) из ответа 429 → мс; иначе undefined (обычный backoff).
+function retryAfterMsFromError(err: unknown): number | undefined {
+  const e = err as { response?: { status?: number; headers?: Record<string, string> } }
+  if (e?.response?.status !== 429) return undefined
+  const ra = e.response.headers?.['retry-after']
+  const sec = ra ? parseInt(ra, 10) : NaN
+  return Number.isFinite(sec) && sec > 0 ? sec * 1000 : undefined
+}
 
 // Идемпотентный ключ отправки. crypto.randomUUID доступен в secure-context;
 // запасной вариант — на случай старых окружений.
@@ -592,7 +601,8 @@ export function ChatPage() {
   async function runTextJob(job: PendingJob) {
     const { chatId: targetChatId, tempId, clientMessageId, content, replyToId } = job
     if (!content) { removePendingJob(tempId); removeMessage(targetChatId, tempId); return }
-    // Маркер «отправлено через сокет, broadcast придёт позже».
+    // Маркер «отправлено через сокет без message в ack» — фолбэк на REST GET,
+    // чтобы не оставлять сообщение в вечном pending (M-1).
     const SENT_VIA_SOCKET = Symbol('sent-via-socket')
     try {
       const socket = getActiveSocket()
@@ -603,9 +613,7 @@ export function ChatPage() {
           socket.emit('join_chat', targetChatId)
           socket.emit('send_message', { chatId: targetChatId, content, clientMessageId }, (res: { ok: boolean; message?: Message; error?: string; code?: string }) => {
             if (res?.ok) {
-              // Сервер может вернуть готовое сообщение в ack — используем его
-              // (надёжнее, чем ждать broadcast вслепую). Иначе ждём broadcast,
-              // который реконсилируется по clientMessageId.
+              // Сервер всегда кладёт message в ack на socket-пути; используем его.
               resolve(res.message ?? SENT_VIA_SOCKET)
             } else if (res?.code === 'MOD_ACCOUNT_MUTED' || res?.code === 'MOD_ACCOUNT_BANNED') {
               setMutedNotice(res.error ?? 'Вы не можете отправлять сообщения')
@@ -626,13 +634,15 @@ export function ChatPage() {
       if (real !== SENT_VIA_SOCKET) {
         replaceMessage(targetChatId, tempId, real)
       } else {
-        // Реальное сообщение придёт broadcast'ом и реконсилируется по
-        // clientMessageId в addMessage. Снимать pending вслепую не нужно.
+        // M-1: ack без message (редкий случай). Не зависаем в pending —
+        // дотягиваем реальное сообщение forward-синком вместо бесконечного ожидания.
         setMessageStatus(targetChatId, tempId, { pending: true, failed: false })
+        resyncForward.current()
       }
       removePendingJob(tempId)
     } catch (err) {
       setMessageFailed(targetChatId, tempId, true)
+      scheduleRetry(tempId, retryAfterMsFromError(err))   // C-6: backoff
       throw err
     }
   }
@@ -786,8 +796,15 @@ export function ChatPage() {
     const optimistic = useChatStore.getState().messages[job.chatId]?.find(m => m.id === job.tempId)
     try {
       setMessageStatus(job.chatId, job.tempId, { pending: true, failed: false })
+      // C-7: переиспользуем уже загруженные файлы (l.uploaded) при ретрае —
+      // не заливаем тот же объект в MinIO повторно (иначе копятся orphan-файлы).
       const uploads = await Promise.all(
-        job.locals.map(l => mediaApi.upload(l.file, l.hint, l.durationMs).then(r => r.data.data)),
+        job.locals.map(async (l, i) => {
+          if (l.uploaded) return l.uploaded as Awaited<ReturnType<typeof mediaApi.upload>>['data']['data']
+          const r = await mediaApi.upload(l.file, l.hint, l.durationMs)
+          setUploadedLocal(job.tempId, i, r.data.data)   // кэшируем для возможного ретрая
+          return r.data.data
+        }),
       )
       // Помечаем плейсхолдер реальными storageKey'ями (на случай прихода
       // broadcast раньше REST-ответа — addMessage сопоставит по clientMessageId).
@@ -813,6 +830,7 @@ export function ChatPage() {
       removePendingJob(job.tempId)  // освобождает и object URL'ы предпросмотра
     } catch (err) {
       setMessageFailed(job.chatId, job.tempId, true)
+      scheduleRetry(job.tempId, retryAfterMsFromError(err))   // C-6: backoff
       handleSendError(err)
       throw err
     }

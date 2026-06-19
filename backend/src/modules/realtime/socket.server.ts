@@ -6,11 +6,12 @@ import { PrismaClient } from '@prisma/client'
 import { verifyAccessToken } from '../../lib/jwt.js'
 import { AppError } from '../../lib/errors.js'
 import { subscribeToChannel, publishMessage } from '../../lib/pubsub.js'
-import { setOnline, setOffline, refreshPresence, isOnline, getOnlineUserIds } from '../../lib/presence.js'
+import { setOnline, setOffline, refreshPresence, areOnline, getOnlineUserIds } from '../../lib/presence.js'
 import { sendPush } from '../../lib/webpush.js'
 import * as ChatService from '../chat/chat.service.js'
 import { registerCallHandlers } from '../calls/calls.signaling.js'
 import { askInChat } from '../ai/ai.service.js'
+import { env } from '../../lib/env.js'
 
 // Команда вызова ИИ прямо в чате: «/ask вопрос». Ответ виден обоим участникам.
 const ASK_PREFIX = /^\/ask\b\s*/i
@@ -41,12 +42,12 @@ async function pushToOfflineMembers(
       select: { userId: true },
     })
 
-    const offlineUserIds: bigint[] = []
-    for (const m of members) {
-      if (m.userId.toString() === senderUserId) continue
-      const online = await isOnline(redis, m.userId.toString())
-      if (!online) offlineUserIds.push(m.userId)
-    }
+    const recipientIds = members
+      .map(m => m.userId)
+      .filter(id => id.toString() !== senderUserId)
+    // Один round-trip в Redis вместо N последовательных EXISTS.
+    const onlineSet = await areOnline(redis, recipientIds.map(id => id.toString()))
+    const offlineUserIds = recipientIds.filter(id => !onlineSet.has(id.toString()))
 
     if (offlineUserIds.length === 0) return
 
@@ -125,6 +126,33 @@ async function deliverToNewMembers(
   } catch { /* non-critical */ }
 }
 
+// Рассылает событие присутствия только пользователям, у которых есть общий чат с
+// данным (его «контакты»), вместо глобального io.emit всем подключённым. Иначе
+// один коннект порождал бы O(N) фреймов, а реконнект-шторм — O(N²) трафик.
+async function broadcastPresenceToContacts(
+  io: SocketServer,
+  prisma: PrismaClient,
+  userId: string,
+  event: 'user_online' | 'user_offline',
+  data: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const myChats = await prisma.chatMember.findMany({
+      where: { userId: BigInt(userId) },
+      select: { chatId: true },
+    })
+    if (myChats.length === 0) return
+    const contacts = await prisma.chatMember.findMany({
+      where: { chatId: { in: myChats.map(c => c.chatId) }, NOT: { userId: BigInt(userId) } },
+      select: { userId: true },
+      distinct: ['userId'],
+    })
+    for (const c of contacts) {
+      io.to(`user:${c.userId.toString()}`).emit(event, data)
+    }
+  } catch { /* non-critical */ }
+}
+
 export function createSocketServer(
   httpServer: HttpServer,
   redisUrl: string,
@@ -133,8 +161,10 @@ export function createSocketServer(
   const pubClient = new Redis(redisUrl)
   const subClient = pubClient.duplicate()
 
+  const corsOrigins = env.CORS_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
   const io = new SocketServer(httpServer, {
-    cors: { origin: '*', methods: ['GET', 'POST'] },
+    // Согласовано с REST-CORS (CORS_ORIGINS), а не '*'.
+    cors: { origin: corsOrigins.length > 0 ? corsOrigins : true, methods: ['GET', 'POST'] },
     transports: ['websocket', 'polling'],
     pingInterval: 25_000,
     pingTimeout: 10_000,
@@ -239,8 +269,8 @@ export function createSocketServer(
       socket.emit('online_users', { userIds: onlineIds })
     } catch { /* non-critical */ }
 
-    // Notify everyone that this user came online
-    io.emit('user_online', { userId, username })
+    // Уведомляем о входе в сеть только контактов (общие чаты), не всех подряд.
+    broadcastPresenceToContacts(io, prisma, userId, 'user_online', { userId, username }).catch(() => {})
 
     // Auto-join all user's chat rooms
     try {
@@ -367,7 +397,7 @@ export function createSocketServer(
             where: { id: BigInt(userId) },
             data: { lastSeenAt: new Date() },
           }).catch(() => {})
-          io.emit('user_offline', { userId, username, lastSeenAt: new Date() })
+          broadcastPresenceToContacts(io, prisma, userId, 'user_offline', { userId, username, lastSeenAt: new Date() }).catch(() => {})
         }
       } catch { /* non-critical */ }
     })
@@ -376,7 +406,7 @@ export function createSocketServer(
       try {
         socket.data.active = true
         await setOnline(pubClient, userId)
-        io.emit('user_online', { userId, username })
+        broadcastPresenceToContacts(io, prisma, userId, 'user_online', { userId, username }).catch(() => {})
       } catch { /* non-critical */ }
     })
 
@@ -390,7 +420,7 @@ export function createSocketServer(
           where: { id: BigInt(userId) },
           data: { lastSeenAt: new Date() },
         }).catch(() => {})
-        io.emit('user_offline', { userId, username, lastSeenAt: new Date() })
+        broadcastPresenceToContacts(io, prisma, userId, 'user_offline', { userId, username, lastSeenAt: new Date() }).catch(() => {})
       }
     })
   })

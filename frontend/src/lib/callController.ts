@@ -98,22 +98,30 @@ async function buildEngine(media: CallMedia, polite: boolean): Promise<CallEngin
     onQuality: (q) => useCallStore.getState().setQuality(q),
   })
 
-  await eng.initLocalMedia({ video: media === 'VIDEO' })
-  // Применяем стартовое состояние. Если видео запрашивали, но камера недоступна —
-  // движок откатился на аудио; синхронизируем флаг камеры в сторе.
-  const st = useCallStore.getState()
-  const camOn = st.camOn && eng.videoAvailable
-  if (st.camOn && !eng.videoAvailable) st.setCam(false)
-  eng.setMicEnabled(st.micOn)
-  eng.setCamEnabled(camOn)
-  emit('call:media-state', { callId: useCallStore.getState().callId, camOn })
-  useCallStore.getState().setStreams(eng.getLocalStream(), eng.getRemoteStream())
+  try {
+    await eng.initLocalMedia({ video: media === 'VIDEO' })
+    // Применяем стартовое состояние. Если видео запрашивали, но камера недоступна —
+    // движок откатился на аудио; синхронизируем флаг камеры в сторе.
+    const st = useCallStore.getState()
+    const camOn = st.camOn && eng.videoAvailable
+    if (st.camOn && !eng.videoAvailable) st.setCam(false)
+    eng.setMicEnabled(st.micOn)
+    eng.setCamEnabled(camOn)
+    emit('call:media-state', { callId: useCallStore.getState().callId, camOn })
+    useCallStore.getState().setStreams(eng.getLocalStream(), eng.getRemoteStream())
 
-  // Сливаем буфер сигналов, накопленных до создания движка.
-  for (const sig of pendingSignals) await eng.handleSignal(sig)
-  pendingSignals = []
+    // Сливаем буфер сигналов, накопленных до создания движка.
+    for (const sig of pendingSignals) await eng.handleSignal(sig)
+    pendingSignals = []
 
-  return eng
+    return eng
+  } catch (err) {
+    // L2: движок создан (есть RTCPeerConnection), но инициализация не удалась
+    // (отказ в доступе к микрофону и т.п.). Закрываем pc, иначе он утечёт —
+    // вызывающий код в catch не имеет ссылки на eng.
+    eng.close()
+    throw err
+  }
 }
 
 export const callController = {

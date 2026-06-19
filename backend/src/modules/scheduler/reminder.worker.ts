@@ -1,5 +1,9 @@
 import { PrismaClient, ReminderTarget } from '@prisma/client'
 import Redis from 'ioredis'
+import * as Minio from 'minio'
+import { createPrismaClient } from '../../lib/prismaClient.js'
+import { env } from '../../lib/env.js'
+import { gcOrphanMedia } from './media.gc.js'
 import { publishMessage } from '../../lib/pubsub.js'
 import { sendPush } from '../../lib/webpush.js'
 import { getPreset } from '../calendar/calendar.presets.js'
@@ -29,6 +33,16 @@ async function deliverOne(
   redis: Redis,
   reminderId: string,
 ): Promise<void> {
+  // Атомарный захват: помечаем sentAt ПЕРЕД доставкой, условие sentAt=null.
+  // Если затронуто 0 строк — напоминание уже забрал другой тик/реплика, выходим.
+  // Это распределённый лок без отдельной инфраструктуры: две реплики scheduler
+  // не задвоят push/realtime, т.к. claim выигрывает ровно одна.
+  const claim = await prisma.eventReminder.updateMany({
+    where: { id: reminderId, sentAt: null },
+    data: { sentAt: new Date() },
+  })
+  if (claim.count === 0) return
+
   const reminder = await prisma.eventReminder.findUnique({
     where: { id: reminderId },
     include: {
@@ -42,8 +56,8 @@ async function deliverOne(
     },
   })
 
-  // Уже доставлено другим тиком или удалено — пропускаем.
-  if (!reminder || reminder.sentAt) return
+  // Удалено между claim и чтением — нечего доставлять.
+  if (!reminder) return
 
   const event = reminder.event
   const creatorId = event.createdBy.id
@@ -60,21 +74,19 @@ async function deliverOne(
   )
   const recipients = targetIds.filter(id => !disabled.has(id.toString()))
 
-  // Помечаем как отправленное и записываем доставки атомарно,
-  // даже если получателей не осталось — чтобы не выбирать снова.
-  await prisma.$transaction([
-    prisma.eventReminder.update({
-      where: { id: reminder.id },
-      data: { sentAt: new Date() },
-    }),
-    ...recipients.map(uid =>
-      prisma.reminderDelivery.upsert({
-        where: { reminderId_userId: { reminderId: reminder.id, userId: uid } },
-        update: {},
-        create: { reminderId: reminder.id, userId: uid },
-      }),
-    ),
-  ])
+  // sentAt уже проставлен в claim выше. Здесь только фиксируем индивидуальные
+  // доставки (идемпотентно через upsert).
+  if (recipients.length > 0) {
+    await prisma.$transaction(
+      recipients.map(uid =>
+        prisma.reminderDelivery.upsert({
+          where: { reminderId_userId: { reminderId: reminder.id, userId: uid } },
+          update: {},
+          create: { reminderId: reminder.id, userId: uid },
+        }),
+      ),
+    )
+  }
 
   if (recipients.length === 0) return
 
@@ -143,6 +155,42 @@ async function deliverOne(
   }
 }
 
+// Звонок, провисевший в RINGING дольше этого, считаем «зависшим» (потерян таймер
+// дозвона при реконнекте/рестарте инстанса) и закрываем как пропущенный.
+const STUCK_RINGING_MS = 90_000
+// ACTIVE-звонок без активности дольше этого — оборванный (оба клиента пропали без
+// hangup); закрываем как завершённый, освобождая участников.
+const STUCK_ACTIVE_MS = 6 * 60 * 60 * 1000   // 6 часов
+
+/**
+ * Подчищает «зависшие» звонки в БД, которые остались незавершёнными из-за потери
+ * in-memory таймера дозвона или обрыва обоих клиентов. Без этого участники
+ * остаются BUSY (call:user в Redis истечёт по TTL, но запись в БД висит вечно).
+ */
+async function cleanupStuckCalls(prisma: PrismaClient): Promise<void> {
+  const now = Date.now()
+  const ringingCutoff = new Date(now - STUCK_RINGING_MS)
+  const activeCutoff = new Date(now - STUCK_ACTIVE_MS)
+
+  const ringing = await prisma.callSession.updateMany({
+    where: { status: 'RINGING', createdAt: { lt: ringingCutoff } },
+    data: { status: 'MISSED', endedAt: new Date() },
+  })
+  const active = await prisma.callSession.updateMany({
+    where: { status: 'ACTIVE', answeredAt: { lt: activeCutoff } },
+    data: { status: 'ENDED', endedAt: new Date() },
+  })
+
+  if (ringing.count > 0 || active.count > 0) {
+    // Освобождаем участников осиротевших звонков.
+    await prisma.callParticipant.updateMany({
+      where: { leftAt: null, call: { status: { in: ['MISSED', 'ENDED', 'DECLINED', 'CANCELLED', 'FAILED'] } } },
+      data: { leftAt: new Date() },
+    })
+    console.log(`[scheduler] cleaned stuck calls: ringing=${ringing.count} active=${active.count}`)
+  }
+}
+
 async function tick(prisma: PrismaClient, redis: Redis): Promise<void> {
   const due = await prisma.eventReminder.findMany({
     where: { sentAt: null, fireAt: { lte: new Date() } },
@@ -162,12 +210,29 @@ async function tick(prisma: PrismaClient, redis: Redis): Promise<void> {
   if (due.length > 0) {
     console.log(`[scheduler] processed ${due.length} reminder(s)`)
   }
+
+  try {
+    await cleanupStuckCalls(prisma)
+  } catch (err) {
+    console.error('[scheduler] stuck-call cleanup error:', err)
+  }
 }
 
+// Раз в час подчищаем осиротевшие медиа-объекты в MinIO (H-9).
+const GC_INTERVAL_MS = 60 * 60 * 1000
+
 export async function startScheduler(redisUrl: string): Promise<void> {
-  const prisma = new PrismaClient()
+  const prisma = createPrismaClient()
   await prisma.$connect()
   const redis = new Redis(redisUrl)
+
+  const minio = new Minio.Client({
+    endPoint: env.MINIO_ENDPOINT,
+    port: env.MINIO_PORT,
+    useSSL: env.MINIO_USE_SSL,
+    accessKey: env.MINIO_ROOT_USER,
+    secretKey: env.MINIO_ROOT_PASSWORD,
+  })
 
   console.log('[scheduler] reminder worker started')
 
@@ -184,12 +249,28 @@ export async function startScheduler(redisUrl: string): Promise<void> {
     }
   }
 
+  let gcRunning = false
+  const runGc = async () => {
+    if (gcRunning) return
+    gcRunning = true
+    try {
+      const removed = await gcOrphanMedia(prisma, minio)
+      if (removed > 0) console.log(`[scheduler] media GC removed ${removed} orphan object(s)`)
+    } catch (err) {
+      console.error('[scheduler] media GC error:', err)
+    } finally {
+      gcRunning = false
+    }
+  }
+
   // Первый прогон сразу при старте, далее по интервалу.
   await run()
   const timer = setInterval(run, TICK_MS)
+  const gcTimer = setInterval(runGc, GC_INTERVAL_MS)
 
   process.on('SIGTERM', async () => {
     clearInterval(timer)
+    clearInterval(gcTimer)
     redis.disconnect()
     await prisma.$disconnect()
     process.exit(0)

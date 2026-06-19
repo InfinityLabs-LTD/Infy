@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Outlet, useNavigate, useMatch, useLocation } from 'react-router-dom'
 import { chatApi } from '@/api/chat'
 import { profileApi } from '@/api/auth'
@@ -67,6 +67,20 @@ export function MessengerLayout() {
       .then(r => setChats(r.data.data))
       .finally(() => setLoading(false))
   }, [])
+
+  // H-3: глобальный ресинк по реконнекту сокета. Пока сеть/сокет лежали, события
+  // message_new могли потеряться по чатам, которые не открыты — список (с unread и
+  // последним сообщением) не обновлялся. Перечитываем список целиком при каждом
+  // переходе socketReady → true, чтобы непрочитанные и превью залечились по ВСЕМ
+  // чатам, а не только по активному (его лечит resyncForward в ChatPage).
+  const socketReady = useChatStore(s => s.socketReady)
+  const prevSocketReady = useRef(false)
+  useEffect(() => {
+    if (socketReady && !prevSocketReady.current) {
+      chatApi.listChats().then(r => setChats(r.data.data)).catch(() => { /* не критично */ })
+    }
+    prevSocketReady.current = socketReady
+  }, [socketReady, setChats])
 
   // Авто-установка часового пояса при первом заходе (если ещё не задан).
   // Берём зону браузера; пользователь может сменить вручную в профиле.

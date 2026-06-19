@@ -19,6 +19,10 @@ export interface PendingLocal {
   previewUrl?: string
   // Длительность (мс), измеренная на клиенте — для аудио/кружков.
   durationMs?: number
+  // C-7: результат успешной загрузки файла в MinIO. Кэшируется в задании, чтобы
+  // при ретрае не заливать тот же файл повторно (иначе копятся orphan-объекты).
+  // Структура совпадает с ответом mediaApi.upload (UploadResult).
+  uploaded?: unknown
 }
 
 export interface PendingJob {
@@ -33,6 +37,21 @@ export interface PendingJob {
   caption?: string
   replyToId?: string
   createdAt: number
+  // C-6: счётчик попыток и время следующего разрешённого ретрая (epoch ms).
+  // flushOutbox пропускает задание, пока now < nextRetryAt — это даёт
+  // экспоненциальный backoff и гасит шторм мгновенных ретраев при флаппинге сети.
+  attempts?: number
+  nextRetryAt?: number
+}
+
+// C-6: backoff. Базовая задержка 2с, удвоение, потолок 60с, с джиттером.
+const RETRY_BASE_MS = 2_000
+const RETRY_MAX_MS = 60_000
+
+export function computeBackoffMs(attempts: number): number {
+  const exp = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** Math.max(0, attempts - 1))
+  const jitter = Math.random() * 0.3 * exp   // ±30% джиттер против синхронных ретраев
+  return Math.round(exp + jitter)
 }
 
 // Время жизни задания — 24 часа.
@@ -134,6 +153,26 @@ export function getPendingJob(tempId: string): PendingJob | undefined {
   return jobs.get(tempId)
 }
 
+// C-7: сохраняет результат успешной загрузки файла в задание (персистится в IDB),
+// чтобы ретрай переиспользовал storageKey вместо повторной заливки.
+export function setUploadedLocal(tempId: string, localIndex: number, uploaded: unknown) {
+  const job = jobs.get(tempId)
+  if (!job || !job.locals[localIndex]) return
+  job.locals[localIndex].uploaded = uploaded
+  void dbPut(job)
+}
+
+// C-6: помечает задание неудачным и планирует следующий ретрай с backoff.
+// retryAfterMs (из заголовка Retry-After для 429) имеет приоритет над формулой.
+export function scheduleRetry(tempId: string, retryAfterMs?: number) {
+  const job = jobs.get(tempId)
+  if (!job) return
+  job.attempts = (job.attempts ?? 0) + 1
+  const delay = retryAfterMs && retryAfterMs > 0 ? retryAfterMs : computeBackoffMs(job.attempts)
+  job.nextRetryAt = Date.now() + delay
+  void dbPut(job)
+}
+
 export function getAllPendingJobs(): PendingJob[] {
   return [...jobs.values()].sort((a, b) => a.createdAt - b.createdAt)
 }
@@ -166,15 +205,53 @@ export function sweepExpired(now = Date.now()) {
 export function flushOutbox() {
   if (!runner) return
   const now = Date.now()
-  for (const job of getAllPendingJobs()) {
+  let earliestNext = Infinity
+  // M-2: сериализация по chatId. Запускаем не более одного задания на чат за раз и
+  // строго в порядке createdAt — иначе параллельная отправка инвертирует порядок
+  // у получателя (серверный ULID присваивается в момент записи, кто первый дошёл).
+  const launchingChat = new Set<string>()
+  for (const cid of inFlightChats()) launchingChat.add(cid)
+
+  for (const job of getAllPendingJobs()) {   // отсортированы по createdAt
     if (now - job.createdAt >= PENDING_TTL_MS) continue
     if (inFlight.has(job.tempId)) continue
+    // C-6: уважаем backoff — ещё рано ретраить.
+    if (job.nextRetryAt && job.nextRetryAt > now) {
+      earliestNext = Math.min(earliestNext, job.nextRetryAt)
+      continue
+    }
+    // В этом чате уже есть отправляющееся/запускаемое задание — ждём его завершения.
+    if (launchingChat.has(job.chatId)) continue
+    launchingChat.add(job.chatId)
     inFlight.add(job.tempId)
     Promise.resolve(runner(job))
-      .catch(() => { /* раннер сам помечает failed */ })
-      .finally(() => { inFlight.delete(job.tempId) })
+      .catch(() => { /* раннер сам помечает failed + scheduleRetry */ })
+      .finally(() => {
+        inFlight.delete(job.tempId)
+        // Следующее задание этого чата подхватится следующим flush.
+        flushOutbox()
+      })
+  }
+  // Планируем повторный flush к моменту, когда созреет ближайший отложенный job,
+  // чтобы ретрай случился без внешнего события (online/reconnect).
+  if (earliestNext !== Infinity) {
+    const wait = Math.max(250, earliestNext - now)
+    if (retryWakeTimer) clearTimeout(retryWakeTimer)
+    retryWakeTimer = setTimeout(() => { retryWakeTimer = null; flushOutbox() }, wait)
   }
 }
+
+// Множество chatId, по которым сейчас есть отправляющееся задание.
+function inFlightChats(): Set<string> {
+  const set = new Set<string>()
+  for (const tempId of inFlight) {
+    const job = jobs.get(tempId)
+    if (job) set.add(job.chatId)
+  }
+  return set
+}
+
+let retryWakeTimer: ReturnType<typeof setTimeout> | null = null
 
 export function isInFlight(tempId: string): boolean {
   return inFlight.has(tempId)

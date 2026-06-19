@@ -8,9 +8,15 @@ import * as CallsService from './calls.service.js'
 
 // Сколько секунд звоним без ответа, прежде чем считать звонок пропущенным.
 const RING_TIMEOUT_MS = 45_000
-// TTL записи о звонке в Redis — чуть больше таймаута дозвона + запас на разговор.
-// Звонок продлевает TTL при accept. Защита от «зависших» записей.
-const CALL_STATE_TTL_SEC = 4 * 60 * 60   // 4 часа максимум на один разговор
+// TTL записи о звонке, ПОКА он звонит (RINGING). Короткий: если таймер дозвона
+// потерян (реконнект инициатора на другой инстанс / рестарт), запись и busy-лок
+// сами истекут вскоре после RING_TIMEOUT_MS, а не висят часами. Cleanup-воркер
+// дополнительно закрывает осиротевшие RINGING-сессии в БД.
+const RINGING_STATE_TTL_SEC = 60
+// TTL записи об активном звонке (после accept). Запас на длинный разговор;
+// продлевается heartbeat'ом call:media-state/signal не требуется — звонок
+// корректно завершается через hangup/disconnect.
+const ACTIVE_STATE_TTL_SEC = 4 * 60 * 60   // 4 часа максимум на один разговор
 
 interface AuthSocket extends Socket {
   userId: string
@@ -33,12 +39,34 @@ const USER_CALL = (userId: string) => `call:user:${userId}`
 
 async function saveState(redis: Redis, s: CallState): Promise<void> {
   const json = JSON.stringify(s)
+  const ttl = s.status === 'active' ? ACTIVE_STATE_TTL_SEC : RINGING_STATE_TTL_SEC
   await redis
     .multi()
-    .setex(KEY(s.callId), CALL_STATE_TTL_SEC, json)
-    .setex(USER_CALL(s.initiatorId), CALL_STATE_TTL_SEC, s.callId)
-    .setex(USER_CALL(s.calleeId), CALL_STATE_TTL_SEC, s.callId)
+    .setex(KEY(s.callId), ttl, json)
+    .setex(USER_CALL(s.initiatorId), ttl, s.callId)
+    .setex(USER_CALL(s.calleeId), ttl, s.callId)
     .exec()
+}
+
+/**
+ * Атомарно захватывает busy-лок для обоих участников через SET NX.
+ * Возвращает true, если оба свободны и заняты этим звонком; иначе откатывает и
+ * возвращает причину. Убирает TOCTOU-гонку двух одновременных invite.
+ */
+async function acquireBusyLock(
+  redis: Redis,
+  callId: string,
+  initiatorId: string,
+  calleeId: string,
+): Promise<{ ok: true } | { ok: false; busy: 'self' | 'peer' }> {
+  const gotSelf = await redis.set(USER_CALL(initiatorId), callId, 'EX', RINGING_STATE_TTL_SEC, 'NX')
+  if (gotSelf !== 'OK') return { ok: false, busy: 'self' }
+  const gotPeer = await redis.set(USER_CALL(calleeId), callId, 'EX', RINGING_STATE_TTL_SEC, 'NX')
+  if (gotPeer !== 'OK') {
+    await redis.del(USER_CALL(initiatorId))   // откат
+    return { ok: false, busy: 'peer' }
+  }
+  return { ok: true }
 }
 
 async function loadState(redis: Redis, callId: string): Promise<CallState | null> {
@@ -131,16 +159,26 @@ export function registerCallHandlers(
       const { partnerId } = await CallsService.resolveDirectCallTarget(prisma, chatId, BigInt(userId))
       const calleeId = partnerId.toString()
 
-      // Busy-проверки: и звонящий, и получатель должны быть свободны
-      if (await getUserActiveCall(redis, userId)) { ack?.({ ok: false, error: 'YOU_BUSY' }); return }
-      if (await getUserActiveCall(redis, calleeId)) {
+      // Атомарный захват busy-лока обоих участников (SET NX) — без TOCTOU-окна.
+      const provisionalCallId = ulid()
+      const lock = await acquireBusyLock(redis, provisionalCallId, userId, calleeId)
+      if (!lock.ok) {
+        if (lock.busy === 'self') { ack?.({ ok: false, error: 'YOU_BUSY' }); return }
         ack?.({ ok: false, error: 'PEER_BUSY' })
         socket.emit('call:peer-busy', { chatId })
         return
       }
 
-      // Запись в БД (RINGING) + участники
-      const call = await CallsService.createCall(prisma, chatId, BigInt(userId), partnerId, media)
+      let call: Awaited<ReturnType<typeof CallsService.createCall>>
+      try {
+        // Запись в БД (RINGING) + участники. Partial unique index не даст создать
+        // второй незавершённый звонок в том же чате (двойная защита к busy-локу).
+        call = await CallsService.createCall(prisma, chatId, BigInt(userId), partnerId, media)
+      } catch (e) {
+        // Создание не удалось — освобождаем захваченный лок, чтобы не висел до TTL.
+        await redis.del(USER_CALL(userId), USER_CALL(calleeId)).catch(() => {})
+        throw e
+      }
 
       const state: CallState = {
         callId: call.id,
@@ -150,6 +188,7 @@ export function registerCallHandlers(
         media,
         status: 'ringing',
       }
+      // Перепривязываем лок к реальному callId + кладём полный state с TTL.
       await saveState(redis, state)
 
       const caller = call.initiator
@@ -242,6 +281,10 @@ export function registerCallHandlers(
   // ── call:signal — ретрансляция SDP/ICE второму пиру ────────
   // payload.data — непрозрачный для сервера объект { type, sdp } | { candidate }.
   socket.on('call:signal', async (payload: { callId: string; data: unknown }) => {
+    if (!payload?.callId || payload.data == null) return
+    // M-11: ограничиваем размер ретранслируемого payload (SDP редко >64КБ),
+    // чтобы участник не мог гнать через шлюз произвольно большие объёмы.
+    if (JSON.stringify(payload.data).length > 64 * 1024) return
     const state = await loadState(redis, payload.callId)
     if (!state) return
     const peerId =

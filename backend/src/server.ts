@@ -53,7 +53,7 @@ async function buildCoreServer() {
   await app.register(helmet, { contentSecurityPolicy: false })
 
   await app.register(multipart, {
-    limits: { fileSize: 200 * 1024 * 1024 },  // media service enforces per-type limits
+    limits: { fileSize: env.MAX_UPLOAD_BYTES },  // согласован с nginx; media service enforces per-type limits
   })
 
   await app.register(swagger, {
@@ -144,8 +144,8 @@ async function buildCoreServer() {
 
 async function startRealtime() {
   // Minimal HTTP server for Socket.IO (no REST routes)
-  const { PrismaClient } = await import('@prisma/client')
-  const prisma = new PrismaClient()
+  const { createPrismaClient } = await import('./lib/prismaClient.js')
+  const prisma = createPrismaClient()
   await prisma.$connect()
 
   const httpServer = http.createServer((_req, res) => {
@@ -158,17 +158,26 @@ async function startRealtime() {
     }
   })
 
-  createSocketServer(httpServer, env.REDIS_URL, prisma)
+  const io = createSocketServer(httpServer, env.REDIS_URL, prisma)
 
   httpServer.listen(env.PORT, '0.0.0.0', () => {
     console.log(`[realtime] Socket.IO listening on :${env.PORT}`)
   })
 
-  process.on('SIGTERM', async () => {
-    await prisma.$disconnect()
+  // H-8: graceful shutdown. Закрываем Socket.IO (дренируем соединения), затем
+  // HTTP-сервер и Prisma. Клиенты получат disconnect и переподключатся плавно.
+  let shuttingDown = false
+  const shutdown = async () => {
+    if (shuttingDown) return
+    shuttingDown = true
+    console.log('[realtime] SIGTERM — graceful shutdown')
+    try { await io.close() } catch { /* noop */ }
     httpServer.close()
+    await prisma.$disconnect().catch(() => {})
     process.exit(0)
-  })
+  }
+  process.on('SIGTERM', shutdown)
+  process.on('SIGINT', shutdown)
 }
 
 async function main() {
@@ -186,6 +195,19 @@ async function main() {
   const app = await buildCoreServer()
   await app.ready()
   await app.listen({ port: env.PORT, host: '0.0.0.0' })
+
+  // H-8: graceful shutdown — даём активным запросам завершиться, закрываем
+  // плагины (Prisma/Redis disconnect через onClose-хуки), затем выходим.
+  let shuttingDown = false
+  const shutdown = async () => {
+    if (shuttingDown) return
+    shuttingDown = true
+    app.log.info('SIGTERM — graceful shutdown')
+    try { await app.close() } catch (e) { app.log.error(e) }
+    process.exit(0)
+  }
+  process.on('SIGTERM', shutdown)
+  process.on('SIGINT', shutdown)
 }
 
 main().catch((err) => {

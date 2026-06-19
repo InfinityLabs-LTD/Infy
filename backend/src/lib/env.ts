@@ -45,6 +45,18 @@ const schema = z.object({
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
   TRUSTED_PROXY: z.string().default('127.0.0.1'),
 
+  // Лимит соединений Prisma на один процесс (см. ?connection_limit в DATABASE_URL).
+  // Используется как фолбэк, если в строке подключения он не задан явно.
+  DB_CONNECTION_LIMIT: z.coerce.number().default(10),
+
+  // Максимальный размер загружаемого файла (байт). Должен быть согласован с
+  // client_max_body_size в nginx (рекомендуется nginx ≈ этого значения + ~10%).
+  MAX_UPLOAD_BYTES: z.coerce.number().default(200 * 1024 * 1024),
+
+  // Сколько транскодингов ffmpeg может идти параллельно на одном media-инстансе.
+  // Ограничивает CPU-saturation при пачке одновременных видео (H-4).
+  MEDIA_TRANSCODE_CONCURRENCY: z.coerce.number().default(2),
+
   RATE_LIMIT_REGISTER_MAX: z.coerce.number().default(5),
   RATE_LIMIT_REGISTER_WINDOW_MS: z.coerce.number().default(3_600_000),
   RATE_LIMIT_LOGIN_MAX: z.coerce.number().default(10),

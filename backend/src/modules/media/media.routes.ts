@@ -1,11 +1,16 @@
 import { FastifyPluginAsync } from 'fastify'
+import { pipeline } from 'stream/promises'
+import { createWriteStream } from 'fs'
+import fs from 'fs/promises'
+import path from 'path'
+import os from 'os'
 import { authenticate } from '../../middleware/authenticate.js'
 import { AppError } from '../../lib/errors.js'
 import { verifyAccessToken } from '../../lib/jwt.js'
 import { env } from '../../lib/env.js'
-import { uploadMedia, detectFileType } from './media.service.js'
+import { uploadMedia, detectFileType, sizeLimitFor } from './media.service.js'
 
-const MAX_UPLOAD_BYTES = 200 * 1024 * 1024
+const MAX_UPLOAD_BYTES = env.MAX_UPLOAD_BYTES
 
 const mediaRoutes: FastifyPluginAsync = async (app) => {
   // POST /media/upload
@@ -31,31 +36,44 @@ const mediaRoutes: FastifyPluginAsync = async (app) => {
       throw new AppError('MEDIA_UNSUPPORTED_TYPE', (err as Error).message, 400)
     }
 
-    const chunks: Buffer[] = []
+    // H-5: ранняя проверка по Content-Length до чтения тела — отбрасываем заведомо
+    // слишком большой файл по заголовку, не приняв его целиком.
+    const perTypeLimit = sizeLimitFor(fileType)
+    const declaredLen = parseInt((request.headers['content-length'] as string | undefined) ?? '', 10)
+    if (Number.isFinite(declaredLen) && declaredLen > perTypeLimit) {
+      throw new AppError('MEDIA_TOO_LARGE', `File exceeds the ${Math.round(perTypeLimit / 1024 / 1024)} MB limit for ${fileType}`, 413)
+    }
+
+    // C-5: стримим тело во временный файл, а не собираем Buffer.concat в RAM.
+    const tmpUpload = path.join(os.tmpdir(), `infy-up-${Date.now()}-${Math.random().toString(36).slice(2)}`)
     let total = 0
-    for await (const chunk of data.file) {
+    let aborted = false
+    data.file.on('data', (chunk: Buffer) => {
       total += chunk.length
-      if (total > MAX_UPLOAD_BYTES) {
-        throw new AppError('MEDIA_TOO_LARGE', 'File exceeds maximum allowed size', 413)
-      }
-      chunks.push(chunk)
-    }
-    const buffer = Buffer.concat(chunks)
-
-    // Клиентская длительность (мс) — запасной вариант для аудио/видео,
-    // когда ffprobe не может определить её из контейнера.
-    const durHeader = parseInt((request.headers['x-media-duration'] as string | undefined) ?? '', 10)
-    const clientDurationMs = Number.isFinite(durHeader) && durHeader > 0 ? durHeader : undefined
-
-    let result
+      if (total > perTypeLimit) aborted = true   // multipart fileSize тоже оборвёт поток
+    })
     try {
-      result = await uploadMedia(app.minio, buffer, data.mimetype, fileType, request.user.sub, data.filename, clientDurationMs)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Upload failed'
-      throw new AppError('MEDIA_UPLOAD_FAILED', msg, 500)
-    }
+      await pipeline(data.file, createWriteStream(tmpUpload))
+      if (aborted || data.file.truncated || total > perTypeLimit) {
+        throw new AppError('MEDIA_TOO_LARGE', `File exceeds the ${Math.round(perTypeLimit / 1024 / 1024)} MB limit for ${fileType}`, 413)
+      }
 
-    return reply.code(201).send({ data: result })
+      const durHeader = parseInt((request.headers['x-media-duration'] as string | undefined) ?? '', 10)
+      const clientDurationMs = Number.isFinite(durHeader) && durHeader > 0 ? durHeader : undefined
+
+      let result
+      try {
+        result = await uploadMedia(app.minio, tmpUpload, total, data.mimetype, fileType, request.user.sub, data.filename, clientDurationMs)
+      } catch (err) {
+        if (err instanceof AppError) throw err
+        const msg = err instanceof Error ? err.message : 'Upload failed'
+        throw new AppError('MEDIA_UPLOAD_FAILED', msg, 500)
+      }
+
+      return reply.code(201).send({ data: result })
+    } finally {
+      await fs.unlink(tmpUpload).catch(() => {})
+    }
   })
 
   // GET /avatars/* — serve avatar files without auth (bucket is public)
@@ -128,6 +146,12 @@ const mediaRoutes: FastifyPluginAsync = async (app) => {
     reply.header('Accept-Ranges', 'bytes')
     reply.header('Cache-Control', 'private, max-age=3600')
     reply.header('Content-Type', contentType)
+    // M-4: контент, которому нельзя доверять как инлайн-просмотру (произвольные
+    // документы / неизвестные типы), отдаём как вложение и запрещаем
+    // MIME-sniffing — браузер не отрендерит/не исполнит загруженный HTML/SVG.
+    reply.header('X-Content-Type-Options', 'nosniff')
+    const inlineSafe = /^(image\/|video\/|audio\/)/.test(contentType)
+    if (!inlineSafe) reply.header('Content-Disposition', 'attachment')
 
     const rangeHeader = request.headers['range'] as string | undefined
     if (rangeHeader) {

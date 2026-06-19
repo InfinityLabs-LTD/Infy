@@ -1,6 +1,7 @@
 import fp from 'fastify-plugin'
 import { FastifyPluginAsync } from 'fastify'
 import { PrismaClient } from '@prisma/client'
+import { createPrismaClient } from '../lib/prismaClient.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -9,7 +10,7 @@ declare module 'fastify' {
 }
 
 const prismaPlugin: FastifyPluginAsync = fp(async (app) => {
-  const prisma = new PrismaClient({
+  const prisma = createPrismaClient({
     log: app.log.level === 'debug' ? ['query', 'info', 'warn', 'error'] : ['warn', 'error'],
   })
 
