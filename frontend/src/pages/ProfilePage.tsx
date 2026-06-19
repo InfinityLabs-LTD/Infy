@@ -108,12 +108,12 @@ export function ProfilePage() {
             onCover={() => coverRef.current?.click()}
           />
           {error !== null && <ErrorMessage error={error} />}
-          <StatGrid stats={stats} />
+          {editable && <StatGrid stats={stats} />}
         </div>
 
         {/* Right column: about, AI, and (in "me" mode) personal cabinet */}
         <div className="space-y-3 lg:space-y-3">
-          <AboutCard user={user} />
+          <AboutCard user={user} mode={mode} />
           <AiInsightCard user={user} />
 
           <AnimatePresence initial={false}>
@@ -375,19 +375,26 @@ export function InterestChips({ interests }: { interests?: string[] }) {
   )
 }
 
-function AboutCard({ user }: { user: User }) {
+function AboutCard({ user, mode }: { user: User; mode: Mode }) {
   const interests = user.interests ?? []
-  // Не показываем карточку, если нечего показать.
-  if (!user.bio && interests.length === 0) return null
+  const hasContent = !!user.bio || interests.length > 0
+  // В режиме "я" скрываем карточку, если нечего показывать.
+  if (mode === 'me' && !hasContent) return null
   return (
     <Glass layer="raised" delay={0.1} className="p-5">
       <SectionLabel>🚀 О себе</SectionLabel>
-      {user.bio && (
+      {user.bio ? (
         <p className="text-sm leading-relaxed mt-3" style={{ color: 'rgba(255,255,255,0.85)', whiteSpace: 'pre-wrap' }}>
           {user.bio}
         </p>
+      ) : mode === 'others' && (
+        <p className="text-sm mt-3 italic" style={{ color: 'var(--text-low)' }}>Пользователь не заполнил описание.</p>
       )}
-      <InterestChips interests={interests} />
+      {interests.length > 0 ? (
+        <InterestChips interests={interests} />
+      ) : mode === 'others' && !user.bio && (
+        <p className="text-sm mt-3 italic" style={{ color: 'var(--text-low)' }}>Интересы не указаны.</p>
+      )}
     </Glass>
   )
 }
