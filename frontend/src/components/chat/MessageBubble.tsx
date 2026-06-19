@@ -259,8 +259,8 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
   }
 
   function handleCopy() {
-    setShowMenu(false)
     if (message.content) copyText(message.content)
+    setShowMenu(false)
   }
 
   async function handleReact(emoji: string) {
