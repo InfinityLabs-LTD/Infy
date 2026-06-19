@@ -1,7 +1,8 @@
 FROM node:20-alpine AS base
 WORKDIR /app
-# ffmpeg для транскодинга медиа
-RUN apk add --no-cache openssl ffmpeg
+# ffmpeg — транскодинг медиа; postgresql16-client — pg_dump/psql для бэкапов БД.
+# Версия клиента должна совпадать с сервером (postgres:16-alpine).
+RUN apk add --no-cache openssl ffmpeg postgresql16-client
 
 # ── Dependencies ──────────────────────────────────────────────
 FROM base AS deps

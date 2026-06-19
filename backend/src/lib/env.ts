@@ -21,6 +21,7 @@ const schema = z.object({
   MINIO_ROOT_PASSWORD: z.string(),
   MINIO_BUCKET_AVATARS: z.string().default('avatars'),
   MINIO_BUCKET_MEDIA: z.string().default('media'),
+  MINIO_BUCKET_BACKUPS: z.string().default('backups'),
   MINIO_PUBLIC_URL: z.string().default('http://localhost:9000'),
 
   DOCKER_PROXY_URL: z.string().default('http://socket-proxy:2375'),

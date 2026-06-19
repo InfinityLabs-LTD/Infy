@@ -8,6 +8,8 @@ import { publishMessage } from '../../lib/pubsub.js'
 import { sendPush } from '../../lib/webpush.js'
 import { getPreset } from '../calendar/calendar.presets.js'
 import { formatTimeInTz } from '../../lib/timezone.js'
+import { getBackupSchedule, isBackupDue, markBackupRun } from '../../lib/backupSettings.js'
+import { createBackup, applyRetention } from '../../lib/backup.js'
 
 const TICK_MS = 60_000        // проверяем раз в минуту
 const BATCH = 200             // максимум напоминаний за тик
@@ -191,7 +193,31 @@ async function cleanupStuckCalls(prisma: PrismaClient): Promise<void> {
   }
 }
 
-async function tick(prisma: PrismaClient, redis: Redis): Promise<void> {
+/**
+ * Проверяет, не пора ли по расписанию сделать авто-бэкап БД, и при необходимости
+ * выполняет его + применяет ретеншн. Защита от двойного запуска — атомарный
+ * claim через markBackupRun (две реплики не задвоят: lastRunAt сверяется по минуте).
+ */
+async function backupTick(prisma: PrismaClient, minio: Minio.Client): Promise<void> {
+  const schedule = await getBackupSchedule(prisma)
+  const now = new Date()
+  if (!isBackupDue(schedule, now)) return
+
+  // Claim окна: помечаем запуск ДО самого бэкапа, чтобы вторая реплика увидела
+  // занятую минуту через isBackupDue и не запустилась.
+  await markBackupRun(prisma, now)
+
+  try {
+    const info = await createBackup(minio, 'scheduled')
+    console.log(`[scheduler] auto-backup created: ${info.name} (${info.size} bytes)`)
+    const removed = await applyRetention(minio, schedule.retention)
+    if (removed > 0) console.log(`[scheduler] retention removed ${removed} old backup(s)`)
+  } catch (err) {
+    console.error('[scheduler] auto-backup failed:', err)
+  }
+}
+
+async function tick(prisma: PrismaClient, redis: Redis, minio: Minio.Client): Promise<void> {
   const due = await prisma.eventReminder.findMany({
     where: { sentAt: null, fireAt: { lte: new Date() } },
     select: { id: true },
@@ -215,6 +241,12 @@ async function tick(prisma: PrismaClient, redis: Redis): Promise<void> {
     await cleanupStuckCalls(prisma)
   } catch (err) {
     console.error('[scheduler] stuck-call cleanup error:', err)
+  }
+
+  try {
+    await backupTick(prisma, minio)
+  } catch (err) {
+    console.error('[scheduler] backup tick error:', err)
   }
 }
 
@@ -241,7 +273,7 @@ export async function startScheduler(redisUrl: string): Promise<void> {
     if (running) return            // не накладываем тики друг на друга
     running = true
     try {
-      await tick(prisma, redis)
+      await tick(prisma, redis, minio)
     } catch (err) {
       console.error('[scheduler] tick error:', err)
     } finally {

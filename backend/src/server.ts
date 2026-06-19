@@ -28,6 +28,7 @@ import adminModerationRoutes from './modules/admin/admin.moderation.routes.js'
 import adminReportsRoutes from './modules/admin/admin.reports.routes.js'
 import adminAiRoutes from './modules/admin/admin.ai.routes.js'
 import adminMailRoutes from './modules/admin/admin.mail.routes.js'
+import adminBackupRoutes from './modules/admin/admin.backup.routes.js'
 import reportsRoutes from './modules/reports/reports.routes.js'
 import aiRoutes from './modules/ai/ai.routes.js'
 import pushRoutes from './modules/push/push.routes.js'
@@ -134,6 +135,7 @@ async function buildCoreServer() {
   await app.register(adminReportsRoutes, { prefix: '/admin/moderation/reports' })
   await app.register(adminAiRoutes, { prefix: '/admin/ai' })
   await app.register(adminMailRoutes, { prefix: '/admin/mail' })
+  await app.register(adminBackupRoutes, { prefix: '/admin/backups' })
   await app.register(reportsRoutes, { prefix: '/reports' })
   await app.register(aiRoutes, { prefix: '/ai' })
   await app.register(pushRoutes, { prefix: '/push' })

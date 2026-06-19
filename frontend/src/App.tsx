@@ -24,6 +24,7 @@ import { AdminAiCenterPage } from '@/pages/admin/AdminAiCenterPage'
 import { AdminMailCenterPage } from '@/pages/admin/AdminMailCenterPage'
 import { AdminPaymentsPage } from '@/pages/admin/AdminPaymentsPage'
 import { AdminContainersPage } from '@/pages/admin/AdminContainersPage'
+import { AdminBackupsPage } from '@/pages/admin/AdminBackupsPage'
 import { CallOverlay } from '@/components/call/CallOverlay'
 import { IncomingCallBanner } from '@/components/call/IncomingCallBanner'
 import { useCallSignaling } from '@/hooks/useCallSignaling'
@@ -96,6 +97,7 @@ export default function App() {
           <Route path="mail" element={<AdminMailCenterPage />} />
           <Route path="payments" element={<AdminPaymentsPage />} />
           <Route path="containers" element={<AdminContainersPage />} />
+          <Route path="backups" element={<AdminBackupsPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

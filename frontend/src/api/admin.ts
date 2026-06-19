@@ -341,4 +341,69 @@ export const adminApi = {
     const base = apiBaseUrl()
     return `${base}/admin/containers/${id}/logs?tail=${tail}`
   },
+
+  // ── Backups (резервные копии БД) ───────────────────────────
+  getBackups: () =>
+    api.get<{ data: { backups: BackupInfo[]; schedule: BackupSchedule } }>('/admin/backups'),
+
+  createBackup: () =>
+    api.post<{ data: BackupInfo }>('/admin/backups'),
+
+  deleteBackup: (name: string) =>
+    api.delete(`/admin/backups/${encodeURIComponent(name)}`),
+
+  getBackupLink: (name: string) =>
+    api.get<{ data: { url: string } }>(`/admin/backups/${encodeURIComponent(name)}/link`),
+
+  restoreBackup: (name: string) =>
+    api.post<{ data: { ok: true } }>(`/admin/backups/${encodeURIComponent(name)}/restore`, { confirm: true }),
+
+  uploadBackup: (file: File, onProgress?: (pct: number) => void) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post<{ data: BackupInfo }>('/admin/backups/upload', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100))
+      },
+    })
+  },
+
+  updateBackupSchedule: (body: BackupScheduleUpdate) =>
+    api.patch<{ data: BackupSchedule }>('/admin/backups/schedule', body),
+
+  // Прямая ссылка на скачивание (proxy-стрим через бэкенд).
+  backupDownloadUrl: (name: string) =>
+    `${apiBaseUrl()}/admin/backups/${encodeURIComponent(name)}/download`,
+}
+
+// ── Backup types ─────────────────────────────────────────────
+export interface BackupInfo {
+  name: string
+  size: number
+  createdAt: string
+  trigger: 'manual' | 'scheduled' | 'upload'
+}
+
+export type BackupFrequency = 'daily' | 'weekly' | 'monthly'
+
+export interface BackupSchedule {
+  enabled: boolean
+  frequency: BackupFrequency
+  hour: number
+  minute: number
+  weekday: number
+  day: number
+  retention: number
+  lastRunAt: string | null
+}
+
+export interface BackupScheduleUpdate {
+  enabled?: boolean
+  frequency?: BackupFrequency
+  hour?: number
+  minute?: number
+  weekday?: number
+  day?: number
+  retention?: number
 }

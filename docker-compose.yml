@@ -75,6 +75,7 @@ services:
         mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
         mc mb --ignore-existing local/$${MINIO_BUCKET_AVATARS};
         mc mb --ignore-existing local/$${MINIO_BUCKET_MEDIA};
+        mc mb --ignore-existing local/$${MINIO_BUCKET_BACKUPS:-backups};
         mc anonymous set download local/$${MINIO_BUCKET_AVATARS};
         exit 0;
       "
