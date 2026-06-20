@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Infy iOS Stage 1 Preview</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="phone" aria-label="Infy iOS Stage 1 Preview">
+      <section class="screen">
+        <div class="statusbar">
+          <span>21:20</span>
+          <span>5G 100%</span>
+        </div>
+
+        <header class="brand">
+          <div class="spark">✦</div>
+          <h1>Infy</h1>
+          <p>Secure messaging, calls, AI and events in one native client.</p>
+        </header>
+
+        <nav class="segmented" aria-label="Auth mode">
+          <button class="active" data-mode="signin">Вход</button>
+          <button data-mode="register">Регистрация</button>
+          <button data-mode="recover">Доступ</button>
+        </nav>
+
+        <form class="panel visible" id="signin">
+          <label>
+            <span>@</span>
+            <input autocomplete="username" placeholder="Username" value="danya" />
+          </label>
+          <label>
+            <span>⌘</span>
+            <input autocomplete="current-password" type="password" placeholder="Password" value="password123" />
+          </label>
+          <p class="message" id="signin-message"></p>
+          <button class="primary" type="submit">Sign In</button>
+        </form>
+
+        <form class="panel" id="register">
+          <label><span>@</span><input placeholder="Username" /></label>
+          <label><span>◇</span><input placeholder="Nickname" /></label>
+          <label><span>✉</span><input type="email" placeholder="Email" /></label>
+          <label><span>◷</span><input placeholder="Birthdate YYYY-MM-DD" /></label>
+          <label><span>⌘</span><input type="password" placeholder="Password" /></label>
+          <p class="message" id="register-message"></p>
+          <button class="primary" type="submit">Create Account</button>
+        </form>
+
+        <form class="panel" id="recover">
+          <label><span>✉</span><input type="email" placeholder="Email" /></label>
+          <p class="message" id="recover-message"></p>
+          <button class="primary" type="submit">Send Reset Link</button>
+        </form>
+
+        <section class="panel authed" id="authed" aria-live="polite">
+          <div class="big-icon">◉</div>
+          <h2>Infy</h2>
+          <p>Account is ready. Stage 2 will add chats, realtime and offline cache after approval.</p>
+          <button class="primary" id="logout" type="button">Sign Out</button>
+        </section>
+      </section>
+    </main>
+    <script src="./main.js"></script>
+  </body>
+</html>
+

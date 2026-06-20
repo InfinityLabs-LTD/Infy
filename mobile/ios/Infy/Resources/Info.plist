@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Infy</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>INFY_API_BASE_URL</key>
+	<string>$(INFY_API_BASE_URL)</string>
+	<key>INFY_REALTIME_URL</key>
+	<string>$(INFY_REALTIME_URL)</string>
+	<key>INFY_CERTIFICATE_PINS</key>
+	<string>$(INFY_CERTIFICATE_PINS)</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Infy uses Face ID to protect access to your account on this device.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Infy uses the camera for video calls, photos, and video messages.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Infy uses the microphone for calls and voice messages.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Infy uses photo library access when you choose media to send.</string>
+</dict>
+</plist>
+
