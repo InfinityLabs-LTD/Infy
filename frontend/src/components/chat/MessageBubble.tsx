@@ -499,7 +499,6 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
           onPin={handlePin}
           onDelete={isOwn ? handleDelete : undefined}
           onSelect={onSelect ? handleSelect : undefined}
-          isSelected={false}
         />,
         document.body
       )}
@@ -667,7 +666,7 @@ function TypingDots() {
 // ── Context menu ──────────────────────────────────────────────
 
 function MessageContextMenu({
-  bubbleRef, isOwn, isText, isPinned, readAt, onClose, onReact, onReply, onCopy, onEdit, onPin, onDelete, onSelect, isSelected,
+  bubbleRef, isOwn, isText, isPinned, readAt, onClose, onReact, onReply, onCopy, onEdit, onPin, onDelete, onSelect,
 }: {
   bubbleRef: React.RefObject<HTMLDivElement>
   isOwn: boolean
@@ -682,7 +681,6 @@ function MessageContextMenu({
   onPin?: () => void
   onDelete?: () => void
   onSelect?: () => void
-  isSelected?: boolean
 }) {
   const [showFullPicker, setShowFullPicker] = useState(false)
 
@@ -798,8 +796,8 @@ function MessageContextMenu({
             <>
               <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '2px 0' }} />
               <CtxItem
-                icon={isSelected ? '✓' : '○'}
-                label={isSelected ? 'Снять выделение' : 'Выбрать'}
+                icon="○"
+                label="Выбрать"
                 onPointerDown={e => { e.stopPropagation(); onSelect() }}
               />
             </>
