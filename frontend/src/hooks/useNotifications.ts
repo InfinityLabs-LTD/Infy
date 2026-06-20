@@ -160,12 +160,14 @@ export function useNotifications(): UseNotificationsResult {
     if (!supported) return
     setOptedOut(true)
     try {
+      // На Android вызов unsubscribe() уничтожает FCM-регистрацию, и после
+      // повторной подписки новый endpoint может не работать до переустановки.
+      // Поэтому браузерную подписку не трогаем — только удаляем её с сервера,
+      // чтобы бэкенд перестал слать push'и.
       const reg = await navigator.serviceWorker.ready
       const sub = await reg.pushManager.getSubscription()
       if (sub) {
-        const endpoint = sub.endpoint
-        await sub.unsubscribe().catch(() => {})
-        await pushApi.unsubscribe(endpoint).catch(() => {})
+        await pushApi.unsubscribe(sub.endpoint).catch(() => {})
       }
     } finally {
       setSubscribed(false)
