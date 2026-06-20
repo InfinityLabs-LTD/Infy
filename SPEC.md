@@ -24,8 +24,10 @@
     │  core   │ │ realtime  │ │   media   │    │ scheduler │
     │ REST    │ │ Socket.IO │ │ upload/   │    │ воркер    │
     │ auth    │ │ presence  │ │ transcode │    │ напомина- │
-    │ profile │ │ сигналинг │ │           │    │ ний       │
-    │ messages│ │ звонков   │ │           │    │           │
+    │ profile │ │ сигналинг │ │ whisper   │    │ ний,      │
+    │ messages│ │ звонков   │ │           │    │ бэкапы,   │
+    │ ai      │ │           │ │           │    │ media GC  │
+    │ reports │ │           │ │           │    │           │
     └────┬────┘ └────┬──────┘ └─────┬─────┘    └────┬──────┘
          │           │              │               │
     ┌────▼───────────▼──────────────▼───────────────▼────┐
@@ -61,11 +63,17 @@
 ### Пользователи и доступ
 
 - **User** — `id` (BigInt, внутренний), `username` (уникальный, внешний идентификатор),
-  `nickname`, `birthdate`, `avatarUrl`, `coverUrl`, `bio`, `passwordHash` (argon2id),
-  `email`, `role` (`USER` | `ADMIN`), `createdAt`, `lastSeenAt`.
+  `nickname`, `birthdate`, `avatarUrl`, `coverUrl`, `bio`,
+  `interests` (String[], хэштеги до 10 шт.), `timezone` (IANA, опционально),
+  `passwordHash` (argon2id), `email`, `emailVerifiedAt`,
+  `role` (`USER` | `ADMIN`), `createdAt`, `lastSeenAt`,
+  `aiSuggestReplies` (Bool), `notifyPopup` / `notifySound` / `notifyVibrate` (Bool).
 - **DeviceSession** — устройство/сессия: `refreshTokenHash` (уникальный), `deviceName`,
   `userAgent`, `ip`, `revokedAt`. Ротация refresh-токена при каждом `/auth/refresh`.
-- **EmailVerificationToken** — только схема; флоу подтверждения email пока не включён.
+- **EmailVerificationToken** — код подтверждения email: `userId`, `codeHash` (SHA-256),
+  `email`, `expiresAt`, `consumedAt`, `attempts`. TTL 15 мин, до 5 неверных вводов.
+- **Badge** — кастомный бейдж (создаётся администратором): `name`, `icon`, `color`.
+- **UserBadge** — связь пользователь ↔ бейдж: `userId`, `badgeId`, `grantedAt`.
 - **Sanction** (Infy Shield) — модерация: `type` (`WARN` | `MUTE` | `BAN`), `reason`,
   `expiresAt`, `revokedAt`, кто выдал (`issuedById`).
 
@@ -74,11 +82,18 @@
 - **Chat** — `type` (`DIRECT` | `GROUP`), `createdAt`.
 - **ChatMember** — членство: `lastReadMessageId`, `lastReadAt` (для непрочитанных и галочек).
 - **Message** — `id` (ULID, упорядочен по времени), `chatId`, `senderId`, `content`,
-  `type` (`TEXT` | `IMAGE` | `VIDEO` | `AUDIO` | `CIRCLE_VIDEO` | `SYSTEM`),
+  `type` (`TEXT` | `IMAGE` | `VIDEO` | `AUDIO` | `CIRCLE_VIDEO` | `FILE` | `AI_QUERY` | `AI` | `SYSTEM`),
   `editedAt`, `deletedAt` (мягкое удаление), `pinnedAt`, `replyToId`.
 - **Attachment** — вложение: `storageKey` (MinIO), `mimeType`, `sizeBytes`, `width`,
-  `height`, `durationMs`, `thumbnailKey`, `waveform` (для аудио).
+  `height`, `durationMs`, `thumbnailKey`, `waveform` (для аудио), `transcript` (кэш Whisper).
 - **MessageReaction** — реакции: `(messageId, userId, emoji)` уникальны.
+
+### Жалобы
+
+- **Report** — жалоба на пользователя: `reporterId`, `targetId`, `category`
+  (`SPAM` | `HARASSMENT` | `HATE` | `VIOLENCE` | `SEXUAL` | `SCAM` | `ILLEGAL` | `OTHER`),
+  `description`, `chatId` (опц.), `messageId` (опц.), `evidenceKeys` (до 5 скриншотов в MinIO),
+  `status` (`PENDING` | `REVIEWED` | `DISMISSED`), `createdAt`.
 
 ### Календарь
 
@@ -98,9 +113,19 @@
 - **CallParticipant** — участник звонка: `joinedAt`, `leftAt`. Вынесен отдельно —
   схема готова к групповым звонкам (не два FK, а массив участников).
 
+### ИИ
+
+- **AiConversationMessage** — история приватного диалога с ИИ: `chatId`, `userId`,
+  `role` (`USER` | `ASSISTANT`), `content`, `createdAt`.
+
 ### Push
 
 - **PushSubscription** — подписка web-push: `endpoint` (уникальный), `p256dh`, `auth`.
+
+### Почта и настройки
+
+- **AppSetting** — KV-хранилище настроек приложения (SMTP, ИИ-провайдер, расписание бэкапов и т.д.):
+  `key`, `value`. Используется модулями `mailSettings`, `aiSettings`, `backupSettings`.
 
 ---
 
@@ -117,14 +142,20 @@
 | POST | `/auth/login` | Вход (возвращает access + refresh) |
 | POST | `/auth/refresh` | Ротация refresh-токена |
 | POST | `/auth/logout` | Отзыв текущей сессии |
+| POST | `/auth/forgot-password` | Запросить ссылку сброса пароля |
+| POST | `/auth/reset-password` | Сбросить пароль по токену |
 
 ### Профиль — `/profile`
 | Метод | Путь | Описание |
 |-------|------|----------|
-| GET | `/profile/me` | Свой профиль |
-| PATCH | `/profile/me` | Обновить профиль |
+| GET | `/profile/me` | Свой профиль (с бейджами) |
+| GET | `/profile/me/stats` | Статистика профиля (чаты, контакты, сообщения, устройства) |
+| PATCH | `/profile/me` | Обновить профиль (nickname, bio, interests, timezone, aiSuggestReplies, notifyPopup/Sound/Vibrate) |
 | POST | `/profile/me/avatar` | Загрузить аватар |
 | POST | `/profile/me/cover` | Загрузить обложку |
+| POST | `/profile/me/email/request` | Запросить привязку email (отправить код) |
+| POST | `/profile/me/email/confirm` | Подтвердить email по 6-значному коду |
+| PATCH | `/profile/me/username` | Сменить username (требует подтверждённой почты; отзывает все прочие сессии) |
 | GET | `/profile/:username` | Публичный профиль |
 
 ### Сессии устройств — `/sessions`
@@ -138,6 +169,7 @@
 | Метод | Путь | Описание |
 |-------|------|----------|
 | GET | `/chats` | Список чатов |
+| GET | `/chats/search?q=` | Глобальный поиск по сообщениям во всех чатах пользователя |
 | POST | `/chats` | Создать/получить личный чат |
 | GET | `/chats/partner/:partnerId` | Чат с пользователем |
 | GET | `/chats/:id/messages` | История сообщений (курсор) |
@@ -176,13 +208,18 @@
 | POST | `/media/upload` | Загрузка файла |
 | GET | `/media/avatars/*` | Раздача аватаров |
 | GET | `/media/:encodedKey` | Раздача/редирект на presigned-URL |
+| POST | `/media/transcribe/:attachmentId` | Расшифровать голосовое/кружок (Whisper; кэшируется в Attachment.transcript) |
 
-### Infy Pulse (ИИ) — `/ai`
+### Infy AI — `/ai`
 | Метод | Путь | Описание |
 |-------|------|----------|
-| GET | `/ai/status` | Включён ли ИИ (есть ли ключ) |
-| POST | `/ai/chats/:chatId/summary` | Сводка диалога |
+| GET | `/ai/status` | Включён ли ИИ |
+| POST | `/ai/chats/:chatId/summary` | Сводка диалога (body: `{ period?, from?, to? }`) |
 | POST | `/ai/chats/:chatId/replies` | Варианты ответа |
+| GET | `/ai/chats/:chatId/conversation` | История приватного диалога с ассистентом |
+| POST | `/ai/chats/:chatId/conversation` | Отправить сообщение ассистенту (приватно) |
+| DELETE | `/ai/chats/:chatId/conversation` | Очистить приватный диалог |
+| POST | `/ai/chats/:chatId/ask` | Публичный вопрос (ответ виден обоим, 202 Accepted; ответ ИИ приходит по сокету) |
 
 ### Push — `/push`
 | Метод | Путь | Описание |
@@ -190,6 +227,12 @@
 | GET | `/push/vapid-public-key` | Публичный VAPID-ключ |
 | POST | `/push/subscribe` | Сохранить подписку |
 | DELETE | `/push/subscribe` | Удалить подписку |
+
+### Жалобы — `/reports`
+| Метод | Путь | Описание |
+|-------|------|----------|
+| POST | `/reports` | Подать жалобу на пользователя |
+| GET | `/reports/my-sanctions` | Активные санкции текущего пользователя |
 
 ### Админка — `/admin/*` (только `role = ADMIN`)
 | Метод | Путь | Описание |
@@ -201,11 +244,30 @@
 | GET | `/admin/moderation/sanctions` | Список санкций |
 | POST | `/admin/moderation/sanctions` | Выдать санкцию |
 | DELETE | `/admin/moderation/sanctions/:id` | Снять санкцию |
+| GET | `/admin/reports` | Очередь жалоб |
+| PATCH | `/admin/reports/:id` | Обновить статус жалобы |
 | GET | `/admin/stats` | Сводная статистика |
 | GET | `/admin/stats/analytics` | Аналитика |
 | GET | `/admin/containers` | Список контейнеров |
 | POST | `/admin/containers/:id/restart` | Перезапуск контейнера |
 | GET | `/admin/containers/:id/logs` | Логи контейнера |
+| GET | `/admin/badges` | Список бейджей |
+| POST | `/admin/badges` | Создать бейдж |
+| DELETE | `/admin/badges/:id` | Удалить бейдж |
+| POST | `/admin/badges/:id/grant/:userId` | Выдать бейдж пользователю |
+| DELETE | `/admin/badges/:id/revoke/:userId` | Отозвать бейдж |
+| GET | `/admin/ai/settings` | Настройки ИИ (провайдер, модель, ключ) |
+| PATCH | `/admin/ai/settings` | Обновить настройки ИИ |
+| GET | `/admin/mail/settings` | Настройки SMTP (без пароля) |
+| PATCH | `/admin/mail/settings` | Обновить настройки SMTP |
+| POST | `/admin/mail/test` | Отправить тестовое письмо |
+| GET | `/admin/backups` | Список резервных копий + расписание |
+| POST | `/admin/backups` | Создать резервную копию (pg_dump → MinIO) |
+| GET | `/admin/backups/:key/download` | Скачать резервную копию |
+| POST | `/admin/backups/upload` | Загрузить резервную копию |
+| POST | `/admin/backups/:key/restore` | Восстановить из резервной копии |
+| DELETE | `/admin/backups/:key` | Удалить резервную копию |
+| PATCH | `/admin/backups/schedule` | Обновить расписание автобэкапов |
 
 ### Health
 | Метод | Путь | Описание |
@@ -225,6 +287,11 @@
 `message_deleted`, `messages_read`, `typing`, `user_online`, `user_offline`,
 `online_users`, `reminder_due`, `pong`.
 
+### ИИ (асинхронные ответы)
+
+Сервер → клиент: `ai:typing` (индикатор печати ИИ), `message_new` (тип `AI`) —
+приходит после `POST /ai/chats/:chatId/ask`.
+
 ### Звонки
 
 Клиент → сервер: `call:invite`, `call:accept`, `call:decline`, `call:cancel`,
@@ -243,6 +310,7 @@
 - **Refresh-токен**: долгоживущий (30 дней), хранится в виде хэша в `DeviceSession.refreshTokenHash`.
 - При refresh: проверка хэша → новая пара → обновление хэша (ротация) → возврат токенов.
 - При выходе: проставляется `revokedAt` у `DeviceSession`.
+- При смене username: все прочие сессии отзываются (защита от угона после смены).
 - Refresh-токен передаётся в теле запроса (не в cookie) — для совместимости с мобильными клиентами.
 
 ---
@@ -265,6 +333,8 @@ POST /auth/login     → 10 запросов / 15 мин / IP
 
 - **Пароли**: argon2id.
 - **Токены**: access не хранится на сервере; refresh — в виде хэша.
+- **Email**: подтверждение 6-значным кодом (SHA-256, TTL 15 мин, ≤5 попыток).
+- **Смена username**: требует подтверждённой почты; отзывает все прочие сессии.
 - **Звонки**: медиа шифруется DTLS/SRTP (часть WebRTC); сервер видит только
   зашифрованный трафик при relay через TURN. TURN-credentials временные (HMAC),
   запрещён relay в приватные/loopback-сети.
@@ -275,7 +345,9 @@ POST /auth/login     → 10 запросов / 15 мин / IP
 - **XSS**: React экранирует по умолчанию; CSP-заголовки через nginx.
 - **CORS**: явный allowlist.
 - **TLS**: Let's Encrypt через certbot, автопродление.
-- **Модерация (Infy Shield)**: предупреждения, временные муты, баны.
+- **Модерация (Infy Shield)**: предупреждения, временные муты, баны (`lib/sanctions.ts`).
+- **Жалобы**: отдельная модель `Report`, очередь в Админ-панели.
+- **Бэкапы**: только ADMIN; pg_dump в изолированный MinIO-bucket `backups`.
 
 ---
 
@@ -291,6 +363,10 @@ POST /auth/login     → 10 запросов / 15 мин / IP
 - `MINIO_*` — подключение и доступы MinIO
 - `RATE_LIMIT_*` — пороги rate-limit
 - `VAPID_*` — ключи web-push
-- `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` — ИИ (Infy Pulse), опционально
+- `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` — ИИ (Anthropic Claude), опционально
+- `OPENAI_API_KEY` — OpenAI (Whisper + опциональный провайдер ИИ)
 - `STUN_URLS`, `TURN_URLS`, `TURN_SECRET`, `TURN_TTL_SEC`, `TURN_REALM`, `TURN_EXTERNAL_IP` — звонки
 - `SERVICE_ROLE` — `core` | `realtime` | `media` | `scheduler`
+
+> Настройки SMTP, ИИ-провайдера и расписания бэкапов хранятся в БД (`AppSetting`)
+> и управляются через Админ-панель — без перезапуска сервисов.

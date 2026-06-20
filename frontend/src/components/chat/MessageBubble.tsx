@@ -156,6 +156,7 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
   }, [message.id, onVoiceEnded])
 
   const [showMenu, setShowMenu] = useState(false)
+  const [menuBubbleRect, setMenuBubbleRect] = useState<DOMRect | null>(null)
   const bubbleRef = useRef<HTMLDivElement>(null)
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const holdStart = useRef<{ x: number; y: number } | null>(null)
@@ -187,7 +188,10 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
   const tickColor = isRead ? '#A855F7' : 'rgba(255,255,255,0.35)'
   const isEndOfGroup = groupPos === 'last' || groupPos === 'single'
 
-  function openMenu() { setShowMenu(true) }
+  function openMenu() {
+    setMenuBubbleRect(bubbleRef.current?.getBoundingClientRect() ?? null)
+    setShowMenu(true)
+  }
 
   // Долгое нажатие (удержание) открывает меню на тач-устройствах + виброотклик.
   function openMenuFromHold() {
@@ -484,6 +488,25 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
         </div>
       </div>
 
+      {showMenu && menuBubbleRect && createPortal(
+        <div
+          className="fixed pointer-events-none"
+          style={{
+            zIndex: 45,
+            top: menuBubbleRect.top,
+            left: menuBubbleRect.left,
+            width: menuBubbleRect.width,
+            height: menuBubbleRect.height,
+          }}
+        >
+          <div className={`flex items-end gap-1.5 ${isOwn ? 'justify-end' : 'justify-start'} h-full`}>
+            {isOwn && <>{meta}</>}
+            {bubbleContent}
+            {!isOwn && <>{meta}</>}
+          </div>
+        </div>,
+        document.body
+      )}
       {showMenu && createPortal(
         <MessageContextMenu
           bubbleRef={bubbleRef}
@@ -491,7 +514,7 @@ export function MessageBubble({ message, showSenderName, groupPos = 'single', pa
           isText={message.type === 'TEXT' && !!message.content}
           isPinned={!!message.pinnedAt}
           readAt={isOwn && isRead ? (partnerReadAt ?? null) : null}
-          onClose={() => setShowMenu(false)}
+          onClose={() => { setShowMenu(false); setMenuBubbleRect(null) }}
           onReact={handleReact}
           onReply={onReply ? handleReply : undefined}
           onCopy={message.type === 'TEXT' && message.content ? handleCopy : undefined}

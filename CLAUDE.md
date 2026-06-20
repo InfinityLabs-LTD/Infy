@@ -14,7 +14,9 @@
 | База данных | PostgreSQL 16 |
 | Кэш / PubSub | Redis 7 |
 | Хранилище файлов | MinIO (S3-совместимое) |
-| ИИ | Claude (Anthropic SDK) |
+| ИИ | Claude (Anthropic SDK) / OpenAI (опционально) |
+| Расшифровка | OpenAI Whisper |
+| Почта | nodemailer (SMTP, настройка в Админ-панели) |
 | Фронтенд | React 18 + Vite + Tailwind CSS + Zustand + Framer Motion |
 | Прокси | nginx + certbot (Let's Encrypt) |
 | Инфраструктура | Docker Compose |
@@ -26,21 +28,25 @@
 ├── backend/              # API-сервер (модульный монолит)
 │   ├── src/
 │   │   ├── modules/
-│   │   │   ├── auth/      # регистрация, вход, refresh, выход
-│   │   │   ├── profile/   # профиль (CRUD), аватар, обложка
+│   │   │   ├── auth/      # регистрация, вход, refresh, выход, сброс пароля
+│   │   │   ├── profile/   # профиль (CRUD), аватар, обложка, интересы, часовой пояс
+│   │   │   │              # привязка email, смена username, статистика, бейджи
 │   │   │   ├── sessions/  # управление сессиями устройств
-│   │   │   ├── chat/      # сообщения, реакции, закрепление
+│   │   │   ├── chat/      # сообщения, реакции, закрепление, глобальный поиск
 │   │   │   ├── calendar/  # события и напоминания в чате
 │   │   │   ├── calls/     # звонки: сервис, роуты, сигналинг
-│   │   │   ├── media/     # файлы, транскодинг
-│   │   │   ├── ai/        # Infy Pulse (сводка, варианты ответа)
+│   │   │   ├── media/     # файлы, транскодинг, расшифровка (Whisper)
+│   │   │   ├── ai/        # Infy AI: сводка, варианты ответа, приватный чат, /ask
 │   │   │   ├── push/      # web-push (VAPID)
-│   │   │   ├── admin/     # пользователи, модерация, статистика, контейнеры
+│   │   │   ├── reports/   # жалобы на пользователей, санкции текущего юзера
+│   │   │   ├── admin/     # пользователи, модерация, жалобы, аналитика,
+│   │   │   │              # AI Center, Mail Center, бэкапы, контейнеры, бейджи
 │   │   │   ├── realtime/  # Socket.IO-шлюз + сигналинг звонков
-│   │   │   └── scheduler/ # воркер доставки напоминаний
+│   │   │   └── scheduler/ # воркер: напоминания, автобэкапы, media GC
 │   │   ├── plugins/      # fastify-плагины (prisma, redis, minio, rate-limit)
 │   │   ├── middleware/   # auth-guard, role-guard
-│   │   ├── lib/          # общие утилиты (jwt, turn, presence, webpush, …)
+│   │   ├── lib/          # общие утилиты (jwt, turn, presence, webpush,
+│   │   │                 # sanctions, backup, mailer, aiSettings, …)
 │   │   └── server.ts     # точка входа
 │   ├── prisma/
 │   │   ├── schema.prisma
@@ -136,10 +142,10 @@ docker compose down -v
 
 | Роль | Порт | Ответственность |
 |------|------|-----------------|
-| `core` | 3001 | REST API: авторизация, профиль, сообщения, медиа-метаданные, календарь, ИИ, админка |
+| `core` | 3001 | REST API: авторизация, профиль, сообщения, медиа-метаданные, календарь, ИИ, жалобы, бэкапы, админка |
 | `realtime` | 3002 | Socket.IO-шлюз, присутствие, pub/sub, **сигналинг звонков** |
-| `media` | 3003 | Загрузка файлов, транскодинг, интеграция с MinIO |
-| `scheduler` | — | Фоновый воркер: доставка напоминаний календаря (push + realtime) |
+| `media` | 3003 | Загрузка файлов, транскодинг, расшифровка голосовых (Whisper), интеграция с MinIO |
+| `scheduler` | — | Фоновый воркер: доставка напоминаний (push + realtime), автобэкапы БД, GC медиафайлов |
 
 ## Соглашения
 
@@ -161,10 +167,12 @@ docker compose down -v
 ### Поток авторизации
 
 ```
-Регистрация → POST /auth/register → { accessToken, refreshToken, user }
-Вход         → POST /auth/login    → { accessToken, refreshToken, user }
-Refresh      → POST /auth/refresh  (body: { refreshToken }) → { accessToken, refreshToken }
-Выход        → POST /auth/logout   (bearer) → 204
+Регистрация     → POST /auth/register           → { accessToken, refreshToken, user }
+Вход            → POST /auth/login              → { accessToken, refreshToken, user }
+Refresh         → POST /auth/refresh            (body: { refreshToken }) → { accessToken, refreshToken }
+Выход           → POST /auth/logout             (bearer) → 204
+Сброс пароля    → POST /auth/forgot-password    (body: { email }) → 204
+Новый пароль    → POST /auth/reset-password     (body: { token, password }) → 204
 ```
 
 Access-токен в заголовке `Authorization: Bearer <token>`.
@@ -189,7 +197,14 @@ AUTH_EMAIL_TAKEN
 AUTH_TOKEN_EXPIRED
 AUTH_TOKEN_INVALID
 AUTH_SESSION_REVOKED
+AUTH_RESET_TOKEN_INVALID
+AUTH_RESET_TOKEN_EXPIRED
 PROFILE_USERNAME_INVALID
+PROFILE_USERNAME_REQUIRES_EMAIL
+EMAIL_SENDING_DISABLED
+EMAIL_ALREADY_BOUND
+EMAIL_CODE_INVALID
+EMAIL_CODE_EXPIRED
 CHAT_NOT_MEMBER
 MESSAGE_NOT_FOUND
 REACTION_LIMIT
