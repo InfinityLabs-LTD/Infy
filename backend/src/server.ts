@@ -57,32 +57,37 @@ async function buildCoreServer() {
     limits: { fileSize: env.MAX_UPLOAD_BYTES },  // согласован с nginx; media service enforces per-type limits
   })
 
-  await app.register(swagger, {
-    openapi: {
-      info: { title: 'Infy API', version: '1.0.0', description: 'Infy Messenger API' },
-      components: {
-        securitySchemes: {
-          bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+  // M-13: Swagger/OpenAPI отдаёт полную карту API (включая admin-роуты) без
+  // авторизации. В production не регистрируем вовсе, чтобы не раскрывать
+  // attack surface. Доступно только в dev/test.
+  if (env.NODE_ENV !== 'production') {
+    await app.register(swagger, {
+      openapi: {
+        info: { title: 'Infy API', version: '1.0.0', description: 'Infy Messenger API' },
+        components: {
+          securitySchemes: {
+            bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+          },
         },
+        tags: [
+          { name: 'Auth', description: 'Authentication' },
+          { name: 'Sessions', description: 'Device session management' },
+          { name: 'Profile', description: 'User profiles' },
+          { name: 'Chat', description: 'Chats and messages' },
+          { name: 'Calendar', description: 'Shared chat calendar and reminders' },
+          { name: 'Media', description: 'File upload and serving' },
+          { name: 'Calls', description: 'Voice/video calls — ICE config and history' },
+          { name: 'Reports', description: 'User reports (file a complaint)' },
+          { name: 'Admin', description: 'Admin panel (role=ADMIN only)' },
+        ],
       },
-      tags: [
-        { name: 'Auth', description: 'Authentication' },
-        { name: 'Sessions', description: 'Device session management' },
-        { name: 'Profile', description: 'User profiles' },
-        { name: 'Chat', description: 'Chats and messages' },
-        { name: 'Calendar', description: 'Shared chat calendar and reminders' },
-        { name: 'Media', description: 'File upload and serving' },
-        { name: 'Calls', description: 'Voice/video calls — ICE config and history' },
-        { name: 'Reports', description: 'User reports (file a complaint)' },
-        { name: 'Admin', description: 'Admin panel (role=ADMIN only)' },
-      ],
-    },
-  })
+    })
 
-  await app.register(swaggerUi, {
-    routePrefix: '/docs',
-    uiConfig: { docExpansion: 'list', deepLinking: true },
-  })
+    await app.register(swaggerUi, {
+      routePrefix: '/docs',
+      uiConfig: { docExpansion: 'list', deepLinking: true },
+    })
+  }
 
   await app.register(prismaPlugin)
   await app.register(redisPlugin)

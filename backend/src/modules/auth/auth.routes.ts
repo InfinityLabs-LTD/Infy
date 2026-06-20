@@ -38,7 +38,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     },
   }, async (request, reply) => {
     const input = registerSchema.parse(request.body)
-    const result = await AuthService.register(app.prisma, input, {
+    const result = await AuthService.register(app.prisma, app.redis, input, {
       userAgent: request.headers['user-agent'],
       ip: request.ip,
     })
@@ -67,7 +67,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     },
   }, async (request, reply) => {
     const input = loginSchema.parse(request.body)
-    const result = await AuthService.login(app.prisma, input, {
+    const result = await AuthService.login(app.prisma, app.redis, input, {
       userAgent: request.headers['user-agent'],
       ip: request.ip,
     })
@@ -89,7 +89,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     },
   }, async (request, reply) => {
     const input = refreshSchema.parse(request.body)
-    const result = await AuthService.refresh(app.prisma, input.refreshToken, {
+    const result = await AuthService.refresh(app.prisma, app.redis, input.refreshToken, {
       userAgent: request.headers['user-agent'],
       ip: request.ip,
     })
@@ -163,7 +163,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     },
   }, async (request, reply) => {
     const body = resetPasswordSchema.parse(request.body)
-    await AuthService.resetPasswordWithToken(app.prisma, body.token, body.password)
+    await AuthService.resetPasswordWithToken(app.prisma, app.redis, body.token, body.password)
     return reply.code(204).send()
   })
 
@@ -193,6 +193,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
     const body = changePasswordSchema.parse(request.body)
     await AuthService.changePassword(
       app.prisma,
+      app.redis,
       BigInt(request.user.sub),
       request.user.sessionId,
       body.currentPassword,
@@ -210,7 +211,7 @@ const authRoutes: FastifyPluginAsync = async (app) => {
       security: [{ bearerAuth: [] }],
     },
   }, async (request, reply) => {
-    await AuthService.logout(app.prisma, request.user.sessionId)
+    await AuthService.logout(app.prisma, app.redis, request.user.sessionId)
     return reply.code(204).send()
   })
 }

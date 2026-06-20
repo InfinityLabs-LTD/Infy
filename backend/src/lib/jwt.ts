@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
-import { env } from './env.js'
+import { env, JWT_ISSUER, JWT_AUDIENCE } from './env.js'
 import { Errors } from './errors.js'
 
 export interface AccessTokenPayload {
@@ -11,14 +11,24 @@ export interface AccessTokenPayload {
 }
 
 export function signAccessToken(payload: AccessTokenPayload): string {
+  // H-5: пиннинг алгоритма + issuer/audience, чтобы токен нельзя было
+  // подсунуть с другим alg и чтобы он был привязан к этому сервису.
   return jwt.sign(payload, env.JWT_ACCESS_SECRET, {
+    algorithm: 'HS256',
+    issuer: JWT_ISSUER,
+    audience: JWT_AUDIENCE,
     expiresIn: env.JWT_ACCESS_EXPIRES_IN as jwt.SignOptions['expiresIn'],
   })
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
   try {
-    return jwt.verify(token, env.JWT_ACCESS_SECRET) as AccessTokenPayload
+    // H-5: фиксируем допустимый алгоритм и проверяем iss/aud.
+    return jwt.verify(token, env.JWT_ACCESS_SECRET, {
+      algorithms: ['HS256'],
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+    }) as AccessTokenPayload
   } catch (err) {
     if (err instanceof jwt.TokenExpiredError) throw Errors.TOKEN_EXPIRED()
     throw Errors.TOKEN_INVALID()

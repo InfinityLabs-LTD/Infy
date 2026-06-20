@@ -54,7 +54,9 @@ services:
     volumes:
       - minio-data:/data
     ports:
-      - "9001:9001"   # MinIO console (dev access)
+      # H-4: консоль MinIO слушает только loopback хоста — наружу не торчит
+      # (в проде доступ через SSH-туннель). Раньше "9001:9001" биндил на 0.0.0.0.
+      - "127.0.0.1:9001:9001"
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 10s
@@ -87,9 +89,20 @@ services:
   socket-proxy:
     image: tecnativa/docker-socket-proxy:latest
     environment:
-      # Разрешённые операции — только чтение контейнеров + restart
+      # ВНИМАНИЕ (C-1): tecnativa/docker-socket-proxy гранулярен на уровне
+      # СЕКЦИЯ+МЕТОД, а НЕ отдельных путей. CONTAINERS=1 + POST=1 разрешает
+      # ЛЮБОЙ POST /containers/... (restart, stop, kill, pause). Сузить до
+      # одного /restart этим образом нельзя.
+      #
+      # Принятый риск: управление контейнерами выполняет ТОЛЬКО админ
+      # (роуты под requireAdmin, id валидируется в lib/docker.ts, действия
+      # пишутся в аудит-лог). Сеть socket-proxy-net — internal:true, в ней
+      # только core. Доверенный админ может остановить контейнер — это
+      # задокументировано как ожидаемая возможность, а не дыра.
+      # Если потребуется жёсткое ограничение до /restart — заменить этот
+      # proxy на микросервис-форвардер (см. отчёт безопасности, C-1).
       CONTAINERS: 1
-      INFO: 1
+      INFO: 0
       IMAGES: 0
       NETWORKS: 0
       VOLUMES: 0
@@ -101,7 +114,7 @@ services:
       CONFIGS: 0
       PLUGINS: 0
       SYSTEM: 0
-      # POST разрешён только для /containers/:id/restart через allowlist в proxy
+      EXEC: 0
       POST: 1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -121,7 +134,10 @@ services:
       - infy-net
       - socket-proxy-net   # доступ к socket-proxy только у core
     ports:
-      - "3001:3001"
+      # H-4: только loopback хоста — наружу ходят исключительно через nginx.
+      # Прямой доступ к :3001 позволял бы спуфить X-Forwarded-For в обход
+      # rate-limit (TRUSTED_PROXY теперь сужен до infy-net).
+      - "127.0.0.1:3001:3001"
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3001/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 15s
@@ -135,7 +151,7 @@ services:
       SERVICE_ROLE: realtime
       PORT: 3002
     ports:
-      - "3002:3002"
+      - "127.0.0.1:3002:3002"   # H-4: только loopback, наружу через nginx
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3002/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 15s
@@ -149,7 +165,7 @@ services:
       SERVICE_ROLE: media
       PORT: 3003
     ports:
-      - "3003:3003"
+      - "127.0.0.1:3003:3003"   # H-4: только loopback, наружу через nginx
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3003/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
       interval: 15s
@@ -237,6 +253,11 @@ volumes:
 networks:
   infy-net:
     driver: bridge
+    # H-4: фиксируем подсеть, чтобы TRUSTED_PROXY доверял ровно ей
+    # (а не всему 172.0.0.0/8). nginx — единственный источник X-Forwarded-For.
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
   socket-proxy-net:
     driver: bridge
     internal: true   # недоступна извне Docker-сети

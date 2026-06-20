@@ -256,7 +256,7 @@ const adminUsersRoutes: FastifyPluginAsync = async (app) => {
     await app.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { id: true } })
 
     const password = AuthService.generatePassword()
-    await AuthService.setUserPassword(app.prisma, userId, password)
+    await AuthService.setUserPassword(app.prisma, app.redis, userId, password)
     return { data: { password } }
   })
 

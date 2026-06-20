@@ -1,11 +1,13 @@
 import argon2 from 'argon2'
 import crypto from 'crypto'
 import { PrismaClient } from '@prisma/client'
+import type Redis from 'ioredis'
 import {
   signAccessToken,
   generateRefreshToken,
   hashRefreshToken,
 } from '../../lib/jwt.js'
+import { markSessionActive, revokeSession, revokeSessions } from '../../lib/sessionStore.js'
 import { Errors } from '../../lib/errors.js'
 import { getActiveSanction } from '../../lib/sanctions.js'
 import { isReservedUsername } from '../../lib/reservedUsernames.js'
@@ -91,6 +93,7 @@ export function serializeUser(user: { id: bigint; username: string; nickname: st
 
 async function createTokenPair(
   prisma: PrismaClient,
+  redis: Redis,
   userId: bigint,
   meta: { deviceName?: string; userAgent?: string; ip?: string },
 ): Promise<TokenPair> {
@@ -116,11 +119,15 @@ async function createTokenPair(
     sessionId: session.id,
   })
 
+  // H-3: регистрируем сессию в allowlist активных.
+  await markSessionActive(redis, session.id)
+
   return { accessToken, refreshToken: rawRefreshToken, sessionId: session.id }
 }
 
 export async function register(
   prisma: PrismaClient,
+  redis: Redis,
   input: RegisterInput,
   meta: { userAgent?: string; ip?: string },
 ) {
@@ -146,7 +153,7 @@ export async function register(
     },
   })
 
-  const tokens = await createTokenPair(prisma, user.id, {
+  const tokens = await createTokenPair(prisma, redis, user.id, {
     deviceName: 'Web',
     userAgent: meta.userAgent,
     ip: meta.ip,
@@ -157,6 +164,7 @@ export async function register(
 
 export async function login(
   prisma: PrismaClient,
+  redis: Redis,
   input: LoginInput,
   meta: { userAgent?: string; ip?: string },
 ) {
@@ -179,13 +187,22 @@ export async function login(
   // плодить новые сессии — иначе счётчик «Устройства» завышается и в списке
   // появляются дубликаты. Гасим прежние активные сессии этого же устройства.
   if (meta.userAgent) {
-    await prisma.deviceSession.updateMany({
+    const dupes = await prisma.deviceSession.findMany({
       where: { userId: user.id, revokedAt: null, userAgent: meta.userAgent },
-      data: { revokedAt: new Date() },
+      select: { id: true },
     })
+    if (dupes.length > 0) {
+      await prisma.deviceSession.updateMany({
+        where: { id: { in: dupes.map(d => d.id) } },
+        data: { revokedAt: new Date() },
+      })
+      // H-3: гасим и в allowlist, иначе старый access-токен этого устройства
+      // продолжал бы работать.
+      await revokeSessions(redis, dupes.map(d => d.id))
+    }
   }
 
-  const tokens = await createTokenPair(prisma, user.id, {
+  const tokens = await createTokenPair(prisma, redis, user.id, {
     deviceName: 'Web',
     userAgent: meta.userAgent,
     ip: meta.ip,
@@ -196,6 +213,7 @@ export async function login(
 
 export async function refresh(
   prisma: PrismaClient,
+  redis: Redis,
   rawRefreshToken: string,
   meta: { userAgent?: string; ip?: string },
 ) {
@@ -235,6 +253,10 @@ export async function refresh(
     sessionId: session.id,
   })
 
+  // H-3: продлеваем TTL ключа активной сессии (и восстанавливаем его, если
+  // Redis терял данные) — сессия по-прежнему жива.
+  await markSessionActive(redis, session.id)
+
   return { accessToken, refreshToken: newRawToken }
 }
 
@@ -242,8 +264,13 @@ export async function refresh(
 
 // Установить новый пароль и отозвать все активные сессии пользователя
 // (после смены пароля все устройства должны перелогиниться).
-export async function setUserPassword(prisma: PrismaClient, userId: bigint, newPassword: string) {
+export async function setUserPassword(prisma: PrismaClient, redis: Redis, userId: bigint, newPassword: string) {
   const passwordHash = await argon2.hash(newPassword)
+  // Сначала собираем id отзываемых сессий — нужно почистить allowlist.
+  const toRevoke = await prisma.deviceSession.findMany({
+    where: { userId, revokedAt: null },
+    select: { id: true },
+  })
   await prisma.$transaction([
     prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
     prisma.deviceSession.updateMany({
@@ -256,6 +283,8 @@ export async function setUserPassword(prisma: PrismaClient, userId: bigint, newP
       data: { consumedAt: new Date() },
     }),
   ])
+  // H-3: немедленный отзыв access-токенов всех устройств.
+  await revokeSessions(redis, toRevoke.map(s => s.id))
 }
 
 // Сменить пароль самостоятельно (из настроек): проверяем текущий пароль и
@@ -263,6 +292,7 @@ export async function setUserPassword(prisma: PrismaClient, userId: bigint, newP
 // меняют пароль, остаётся в системе.
 export async function changePassword(
   prisma: PrismaClient,
+  redis: Redis,
   userId: bigint,
   currentSessionId: string,
   currentPassword: string,
@@ -277,6 +307,10 @@ export async function changePassword(
   if (same) throw Errors.SAME_PASSWORD()
 
   const passwordHash = await argon2.hash(newPassword)
+  const toRevoke = await prisma.deviceSession.findMany({
+    where: { userId, revokedAt: null, id: { not: currentSessionId } },
+    select: { id: true },
+  })
   await prisma.$transaction([
     prisma.user.update({ where: { id: userId }, data: { passwordHash } }),
     prisma.deviceSession.updateMany({
@@ -288,6 +322,8 @@ export async function changePassword(
       data: { consumedAt: new Date() },
     }),
   ])
+  // H-3: отзываем все устройства кроме текущего.
+  await revokeSessions(redis, toRevoke.map(s => s.id))
 }
 
 // Создать одноразовый токен смены пароля. Возвращает сырой токен (его нужно
@@ -306,7 +342,7 @@ export async function createPasswordResetToken(prisma: PrismaClient, userId: big
 }
 
 // Сменить пароль по токену из ссылки (самостоятельная смена пользователем).
-export async function resetPasswordWithToken(prisma: PrismaClient, rawToken: string, newPassword: string) {
+export async function resetPasswordWithToken(prisma: PrismaClient, redis: Redis, rawToken: string, newPassword: string) {
   const tokenHash = hashRefreshToken(rawToken)
   const record = await prisma.passwordResetToken.findUnique({ where: { tokenHash } })
   if (!record || record.consumedAt || record.expiresAt < new Date()) {
@@ -314,6 +350,10 @@ export async function resetPasswordWithToken(prisma: PrismaClient, rawToken: str
   }
 
   const passwordHash = await argon2.hash(newPassword)
+  const toRevoke = await prisma.deviceSession.findMany({
+    where: { userId: record.userId, revokedAt: null },
+    select: { id: true },
+  })
   await prisma.$transaction([
     prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
     prisma.passwordResetToken.update({ where: { id: record.id }, data: { consumedAt: new Date() } }),
@@ -322,6 +362,8 @@ export async function resetPasswordWithToken(prisma: PrismaClient, rawToken: str
       data: { revokedAt: new Date() },
     }),
   ])
+  // H-3: после сброса пароля отзываем access-токены всех устройств.
+  await revokeSessions(redis, toRevoke.map(s => s.id))
 }
 
 // Запрос на сброс пароля по почте. Молча завершается, если почта не найдена
@@ -343,11 +385,13 @@ export async function requestPasswordReset(prisma: PrismaClient, email: string):
   })
 }
 
-export async function logout(prisma: PrismaClient, sessionId: string) {
+export async function logout(prisma: PrismaClient, redis: Redis, sessionId: string) {
   await prisma.deviceSession.update({
     where: { id: sessionId },
     data: { revokedAt: new Date() },
   }).catch(() => {
     // Session may already be gone — ignore
   })
+  // H-3: убираем сессию из allowlist — access-токен мгновенно недействителен.
+  await revokeSession(redis, sessionId)
 }

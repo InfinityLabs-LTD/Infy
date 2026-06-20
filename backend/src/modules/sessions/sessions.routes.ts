@@ -2,6 +2,7 @@ import { FastifyPluginAsync } from 'fastify'
 import { authenticate } from '../../middleware/authenticate.js'
 import { Errors } from '../../lib/errors.js'
 import { publishMessage } from '../../lib/pubsub.js'
+import { revokeSession, revokeSessions } from '../../lib/sessionStore.js'
 import { z } from 'zod'
 
 const sessionsRoutes: FastifyPluginAsync = async (app) => {
@@ -58,6 +59,9 @@ const sessionsRoutes: FastifyPluginAsync = async (app) => {
       data: { revokedAt: new Date() },
     })
 
+    // H-3: убираем сессию из allowlist — access-токен мгновенно недействителен.
+    await revokeSession(app.redis, id)
+
     // Немедленно рвём сокет(ы) этой сессии в realtime — чтобы пользователь не
     // «висел в сети» и презенс обновился сразу (H-4).
     await publishMessage(app.redis, 'realtime:control', {
@@ -98,6 +102,8 @@ const sessionsRoutes: FastifyPluginAsync = async (app) => {
     })
 
     if (toRevoke.length > 0) {
+      // H-3: чистим allowlist отозванных сессий.
+      await revokeSessions(app.redis, toRevoke.map(s => s.id))
       // Рвём именно отозванные сессии (текущая, если exceptCurrent, не входит) (H-4).
       await publishMessage(app.redis, 'realtime:control', {
         event: 'force_disconnect', userId: userId.toString(), sessionIds: toRevoke.map(s => s.id),

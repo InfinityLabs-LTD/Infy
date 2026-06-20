@@ -1,6 +1,8 @@
 import { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { authenticate, requireAdmin } from '../../middleware/authenticate.js'
+import { publishMessage } from '../../lib/pubsub.js'
+import { revokeSessions } from '../../lib/sessionStore.js'
 
 const userSelect = {
   id: true, username: true, nickname: true, avatarUrl: true,
@@ -129,6 +131,29 @@ const adminModerationRoutes: FastifyPluginAsync = async (app) => {
         issuedBy: { select: userSelect },
       },
     })
+
+    // H-3 / M-1 (звонки): BAN немедленно отзывает все сессии забаненного —
+    // access-токены перестают работать сразу (allowlist), а сокеты рвутся
+    // через realtime. Без этого бан вступал в силу только при следующем
+    // login/refresh (≤15 мин), а WS-сессия жила ещё дольше.
+    if (body.type === 'BAN') {
+      const toRevoke = await app.prisma.deviceSession.findMany({
+        where: { userId: targetId, revokedAt: null },
+        select: { id: true },
+      })
+      if (toRevoke.length > 0) {
+        await app.prisma.deviceSession.updateMany({
+          where: { id: { in: toRevoke.map(s => s.id) } },
+          data: { revokedAt: new Date() },
+        })
+        await revokeSessions(app.redis, toRevoke.map(s => s.id))
+        await publishMessage(app.redis, 'realtime:control', {
+          event: 'force_disconnect',
+          userId: targetId.toString(),
+          sessionIds: toRevoke.map(s => s.id),
+        }).catch(() => {})
+      }
+    }
 
     return reply.code(201).send({ data: serializeSanction(sanction) })
   })
