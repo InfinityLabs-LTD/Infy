@@ -24,11 +24,13 @@ android {
 
     buildTypes {
         debug {
-            // Эмулятор → nginx на хосте (:80) с прод-подобным префиксом /api.
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:80/api/\"")
-            buildConfigField("String", "REALTIME_URL", "\"http://10.0.2.2:80\"")
-            // Разрешаем cleartext только для debug — для локального HTTP.
-            manifestPlaceholders["usesCleartextTraffic"] = "true"
+            // Debug ходит на боевой бэкенд по HTTPS (тестирование с прод-сервером).
+            // Для локальной разработки на эмуляторе верните http://10.0.2.2:80/api/
+            // и usesCleartextTraffic=true.
+            buildConfigField("String", "API_BASE_URL", "\"https://infyme.ru/api/\"")
+            buildConfigField("String", "REALTIME_URL", "\"https://infyme.ru\"")
+            // HTTPS — cleartext не нужен.
+            manifestPlaceholders["usesCleartextTraffic"] = "false"
         }
         release {
             isMinifyEnabled = true
