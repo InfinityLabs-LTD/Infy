@@ -52,6 +52,22 @@ data class MessageReaction(
     val userIds: List<String>,
 )
 
+/** Вложение сообщения (изображение/видео/аудио/кружок/файл). */
+data class Attachment(
+    val id: String,
+    val storageKey: String,
+    val fileName: String?,
+    val thumbnailKey: String?,
+    val mimeType: String,
+    val sizeBytes: Long?,
+    val width: Int?,
+    val height: Int?,
+    val durationMs: Int?,
+    val waveform: List<Int>,
+    val transcript: String?,
+    val listenedAt: Long?,
+)
+
 /** Краткое сообщение-цитата (ответ на сообщение). */
 data class ReplyPreview(
     val id: String,
@@ -77,6 +93,7 @@ data class ChatMessage(
     val isOwn: Boolean,
     val replyTo: ReplyPreview?,
     val reactions: List<MessageReaction>,
+    val attachments: List<Attachment>,
     /** Идемпотентный клиентский id; присутствует у исходящих, переживает подтверждение. */
     val clientMessageId: String?,
     val deliveryStatus: DeliveryStatus,

@@ -123,9 +123,27 @@ app/src/main/java/com/infy/messenger/
 > Контракты Socket.IO и REST чата сверены с `backend/src/modules/chat` и
 > `backend/src/modules/realtime/socket.server.ts`.
 
+## Этап 3 — медиа ✅
+
+- **Загрузка** (`MediaRepository`): `POST /media/upload` (multipart, заголовки
+  `x-media-type`/`x-media-duration`) → отправка сообщением с `attachment`. Прогресс
+  через `ProgressRequestBody` (стрим без буфера в RAM).
+- **Просмотр** (`MediaContent` / `MessageAttachments`): URL строится из `storageKey`
+  через `MediaUrlBuilder` (`{base}/media/{base64url(key)}?token=…`, Range-стриминг).
+  Изображения — Coil; видео и кружки — встроенный **ExoPlayer (Media3)** с seek;
+  голосовые — плеер с волной и длительностью; файлы — открытие системным интентом.
+- **Запись голосовых** (`VoiceRecorder`): MediaRecorder (OGG/Opus, AAC на старых),
+  кнопка-микрофон в composer (удержание), отправка как `AUDIO`.
+- **Кружки** (`CircleRecorderScreen`): CameraX, круглое превью, фронт/тыл, запись
+  по удержанию, отправка как `CIRCLE_VIDEO`; результат возвращается в переписку.
+- **Аватары/изображения**: авторизованный Coil-URL через `MediaUrlBuilder`.
+- Вложения кэшируются в Room (как JSON у сообщения), разрешения камера/микрофон
+  запрашиваются в рантайме, файлы отдаются через `FileProvider`.
+
+> Контракт загрузки/стриминга сверен с `backend/src/modules/media`.
+
 ## Что дальше (следующие этапы)
 
-- **Этап 3** — медиа (фото/видео/голосовые/кружки).
 - **Этап 4** — звонки WebRTC 1:1 (протокол сигналинга из `docs/CALLS.md`).
 - **Этап 5** — профиль / настройки / сессии устройств.
 - **Push** — сейчас бэкенд использует web-push (VAPID); для Android нужен FCM —

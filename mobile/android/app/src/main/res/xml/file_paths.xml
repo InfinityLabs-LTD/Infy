@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Кэш для записанных голосовых и кружков, отдаём через FileProvider. -->
+    <cache-path name="voice" path="voice/" />
+    <cache-path name="circles" path="circles/" />
+</paths>

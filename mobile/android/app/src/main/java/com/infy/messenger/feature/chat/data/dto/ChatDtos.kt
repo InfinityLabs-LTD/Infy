@@ -94,6 +94,7 @@ data class AttachmentDto(
     val width: Int? = null,
     val height: Int? = null,
     val durationMs: Int? = null,
+    val waveform: List<Int> = emptyList(),
     val transcript: String? = null,
     val listenedAt: String? = null,
 )
@@ -112,6 +113,21 @@ data class SendMessageRequest(
     val type: String = "TEXT",
     val replyToId: String? = null,
     val clientMessageId: String? = null,
+    val attachment: AttachmentInput? = null,
+)
+
+/** Вложение для отправки (подмножество полей UploadResult, что принимает бэкенд). */
+@Serializable
+data class AttachmentInput(
+    val storageKey: String,
+    val fileName: String? = null,
+    val thumbnailKey: String? = null,
+    val mimeType: String,
+    val sizeBytes: Long,
+    val width: Int? = null,
+    val height: Int? = null,
+    val durationMs: Int? = null,
+    val waveform: List<Int> = emptyList(),
 )
 
 @Serializable

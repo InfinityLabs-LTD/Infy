@@ -59,7 +59,9 @@ object NetworkModule {
         .authenticator(authenticator)
         .addInterceptor(logging)
         .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        // Загрузка медиа может быть долгой — даём запас на запись тела.
+        .writeTimeout(120, TimeUnit.SECONDS)
         .build()
 
     /** Голый клиент для /auth/refresh: без Authenticator, чтобы не зациклиться. */
@@ -108,6 +110,11 @@ object NetworkModule {
     @Singleton
     fun provideChatApi(retrofit: Retrofit): com.infy.messenger.feature.chat.data.remote.ChatApi =
         retrofit.create(com.infy.messenger.feature.chat.data.remote.ChatApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideMediaApi(retrofit: Retrofit): com.infy.messenger.feature.media.data.MediaApi =
+        retrofit.create(com.infy.messenger.feature.media.data.MediaApi::class.java)
 
     @Provides
     @Singleton

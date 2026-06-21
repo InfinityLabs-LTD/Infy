@@ -75,6 +75,7 @@ class ChatRepositoryImpl @Inject constructor(
             isOwn = true,
             replyToJson = null,
             reactionsJson = "[]",
+            attachmentsJson = "[]",
             clientMessageId = clientMessageId,
             deliveryStatus = DeliveryStatus.SENDING.name,
             sortKey = optimisticSortKey(now),

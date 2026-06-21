@@ -70,6 +70,27 @@
     <string name="chat_edited">изменено</string>
     <string name="chat_back">Назад</string>
 
+    <!-- Медиа -->
+    <string name="media_attach">Прикрепить</string>
+    <string name="media_pick_gallery">Фото или видео</string>
+    <string name="media_pick_file">Файл</string>
+    <string name="media_record_voice">Записать голосовое</string>
+    <string name="media_record_circle">Записать кружок</string>
+    <string name="media_recording">Идёт запись… отпустите для отправки</string>
+    <string name="media_cancel">Отмена</string>
+    <string name="media_play">Воспроизвести</string>
+    <string name="media_pause">Пауза</string>
+    <string name="media_uploading">Загрузка… %1$d%%</string>
+    <string name="media_file_open">Открыть файл</string>
+    <string name="media_image">Изображение</string>
+    <string name="media_video">Видео</string>
+    <string name="media_voice">Голосовое сообщение</string>
+    <string name="media_circle">Видеосообщение</string>
+    <string name="media_permission_mic">Нужен доступ к микрофону для записи голосовых</string>
+    <string name="media_permission_camera">Нужен доступ к камере и микрофону для кружков</string>
+    <string name="media_circle_record_hint">Удерживайте, чтобы записать кружок</string>
+    <string name="media_circle_flip">Сменить камеру</string>
+
     <!-- Ошибки от сервера (маппинг error.code) -->
     <string name="error_generic">Что-то пошло не так. Попробуйте ещё раз.</string>
     <string name="error_network">Нет соединения с сервером. Проверьте интернет.</string>

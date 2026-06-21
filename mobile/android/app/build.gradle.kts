@@ -106,6 +106,22 @@ dependencies {
         exclude(group = "org.json", module = "json")
     }
 
+    // Медиа: ExoPlayer для встроенного воспроизведения видео/кружков/аудио (Range/seek).
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.ui)
+
+    // CameraX — запись кружков (CIRCLE_VIDEO).
+    implementation(libs.camerax.core)
+    implementation(libs.camerax.camera2)
+    implementation(libs.camerax.lifecycle)
+    implementation(libs.camerax.video)
+    implementation(libs.camerax.view)
+
+    // Разрешения (камера/микрофон) в Compose.
+    implementation(libs.accompanist.permissions)
+    // ListenableFuture.await() для CameraX ProcessCameraProvider.
+    implementation(libs.concurrent.futures.ktx)
+
     implementation(libs.coil.compose)
     implementation(libs.timber)
 

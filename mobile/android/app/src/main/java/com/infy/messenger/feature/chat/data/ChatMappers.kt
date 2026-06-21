@@ -6,6 +6,7 @@ import com.infy.messenger.feature.chat.data.dto.ChatSummaryDto
 import com.infy.messenger.feature.chat.data.dto.MessageDto
 import com.infy.messenger.feature.chat.data.local.ChatEntity
 import com.infy.messenger.feature.chat.data.local.MessageEntity
+import com.infy.messenger.feature.chat.domain.Attachment
 import com.infy.messenger.feature.chat.domain.ChatMessage
 import com.infy.messenger.feature.chat.domain.ChatPartner
 import com.infy.messenger.feature.chat.domain.ChatSummary
@@ -30,6 +31,22 @@ private data class ReplyJson(
     val type: String,
     val deleted: Boolean,
     val senderNickname: String,
+)
+
+@Serializable
+private data class AttachmentJson(
+    val id: String,
+    val storageKey: String,
+    val fileName: String?,
+    val thumbnailKey: String?,
+    val mimeType: String,
+    val sizeBytes: Long?,
+    val width: Int?,
+    val height: Int?,
+    val durationMs: Int?,
+    val waveform: List<Int>,
+    val transcript: String?,
+    val listenedAt: Long?,
 )
 
 private val mapperJson = Json { ignoreUnknownKeys = true }
@@ -87,6 +104,24 @@ fun MessageDto.toEntity(currentUserId: String): MessageEntity {
     val reactionsJson = mapperJson.encodeToString(
         reactions.map { ReactionJson(it.emoji, it.count, it.userIds) },
     )
+    val attachmentsJson = mapperJson.encodeToString(
+        attachments.map {
+            AttachmentJson(
+                id = it.id,
+                storageKey = it.storageKey,
+                fileName = it.fileName,
+                thumbnailKey = it.thumbnailKey,
+                mimeType = it.mimeType,
+                sizeBytes = it.sizeBytes,
+                width = it.width,
+                height = it.height,
+                durationMs = it.durationMs,
+                waveform = it.waveform,
+                transcript = it.transcript,
+                listenedAt = parseIsoToMillis(it.listenedAt),
+            )
+        },
+    )
     val replyJson = replyTo?.let {
         mapperJson.encodeToString(
             ReplyJson(it.id, it.content, it.type, it.deleted, it.sender.nickname),
@@ -109,6 +144,7 @@ fun MessageDto.toEntity(currentUserId: String): MessageEntity {
         isOwn = own,
         replyToJson = replyJson,
         reactionsJson = reactionsJson,
+        attachmentsJson = attachmentsJson,
         clientMessageId = clientMessageId,
         // Подтверждённые — sortKey = серверный ULID (естественный порядок по времени).
         deliveryStatus = DeliveryStatus.SENT.name,
@@ -127,6 +163,25 @@ fun MessageEntity.toDomain(): ChatMessage {
         ReplyPreview(it.id, it.content, MessageType.from(it.type), it.deleted, it.senderNickname)
     }
 
+    val attachments = runCatching {
+        mapperJson.decodeFromString<List<AttachmentJson>>(attachmentsJson)
+    }.getOrDefault(emptyList()).map {
+        Attachment(
+            id = it.id,
+            storageKey = it.storageKey,
+            fileName = it.fileName,
+            thumbnailKey = it.thumbnailKey,
+            mimeType = it.mimeType,
+            sizeBytes = it.sizeBytes,
+            width = it.width,
+            height = it.height,
+            durationMs = it.durationMs,
+            waveform = it.waveform,
+            transcript = it.transcript,
+            listenedAt = it.listenedAt,
+        )
+    }
+
     return ChatMessage(
         id = serverId.orEmpty(),
         chatId = chatId,
@@ -141,6 +196,7 @@ fun MessageEntity.toDomain(): ChatMessage {
         isOwn = isOwn,
         replyTo = reply,
         reactions = reactions,
+        attachments = attachments,
         clientMessageId = clientMessageId,
         deliveryStatus = runCatching { DeliveryStatus.valueOf(deliveryStatus) }
             .getOrDefault(DeliveryStatus.SENT),

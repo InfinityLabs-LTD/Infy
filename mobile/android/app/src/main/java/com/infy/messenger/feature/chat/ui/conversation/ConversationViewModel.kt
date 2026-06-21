@@ -1,12 +1,17 @@
 package com.infy.messenger.feature.chat.ui.conversation
 
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.infy.messenger.core.media.MediaUrlBuilder
+import com.infy.messenger.core.media.VoiceRecorder
 import com.infy.messenger.core.realtime.RealtimeClient
 import com.infy.messenger.core.realtime.RealtimeSyncManager
 import com.infy.messenger.feature.chat.domain.ChatMessage
 import com.infy.messenger.feature.chat.domain.ChatRepository
+import com.infy.messenger.feature.media.data.MediaRepository
+import com.infy.messenger.feature.media.domain.MediaKind
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -38,9 +43,18 @@ class ConversationViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val realtimeClient: RealtimeClient,
     private val realtimeSyncManager: RealtimeSyncManager,
+    private val mediaRepository: MediaRepository,
+    private val voiceRecorder: VoiceRecorder,
+    val mediaUrlBuilder: MediaUrlBuilder,
 ) : ViewModel() {
 
     val chatId: String = checkNotNull(savedStateHandle["chatId"])
+
+    /** Прогресс загрузки вложения (0..1) либо null. */
+    val uploadProgress: StateFlow<Float?> = mediaRepository.uploadProgress
+
+    private val _isRecordingVoice = MutableStateFlow(false)
+    val isRecordingVoice: StateFlow<Boolean> = _isRecordingVoice
 
     private val historyCursor = MutableStateFlow<String?>(null)
     private val isLoadingHistory = MutableStateFlow(false)
@@ -106,6 +120,56 @@ class ConversationViewModel @Inject constructor(
         }
     }
 
+    // ── Медиа ────────────────────────────────────────────────────────
+
+    /** Отправить выбранное из галереи/файлов медиа. [durationMs] для видео, если известно. */
+    fun sendMedia(uri: Uri, kind: MediaKind, durationMs: Long? = null) {
+        viewModelScope.launch {
+            runCatching { mediaRepository.sendMedia(chatId, uri, kind, durationMs) }
+        }
+    }
+
+    /** Начать запись голосового. Разрешение RECORD_AUDIO проверяет UI. */
+    fun startVoiceRecording() {
+        runCatching {
+            voiceRecorder.start()
+            _isRecordingVoice.value = true
+        }
+    }
+
+    /** Завершить запись и отправить (если запись достаточной длины). */
+    fun stopAndSendVoice() {
+        if (!_isRecordingVoice.value) return
+        _isRecordingVoice.value = false
+        val recording = voiceRecorder.stop() ?: return
+        viewModelScope.launch {
+            runCatching {
+                mediaRepository.sendMedia(
+                    chatId = chatId,
+                    uri = recording.uri,
+                    kind = MediaKind.AUDIO,
+                    durationMs = recording.durationMs,
+                )
+            }
+        }
+    }
+
+    /** Отменить запись без отправки. */
+    fun cancelVoiceRecording() {
+        if (!_isRecordingVoice.value) return
+        _isRecordingVoice.value = false
+        voiceRecorder.cancel()
+    }
+
+    /** Отправить записанный кружок (CIRCLE_VIDEO). */
+    fun sendCircle(uri: Uri, durationMs: Long?) {
+        viewModelScope.launch {
+            runCatching {
+                mediaRepository.sendMedia(chatId, uri, MediaKind.CIRCLE_VIDEO, durationMs)
+            }
+        }
+    }
+
     fun toggleReaction(messageId: String, emoji: String) {
         viewModelScope.launch {
             runCatching { chatRepository.toggleReaction(messageId, emoji) }
@@ -138,6 +202,7 @@ class ConversationViewModel @Inject constructor(
 
     override fun onCleared() {
         stopTyping()
+        if (_isRecordingVoice.value) voiceRecorder.cancel()
         super.onCleared()
     }
 

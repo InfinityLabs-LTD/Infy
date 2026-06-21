@@ -62,6 +62,26 @@
     <string name="chat_edited">edited</string>
     <string name="chat_back">Back</string>
 
+    <string name="media_attach">Attach</string>
+    <string name="media_pick_gallery">Photo or video</string>
+    <string name="media_pick_file">File</string>
+    <string name="media_record_voice">Record voice</string>
+    <string name="media_record_circle">Record circle</string>
+    <string name="media_recording">Recording… release to send</string>
+    <string name="media_cancel">Cancel</string>
+    <string name="media_play">Play</string>
+    <string name="media_pause">Pause</string>
+    <string name="media_uploading">Uploading… %1$d%%</string>
+    <string name="media_file_open">Open file</string>
+    <string name="media_image">Image</string>
+    <string name="media_video">Video</string>
+    <string name="media_voice">Voice message</string>
+    <string name="media_circle">Video message</string>
+    <string name="media_permission_mic">Microphone access is required to record voice messages</string>
+    <string name="media_permission_camera">Camera and microphone access is required for circles</string>
+    <string name="media_circle_record_hint">Hold to record a circle</string>
+    <string name="media_circle_flip">Flip camera</string>
+
     <string name="error_generic">Something went wrong. Please try again.</string>
     <string name="error_network">No connection to the server. Check your internet.</string>
     <string name="error_auth_invalid_password">Invalid username or password</string>

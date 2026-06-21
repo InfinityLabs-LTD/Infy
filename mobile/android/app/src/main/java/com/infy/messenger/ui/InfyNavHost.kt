@@ -18,7 +18,9 @@ import com.infy.messenger.feature.auth.ui.LoginScreen
 import com.infy.messenger.feature.auth.ui.RegisterScreen
 import com.infy.messenger.feature.auth.ui.SplashScreen
 import com.infy.messenger.feature.chat.ui.conversation.ConversationScreen
+import com.infy.messenger.feature.chat.ui.conversation.ConversationViewModel
 import com.infy.messenger.feature.chat.ui.list.ChatListScreen
+import com.infy.messenger.feature.media.ui.CircleRecorderScreen
 
 /**
  * Корневой граф. Глобальное состояние сессии ([AuthState]) управляет переходами
@@ -69,13 +71,47 @@ fun InfyNavHost(
         composable(
             route = Destinations.CONVERSATION,
             arguments = listOf(navArgument("chatId") { type = NavType.StringType }),
-        ) {
+        ) { entry ->
+            // Результат записи кружка возвращается через SavedStateHandle этой записи.
+            val circleUri = entry.savedStateHandle
+                .getStateFlow<String?>(KEY_CIRCLE_URI, null)
+                .collectAsStateWithLifecycle()
+            val circleDuration = entry.savedStateHandle
+                .getStateFlow<Long>(KEY_CIRCLE_DURATION, 0L)
+                .collectAsStateWithLifecycle()
+
+            val convVm: ConversationViewModel = hiltViewModel()
+            LaunchedEffect(circleUri.value) {
+                val uriStr = circleUri.value ?: return@LaunchedEffect
+                convVm.sendCircle(android.net.Uri.parse(uriStr), circleDuration.value)
+                entry.savedStateHandle[KEY_CIRCLE_URI] = null
+            }
+
             ConversationScreen(
                 onNavigateBack = { navController.popBackStack() },
+                onOpenCircleRecorder = { navController.navigate(Destinations.CIRCLE_RECORDER) },
+                viewModel = convVm,
+            )
+        }
+
+        composable(Destinations.CIRCLE_RECORDER) {
+            CircleRecorderScreen(
+                onRecorded = { uri, durationMs ->
+                    // Кладём результат в запись переписки и возвращаемся назад.
+                    navController.previousBackStackEntry?.savedStateHandle?.apply {
+                        set(KEY_CIRCLE_DURATION, durationMs)
+                        set(KEY_CIRCLE_URI, uri.toString())
+                    }
+                    navController.popBackStack()
+                },
+                onCancel = { navController.popBackStack() },
             )
         }
     }
 }
+
+private const val KEY_CIRCLE_URI = "circle_uri"
+private const val KEY_CIRCLE_DURATION = "circle_duration"
 
 /** Переход с полной очисткой бэкстека (смена auth-стека). */
 private fun NavHostController.navigateClearingTo(route: String) {

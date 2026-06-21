@@ -52,6 +52,8 @@ data class MessageEntity(
     val replyToJson: String?,
     /** JSON List<MessageReaction>. */
     val reactionsJson: String,
+    /** JSON List<Attachment>. */
+    val attachmentsJson: String,
     val clientMessageId: String?,
     /** Имя [com.infy.messenger.feature.chat.domain.DeliveryStatus]. */
     val deliveryStatus: String,

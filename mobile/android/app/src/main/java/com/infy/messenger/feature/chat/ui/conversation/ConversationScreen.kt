@@ -17,6 +17,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -58,10 +61,39 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 @Composable
 fun ConversationScreen(
     onNavigateBack: () -> Unit,
+    onOpenCircleRecorder: () -> Unit,
     viewModel: ConversationViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val uploadProgress by viewModel.uploadProgress.collectAsStateWithLifecycle()
+    val isRecording by viewModel.isRecordingVoice.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Выбор фото/видео из системного Photo Picker.
+    val mediaPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri != null) {
+            val mime = context.contentResolver.getType(uri).orEmpty()
+            val kind = if (mime.startsWith("video")) {
+                com.infy.messenger.feature.media.domain.MediaKind.VIDEO
+            } else {
+                com.infy.messenger.feature.media.domain.MediaKind.IMAGE
+            }
+            viewModel.sendMedia(uri, kind)
+        }
+    }
+    // Выбор произвольного файла.
+    val filePicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent(),
+    ) { uri ->
+        if (uri != null) viewModel.sendMedia(uri, com.infy.messenger.feature.media.domain.MediaKind.FILE)
+    }
+    // Разрешение на запись голосовых.
+    val micPermission = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted -> if (granted) viewModel.startVoiceRecording() }
 
     // Подгрузка истории: когда доскроллили почти до самых старых сообщений (низ
     // отрисовки при reverseLayout = конец списка) и есть ещё страницы — грузим.
@@ -103,8 +135,25 @@ fun ConversationScreen(
         },
         bottomBar = {
             Composer(
+                uploadProgress = uploadProgress,
+                isRecording = isRecording,
                 onTyping = viewModel::onTyping,
                 onSend = { viewModel.sendMessage(it) },
+                onPickMedia = {
+                    mediaPicker.launch(
+                        androidx.activity.result.PickVisualMediaRequest(
+                            androidx.activity.result.contract.ActivityResultContracts
+                                .PickVisualMedia.ImageAndVideo,
+                        ),
+                    )
+                },
+                onPickFile = { filePicker.launch("*/*") },
+                onRecordVoiceStart = {
+                    micPermission.launch(android.Manifest.permission.RECORD_AUDIO)
+                },
+                onRecordVoiceStop = { viewModel.stopAndSendVoice() },
+                onRecordVoiceCancel = { viewModel.cancelVoiceRecording() },
+                onOpenCircle = onOpenCircleRecorder,
             )
         },
     ) { innerPadding ->
@@ -125,6 +174,7 @@ fun ConversationScreen(
             ) { message ->
                 MessageBubble(
                     message = message,
+                    urlBuilder = viewModel.mediaUrlBuilder,
                     onRetry = { clientId -> viewModel.retry(clientId) },
                 )
             }
@@ -155,11 +205,20 @@ fun ConversationScreen(
     }
 }
 
+/** Типы сообщений, у которых основной носитель — текст. */
+private val TEXT_LIKE_TYPES = setOf(
+    MessageType.TEXT,
+    MessageType.SYSTEM,
+    MessageType.AI,
+    MessageType.AI_QUERY,
+)
+
 /** Пузырь одного сообщения. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MessageBubble(
     message: ChatMessage,
+    urlBuilder: com.infy.messenger.core.media.MediaUrlBuilder,
     onRetry: (clientMessageId: String) -> Unit,
 ) {
     val isOwn = message.isOwn
@@ -213,23 +272,22 @@ private fun MessageBubble(
                     }
                 }
 
-                // Основной контент.
-                when (message.type) {
-                    MessageType.TEXT,
-                    MessageType.SYSTEM,
-                    MessageType.AI,
-                    MessageType.AI_QUERY -> {
-                        Text(
-                            text = message.content.orEmpty(),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
-                    else -> {
-                        // Заглушка под медиа (реальное медиа — следующий этап).
-                        Text(
-                            text = "📎 " + (message.content ?: ""),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
+                // Вложения (изображение/видео/голосовое/кружок/файл).
+                if (message.attachments.isNotEmpty()) {
+                    com.infy.messenger.feature.media.ui.MessageAttachments(
+                        attachments = message.attachments,
+                        type = message.type,
+                        urlBuilder = urlBuilder,
+                        modifier = Modifier.padding(bottom = if (message.content.isNullOrBlank()) 0.dp else 6.dp),
+                    )
+                }
+
+                // Текстовый контент / подпись (если есть).
+                val isTextType = message.type in TEXT_LIKE_TYPES
+                if (isTextType || !message.content.isNullOrBlank()) {
+                    val text = message.content.orEmpty()
+                    if (text.isNotEmpty()) {
+                        Text(text = text, style = MaterialTheme.typography.bodyLarge)
                     }
                 }
 
@@ -330,46 +388,146 @@ private fun MessageMeta(
     }
 }
 
-/** Нижняя панель ввода: поле + кнопка отправки. */
+/**
+ * Нижняя панель ввода: текст + действия. Когда поле пустое — показываем кнопки
+ * вложения, кружка и микрофона (удержание = запись голосового). Когда есть текст —
+ * кнопку отправки. Сверху — индикатор загрузки вложения, если идёт upload.
+ */
 @Composable
 private fun Composer(
+    uploadProgress: Float?,
+    isRecording: Boolean,
     onTyping: () -> Unit,
     onSend: (String) -> Unit,
+    onPickMedia: () -> Unit,
+    onPickFile: () -> Unit,
+    onRecordVoiceStart: () -> Unit,
+    onRecordVoiceStop: () -> Unit,
+    onRecordVoiceCancel: () -> Unit,
+    onOpenCircle: () -> Unit,
 ) {
     var text by remember { mutableStateOf("") }
+    var menuOpen by remember { mutableStateOf(false) }
+    val hasText = text.isNotBlank()
 
     Surface(tonalElevation = 3.dp) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedTextField(
-                value = text,
-                onValueChange = {
-                    text = it
-                    onTyping()
-                },
-                placeholder = { Text(stringResource(R.string.chat_message_hint)) },
-                modifier = Modifier.weight(1f),
-                maxLines = 5,
-            )
-            val canSend = text.isNotBlank()
-            IconButton(
-                onClick = {
-                    if (canSend) {
-                        onSend(text)
-                        text = ""
-                    }
-                },
-                enabled = canSend,
-                modifier = Modifier.padding(start = 4.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
-                    contentDescription = stringResource(R.string.chat_send),
+        Column {
+            // Прогресс загрузки вложения.
+            if (uploadProgress != null) {
+                androidx.compose.material3.LinearProgressIndicator(
+                    progress = { uploadProgress },
+                    modifier = Modifier.fillMaxWidth(),
                 )
+            }
+
+            if (isRecording) {
+                // Режим записи голосового: подсказка + отмена + отправка.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Mic,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                    Text(
+                        text = stringResource(R.string.media_recording),
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 8.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    androidx.compose.material3.TextButton(onClick = onRecordVoiceCancel) {
+                        Text(stringResource(R.string.media_cancel))
+                    }
+                    IconButton(onClick = onRecordVoiceStop) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = stringResource(R.string.chat_send),
+                        )
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Меню вложений.
+                    Box {
+                        IconButton(onClick = { menuOpen = true }) {
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = stringResource(R.string.media_attach),
+                            )
+                        }
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = menuOpen,
+                            onDismissRequest = { menuOpen = false },
+                        ) {
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(stringResource(R.string.media_pick_gallery)) },
+                                onClick = { menuOpen = false; onPickMedia() },
+                            )
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(stringResource(R.string.media_pick_file)) },
+                                onClick = { menuOpen = false; onPickFile() },
+                            )
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(stringResource(R.string.media_record_circle)) },
+                                onClick = { menuOpen = false; onOpenCircle() },
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = {
+                            text = it
+                            onTyping()
+                        },
+                        placeholder = { Text(stringResource(R.string.chat_message_hint)) },
+                        modifier = Modifier.weight(1f),
+                        maxLines = 5,
+                    )
+
+                    if (hasText) {
+                        IconButton(
+                            onClick = { onSend(text); text = "" },
+                            modifier = Modifier.padding(start = 4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = stringResource(R.string.chat_send),
+                            )
+                        }
+                    } else {
+                        // Удержание кнопки микрофона = запись голосового.
+                        IconButton(
+                            onClick = { /* старт/стоп через жесты ниже */ },
+                            modifier = Modifier
+                                .padding(start = 4.dp)
+                                .pointerInput(Unit) {
+                                    androidx.compose.foundation.gestures.detectTapGestures(
+                                        onPress = {
+                                            onRecordVoiceStart()
+                                            val released = tryAwaitRelease()
+                                            if (released) onRecordVoiceStop() else onRecordVoiceStop()
+                                        },
+                                    )
+                                },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Mic,
+                                contentDescription = stringResource(R.string.media_record_voice),
+                            )
+                        }
+                    }
+                }
             }
         }
     }

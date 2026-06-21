@@ -13,4 +13,7 @@ object Destinations {
     /** Экран переписки. Аргумент chatId. */
     const val CONVERSATION = "conversation/{chatId}"
     fun conversation(chatId: String): String = "conversation/$chatId"
+
+    /** Запись кружка (CIRCLE_VIDEO). Результат возвращается на экран переписки. */
+    const val CIRCLE_RECORDER = "circle_recorder"
 }
