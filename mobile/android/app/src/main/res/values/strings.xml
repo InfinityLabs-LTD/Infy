@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Infy</string>
+
+    <!-- Общие -->
+    <string name="action_continue">Продолжить</string>
+    <string name="action_retry">Повторить</string>
+    <string name="action_back">Назад</string>
+    <string name="loading">Загрузка…</string>
+
+    <!-- Splash -->
+    <string name="splash_tagline">Мессенджер Infy</string>
+
+    <!-- Вход -->
+    <string name="login_title">С возвращением</string>
+    <string name="login_subtitle">Войдите в свой аккаунт Infy</string>
+    <string name="login_username">Имя пользователя</string>
+    <string name="login_password">Пароль</string>
+    <string name="login_submit">Войти</string>
+    <string name="login_forgot">Забыли пароль?</string>
+    <string name="login_no_account">Нет аккаунта? Создать</string>
+
+    <!-- Регистрация -->
+    <string name="register_title">Создать аккаунт</string>
+    <string name="register_subtitle">Несколько секунд — и вы в Infy</string>
+    <string name="register_username">Имя пользователя</string>
+    <string name="register_username_hint">3–32 символа: a–z, 0–9, _</string>
+    <string name="register_nickname">Отображаемое имя</string>
+    <string name="register_password">Пароль</string>
+    <string name="register_password_hint">Минимум 8 символов</string>
+    <string name="register_email">Email (необязательно)</string>
+    <string name="register_submit">Зарегистрироваться</string>
+    <string name="register_have_account">Уже есть аккаунт? Войти</string>
+
+    <!-- Восстановление пароля -->
+    <string name="forgot_title">Сброс пароля</string>
+    <string name="forgot_subtitle">Укажите email — пришлём ссылку для сброса</string>
+    <string name="forgot_email">Email</string>
+    <string name="forgot_submit">Отправить ссылку</string>
+    <string name="forgot_sent">Если такой email есть в системе, мы отправили на него письмо со ссылкой для сброса пароля.</string>
+    <string name="forgot_back_to_login">Вернуться ко входу</string>
+
+    <!-- Валидация (на клиенте) -->
+    <string name="validation_username_invalid">Имя: 3–32 символа, только строчные буквы, цифры и _</string>
+    <string name="validation_nickname_required">Введите отображаемое имя</string>
+    <string name="validation_password_short">Пароль должен быть не короче 8 символов</string>
+    <string name="validation_email_invalid">Некорректный email</string>
+    <string name="validation_field_required">Заполните это поле</string>
+
+    <!-- Заглушка главного экрана (этап 2 заменит на список чатов) -->
+    <string name="home_title">Вы вошли в Infy</string>
+    <string name="home_subtitle">Список чатов появится на следующем этапе</string>
+    <string name="home_logout">Выйти</string>
+
+    <!-- Ошибки от сервера (маппинг error.code) -->
+    <string name="error_generic">Что-то пошло не так. Попробуйте ещё раз.</string>
+    <string name="error_network">Нет соединения с сервером. Проверьте интернет.</string>
+    <string name="error_auth_invalid_password">Неверное имя пользователя или пароль</string>
+    <string name="error_auth_username_taken">Это имя пользователя уже занято</string>
+    <string name="error_auth_email_taken">Этот email уже используется</string>
+    <string name="error_auth_username_reserved">Это имя зарезервировано системой</string>
+    <string name="error_auth_token_expired">Сессия истекла. Войдите снова.</string>
+    <string name="error_auth_token_invalid">Сессия недействительна. Войдите снова.</string>
+    <string name="error_auth_session_revoked">Сессия была завершена. Войдите снова.</string>
+    <string name="error_auth_reset_token_invalid">Ссылка для сброса недействительна или истекла</string>
+    <string name="error_rate_limit">Слишком много попыток. Подождите немного.</string>
+    <string name="error_account_banned">Аккаунт заблокирован</string>
+    <string name="error_account_muted">Аккаунт ограничен</string>
+</resources>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Infy</string>
+
+    <string name="action_continue">Continue</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_back">Back</string>
+    <string name="loading">Loading…</string>
+
+    <string name="splash_tagline">Infy Messenger</string>
+
+    <string name="login_title">Welcome back</string>
+    <string name="login_subtitle">Sign in to your Infy account</string>
+    <string name="login_username">Username</string>
+    <string name="login_password">Password</string>
+    <string name="login_submit">Sign in</string>
+    <string name="login_forgot">Forgot password?</string>
+    <string name="login_no_account">No account? Create one</string>
+
+    <string name="register_title">Create account</string>
+    <string name="register_subtitle">A few seconds and you are in Infy</string>
+    <string name="register_username">Username</string>
+    <string name="register_username_hint">3–32 chars: a–z, 0–9, _</string>
+    <string name="register_nickname">Display name</string>
+    <string name="register_password">Password</string>
+    <string name="register_password_hint">At least 8 characters</string>
+    <string name="register_email">Email (optional)</string>
+    <string name="register_submit">Sign up</string>
+    <string name="register_have_account">Already have an account? Sign in</string>
+
+    <string name="forgot_title">Reset password</string>
+    <string name="forgot_subtitle">Enter your email and we will send a reset link</string>
+    <string name="forgot_email">Email</string>
+    <string name="forgot_submit">Send link</string>
+    <string name="forgot_sent">If that email exists, we have sent a password reset link to it.</string>
+    <string name="forgot_back_to_login">Back to sign in</string>
+
+    <string name="validation_username_invalid">Username: 3–32 chars, lowercase letters, digits and _</string>
+    <string name="validation_nickname_required">Enter a display name</string>
+    <string name="validation_password_short">Password must be at least 8 characters</string>
+    <string name="validation_email_invalid">Invalid email</string>
+    <string name="validation_field_required">This field is required</string>
+
+    <string name="home_title">You are signed in to Infy</string>
+    <string name="home_subtitle">The chat list will arrive in the next stage</string>
+    <string name="home_logout">Sign out</string>
+
+    <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="error_network">No connection to the server. Check your internet.</string>
+    <string name="error_auth_invalid_password">Invalid username or password</string>
+    <string name="error_auth_username_taken">This username is already taken</string>
+    <string name="error_auth_email_taken">This email is already in use</string>
+    <string name="error_auth_username_reserved">This username is reserved by the system</string>
+    <string name="error_auth_token_expired">Session expired. Please sign in again.</string>
+    <string name="error_auth_token_invalid">Session is invalid. Please sign in again.</string>
+    <string name="error_auth_session_revoked">Session was revoked. Please sign in again.</string>
+    <string name="error_auth_reset_token_invalid">Reset link is invalid or expired</string>
+    <string name="error_rate_limit">Too many attempts. Please wait a moment.</string>
+    <string name="error_account_banned">Account is banned</string>
+    <string name="error_account_muted">Account is restricted</string>
+</resources>
