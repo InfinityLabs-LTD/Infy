@@ -1,10 +1,16 @@
 package com.infy.messenger.ui
 
-/** Маршруты навигации. На этапе 1 — splash, auth-стек и заглушка home. */
+/** Маршруты навигации: splash, auth-стек и основное приложение (чаты). */
 object Destinations {
     const val SPLASH = "splash"
     const val LOGIN = "login"
     const val REGISTER = "register"
     const val FORGOT = "forgot"
-    const val HOME = "home"
+
+    /** Список диалогов — корень авторизованной части. */
+    const val CHATS = "chats"
+
+    /** Экран переписки. Аргумент chatId. */
+    const val CONVERSATION = "conversation/{chatId}"
+    fun conversation(chatId: String): String = "conversation/$chatId"
 }

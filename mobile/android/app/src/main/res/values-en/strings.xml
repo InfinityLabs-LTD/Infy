@@ -41,9 +41,26 @@
     <string name="validation_email_invalid">Invalid email</string>
     <string name="validation_field_required">This field is required</string>
 
-    <string name="home_title">You are signed in to Infy</string>
-    <string name="home_subtitle">The chat list will arrive in the next stage</string>
-    <string name="home_logout">Sign out</string>
+    <string name="chats_title">Chats</string>
+    <string name="chats_empty">No conversations yet</string>
+    <string name="chats_logout">Sign out</string>
+    <string name="chats_online">online</string>
+    <string name="chats_offline">offline</string>
+    <string name="chats_attachment">Attachment</string>
+    <string name="chats_you_prefix">You: %1$s</string>
+    <string name="chats_connecting">Connecting…</string>
+
+    <string name="chat_message_hint">Message…</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_typing">typing…</string>
+    <string name="chat_load_error">Failed to load messages</string>
+    <string name="chat_retry_send">Send again</string>
+    <string name="chat_status_sending">Sending</string>
+    <string name="chat_status_failed">Not sent</string>
+    <string name="chat_status_read">Read</string>
+    <string name="chat_reply_to">Reply: %1$s</string>
+    <string name="chat_edited">edited</string>
+    <string name="chat_back">Back</string>
 
     <string name="error_generic">Something went wrong. Please try again.</string>
     <string name="error_network">No connection to the server. Check your internet.</string>

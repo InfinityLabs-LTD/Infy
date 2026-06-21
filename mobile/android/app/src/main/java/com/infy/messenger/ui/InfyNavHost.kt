@@ -6,16 +6,19 @@ import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.infy.messenger.feature.auth.data.AuthState
 import com.infy.messenger.feature.auth.ui.AuthSessionViewModel
 import com.infy.messenger.feature.auth.ui.ForgotPasswordScreen
 import com.infy.messenger.feature.auth.ui.LoginScreen
 import com.infy.messenger.feature.auth.ui.RegisterScreen
 import com.infy.messenger.feature.auth.ui.SplashScreen
-import com.infy.messenger.ui.home.HomePlaceholderScreen
+import com.infy.messenger.feature.chat.ui.conversation.ConversationScreen
+import com.infy.messenger.feature.chat.ui.list.ChatListScreen
 
 /**
  * Корневой граф. Глобальное состояние сессии ([AuthState]) управляет переходами
@@ -31,7 +34,7 @@ fun InfyNavHost(
     // Реакция на смену состояния авторизации: перебрасываем на нужный стек.
     LaunchedEffect(authState) {
         when (authState) {
-            is AuthState.Authenticated -> navController.navigateClearingTo(Destinations.HOME)
+            is AuthState.Authenticated -> navController.navigateClearingTo(Destinations.CHATS)
             AuthState.Unauthenticated -> navController.navigateClearingTo(Destinations.LOGIN)
             AuthState.Unknown -> Unit // остаёмся на splash
         }
@@ -57,9 +60,18 @@ fun InfyNavHost(
             )
         }
 
-        composable(Destinations.HOME) {
-            HomePlaceholderScreen(
+        composable(Destinations.CHATS) {
+            ChatListScreen(
+                onOpenChat = { chatId -> navController.navigate(Destinations.conversation(chatId)) },
                 onLogout = { sessionViewModel.logout() },
+            )
+        }
+        composable(
+            route = Destinations.CONVERSATION,
+            arguments = listOf(navArgument("chatId") { type = NavType.StringType }),
+        ) {
+            ConversationScreen(
+                onNavigateBack = { navController.popBackStack() },
             )
         }
     }

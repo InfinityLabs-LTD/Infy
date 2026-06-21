@@ -106,6 +106,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideChatApi(retrofit: Retrofit): com.infy.messenger.feature.chat.data.remote.ChatApi =
+        retrofit.create(com.infy.messenger.feature.chat.data.remote.ChatApi::class.java)
+
+    @Provides
+    @Singleton
     fun provideTokenRefreshApi(@RefreshClient retrofit: Retrofit): TokenRefreshApi =
         retrofit.create(TokenRefreshApi::class.java)
 }

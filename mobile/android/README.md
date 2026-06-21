@@ -100,9 +100,31 @@ app/src/main/java/com/infy/messenger/
 └── ui/                         # навигация, тема, заглушка home
 ```
 
+## Этап 2 — список чатов + переписка (real-time) ✅
+
+- **Socket.IO** (`socket.io-client` 2.1) — авторизация access-токеном в handshake
+  (`auth.token`), авто-реконнект, пересборка соединения со свежим токеном после refresh,
+  разлогин при `SESSION_REVOKED`/`UNAUTHORIZED`. События нормализуются в типобезопасный
+  `RealtimeEvent` (`RealtimeClient`), мост к кэшу/presence — `RealtimeSyncManager`.
+- **Список диалогов** (`ChatListScreen`): последнее сообщение, непрочитанные (бейдж),
+  presence-индикатор (онлайн-точка). Offline-first из Room, фоновое обновление с сервера.
+- **Экран переписки** (`ConversationScreen`):
+  - Курсорная пагинация истории вверх (`GET chats/:id/messages`, ULID-курсор).
+  - **Оптимистичная отправка**: сообщение появляется сразу (`SENDING`), затем
+    `SENT`/`FAILED`; идемпотентность по `clientMessageId`, повтор упавших.
+  - Статусы доставлено/прочитано, индикатор «печатает…» (`typing_start/stop`),
+    отметка прочитанного (`mark_read`), реакции, ответы (отображение цитаты).
+  - **Offline-first**: лента читается из Room (`InfyDatabase`), realtime-события
+    сливаются в кэш; оптимистичные записи заменяются подтверждёнными без дублей.
+- **Хранилище**: Room (`chats`, `messages`), порядок ленты по `sortKey` (ULID для
+  подтверждённых, `~`+время для оптимистичных — всегда внизу).
+- **Unit-тесты**: маппинг сообщений и логика sortKey (`ChatMapperTest`).
+
+> Контракты Socket.IO и REST чата сверены с `backend/src/modules/chat` и
+> `backend/src/modules/realtime/socket.server.ts`.
+
 ## Что дальше (следующие этапы)
 
-- **Этап 2** — список чатов + переписка (Socket.IO, Room offline-first).
 - **Этап 3** — медиа (фото/видео/голосовые/кружки).
 - **Этап 4** — звонки WebRTC 1:1 (протокол сигналинга из `docs/CALLS.md`).
 - **Этап 5** — профиль / настройки / сессии устройств.

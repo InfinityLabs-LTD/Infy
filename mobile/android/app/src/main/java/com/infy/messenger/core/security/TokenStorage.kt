@@ -55,6 +55,11 @@ class TokenStorage @Inject constructor(
         prefs.edit().putString(KEY_REFRESH, refresh).apply()
     }
 
+    /** id текущего пользователя — нужен для вычисления isOwn в чатах. */
+    var userId: String?
+        get() = prefs.getString(KEY_USER_ID, null)
+        set(value) = prefs.edit().putStringOrRemove(KEY_USER_ID, value).apply()
+
     fun clear() {
         prefs.edit().clear().apply()
     }
@@ -72,5 +77,6 @@ class TokenStorage @Inject constructor(
         const val FILE_NAME = "infy_secure_tokens"
         const val KEY_ACCESS = "access_token"
         const val KEY_REFRESH = "refresh_token"
+        const val KEY_USER_ID = "user_id"
     }
 }

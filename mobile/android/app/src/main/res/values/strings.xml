@@ -47,10 +47,28 @@
     <string name="validation_email_invalid">Некорректный email</string>
     <string name="validation_field_required">Заполните это поле</string>
 
-    <!-- Заглушка главного экрана (этап 2 заменит на список чатов) -->
-    <string name="home_title">Вы вошли в Infy</string>
-    <string name="home_subtitle">Список чатов появится на следующем этапе</string>
-    <string name="home_logout">Выйти</string>
+    <!-- Список чатов -->
+    <string name="chats_title">Чаты</string>
+    <string name="chats_empty">Пока нет диалогов</string>
+    <string name="chats_logout">Выйти</string>
+    <string name="chats_online">в сети</string>
+    <string name="chats_offline">не в сети</string>
+    <string name="chats_attachment">Вложение</string>
+    <string name="chats_you_prefix">Вы: %1$s</string>
+    <string name="chats_connecting">Подключение…</string>
+
+    <!-- Экран переписки -->
+    <string name="chat_message_hint">Сообщение…</string>
+    <string name="chat_send">Отправить</string>
+    <string name="chat_typing">печатает…</string>
+    <string name="chat_load_error">Не удалось загрузить сообщения</string>
+    <string name="chat_retry_send">Отправить повторно</string>
+    <string name="chat_status_sending">Отправляется</string>
+    <string name="chat_status_failed">Не отправлено</string>
+    <string name="chat_status_read">Прочитано</string>
+    <string name="chat_reply_to">Ответ: %1$s</string>
+    <string name="chat_edited">изменено</string>
+    <string name="chat_back">Назад</string>
 
     <!-- Ошибки от сервера (маппинг error.code) -->
     <string name="error_generic">Что-то пошло не так. Попробуйте ещё раз.</string>

@@ -97,6 +97,15 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.datastore.preferences)
 
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+
+    // socket.io-client тащит свой org.json — исключаем, на Android он есть в рантайме.
+    implementation(libs.socketio.client) {
+        exclude(group = "org.json", module = "json")
+    }
+
     implementation(libs.coil.compose)
     implementation(libs.timber)
 
