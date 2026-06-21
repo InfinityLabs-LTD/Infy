@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Infy</string>
+
+    <!-- Общие -->
+    <string name="action_continue">Продолжить</string>
+    <string name="action_retry">Повторить</string>
+    <string name="action_back">Назад</string>
+    <string name="loading">Загрузка…</string>
+
+    <!-- Splash -->
+    <string name="splash_tagline">Мессенджер Infy</string>
+
+    <!-- Вход -->
+    <string name="login_title">С возвращением</string>
+    <string name="login_subtitle">Войдите в свой аккаунт Infy</string>
+    <string name="login_username">Имя пользователя</string>
+    <string name="login_password">Пароль</string>
+    <string name="login_submit">Войти</string>
+    <string name="login_forgot">Забыли пароль?</string>
+    <string name="login_no_account">Нет аккаунта? Создать</string>
+
+    <!-- Регистрация -->
+    <string name="register_title">Создать аккаунт</string>
+    <string name="register_subtitle">Несколько секунд — и вы в Infy</string>
+    <string name="register_username">Имя пользователя</string>
+    <string name="register_username_hint">3–32 символа: a–z, 0–9, _</string>
+    <string name="register_nickname">Отображаемое имя</string>
+    <string name="register_password">Пароль</string>
+    <string name="register_password_hint">Минимум 8 символов</string>
+    <string name="register_email">Email (необязательно)</string>
+    <string name="register_submit">Зарегистрироваться</string>
+    <string name="register_have_account">Уже есть аккаунт? Войти</string>
+
+    <!-- Восстановление пароля -->
+    <string name="forgot_title">Сброс пароля</string>
+    <string name="forgot_subtitle">Укажите email — пришлём ссылку для сброса</string>
+    <string name="forgot_email">Email</string>
+    <string name="forgot_submit">Отправить ссылку</string>
+    <string name="forgot_sent">Если такой email есть в системе, мы отправили на него письмо со ссылкой для сброса пароля.</string>
+    <string name="forgot_back_to_login">Вернуться ко входу</string>
+
+    <!-- Валидация (на клиенте) -->
+    <string name="validation_username_invalid">Имя: 3–32 символа, только строчные буквы, цифры и _</string>
+    <string name="validation_nickname_required">Введите отображаемое имя</string>
+    <string name="validation_password_short">Пароль должен быть не короче 8 символов</string>
+    <string name="validation_email_invalid">Некорректный email</string>
+    <string name="validation_field_required">Заполните это поле</string>
+
+    <!-- Список чатов -->
+    <string name="chats_title">Чаты</string>
+    <string name="chats_empty">Пока нет диалогов</string>
+    <string name="chats_logout">Выйти</string>
+    <string name="chats_online">в сети</string>
+    <string name="chats_offline">не в сети</string>
+    <string name="chats_attachment">Вложение</string>
+    <string name="chats_you_prefix">Вы: %1$s</string>
+    <string name="chats_connecting">Подключение…</string>
+
+    <!-- Экран переписки -->
+    <string name="chat_message_hint">Сообщение…</string>
+    <string name="chat_send">Отправить</string>
+    <string name="chat_typing">печатает…</string>
+    <string name="chat_load_error">Не удалось загрузить сообщения</string>
+    <string name="chat_retry_send">Отправить повторно</string>
+    <string name="chat_status_sending">Отправляется</string>
+    <string name="chat_status_failed">Не отправлено</string>
+    <string name="chat_status_read">Прочитано</string>
+    <string name="chat_reply_to">Ответ: %1$s</string>
+    <string name="chat_edited">изменено</string>
+    <string name="chat_back">Назад</string>
+
+    <!-- Медиа -->
+    <string name="media_attach">Прикрепить</string>
+    <string name="media_pick_gallery">Фото или видео</string>
+    <string name="media_pick_file">Файл</string>
+    <string name="media_record_voice">Записать голосовое</string>
+    <string name="media_record_circle">Записать кружок</string>
+    <string name="media_recording">Идёт запись… отпустите для отправки</string>
+    <string name="media_cancel">Отмена</string>
+    <string name="media_play">Воспроизвести</string>
+    <string name="media_pause">Пауза</string>
+    <string name="media_uploading">Загрузка… %1$d%%</string>
+    <string name="media_file_open">Открыть файл</string>
+    <string name="media_image">Изображение</string>
+    <string name="media_video">Видео</string>
+    <string name="media_voice">Голосовое сообщение</string>
+    <string name="media_circle">Видеосообщение</string>
+    <string name="media_permission_mic">Нужен доступ к микрофону для записи голосовых</string>
+    <string name="media_permission_camera">Нужен доступ к камере и микрофону для кружков</string>
+    <string name="media_circle_record_hint">Удерживайте, чтобы записать кружок</string>
+    <string name="media_circle_flip">Сменить камеру</string>
+
+    <!-- Звонки -->
+    <string name="call_audio">Аудиозвонок</string>
+    <string name="call_video">Видеозвонок</string>
+    <string name="call_incoming_audio">Входящий звонок</string>
+    <string name="call_incoming_video">Входящий видеозвонок</string>
+    <string name="call_calling">Вызов…</string>
+    <string name="call_ringing">Звоним…</string>
+    <string name="call_connecting">Соединение…</string>
+    <string name="call_accept">Принять</string>
+    <string name="call_decline">Отклонить</string>
+    <string name="call_hangup">Завершить</string>
+    <string name="call_mic_on">Микрофон включён</string>
+    <string name="call_mic_off">Микрофон выключен</string>
+    <string name="call_cam_on">Камера включена</string>
+    <string name="call_cam_off">Камера выключена</string>
+    <string name="call_switch_camera">Сменить камеру</string>
+    <string name="call_speaker">Динамик</string>
+    <string name="call_ongoing">Идёт звонок</string>
+    <string name="call_channel_name">Звонки</string>
+    <string name="call_ended">Звонок завершён</string>
+    <string name="call_ended_missed">Пропущенный звонок</string>
+    <string name="call_ended_declined">Звонок отклонён</string>
+    <string name="call_ended_busy">Абонент занят</string>
+    <string name="call_ended_failed">Не удалось соединиться</string>
+    <string name="call_permission_required">Нужен доступ к микрофону (и камере для видео)</string>
+    <string name="call_start_audio">Аудиозвонок</string>
+    <string name="call_start_video">Видеозвонок</string>
+
+    <!-- Профиль и настройки -->
+    <string name="profile_title">Профиль</string>
+    <string name="settings_title">Настройки</string>
+    <string name="profile_open">Профиль и настройки</string>
+    <string name="profile_edit">Редактировать</string>
+    <string name="profile_save">Сохранить</string>
+    <string name="profile_saved">Сохранено</string>
+    <string name="profile_change_avatar">Сменить аватар</string>
+    <string name="profile_change_cover">Сменить обложку</string>
+    <string name="profile_nickname">Имя</string>
+    <string name="profile_username">Имя пользователя</string>
+    <string name="profile_bio">О себе</string>
+    <string name="profile_birthdate">Дата рождения (ГГГГ-ММ-ДД)</string>
+    <string name="profile_timezone">Часовой пояс</string>
+    <string name="profile_interests">Интересы</string>
+    <string name="profile_interests_hint">Добавьте до 10 интересов</string>
+    <string name="profile_interest_add">Добавить</string>
+    <string name="profile_email">Email</string>
+    <string name="profile_email_verified">подтверждён</string>
+    <string name="profile_email_unverified">не подтверждён</string>
+    <string name="profile_stat_contacts">Контакты</string>
+    <string name="profile_stat_chats">Чаты</string>
+    <string name="profile_stat_groups">Группы</string>
+    <string name="profile_stat_devices">Устройства</string>
+    <string name="profile_load_error">Не удалось загрузить профиль</string>
+
+    <string name="settings_notifications">Уведомления</string>
+    <string name="settings_notify_popup">Показывать баннеры</string>
+    <string name="settings_notify_sound">Звук</string>
+    <string name="settings_notify_vibrate">Вибрация</string>
+    <string name="settings_ai_suggest">Подсказки ответов Infy AI</string>
+    <string name="settings_sessions">Устройства</string>
+    <string name="settings_sessions_current">Текущее устройство</string>
+    <string name="settings_session_revoke">Завершить</string>
+    <string name="settings_logout_others">Завершить остальные сеансы</string>
+    <string name="settings_logout">Выйти из аккаунта</string>
+    <string name="settings_session_last_active">Активность: %1$s</string>
+    <string name="settings_revoked_count">Завершено сеансов: %1$d</string>
+
+    <!-- Ошибки от сервера (маппинг error.code) -->
+    <string name="error_generic">Что-то пошло не так. Попробуйте ещё раз.</string>
+    <string name="error_network">Нет соединения с сервером. Проверьте интернет.</string>
+    <string name="error_auth_invalid_password">Неверное имя пользователя или пароль</string>
+    <string name="error_auth_username_taken">Это имя пользователя уже занято</string>
+    <string name="error_auth_email_taken">Этот email уже используется</string>
+    <string name="error_auth_username_reserved">Это имя зарезервировано системой</string>
+    <string name="error_auth_token_expired">Сессия истекла. Войдите снова.</string>
+    <string name="error_auth_token_invalid">Сессия недействительна. Войдите снова.</string>
+    <string name="error_auth_session_revoked">Сессия была завершена. Войдите снова.</string>
+    <string name="error_auth_reset_token_invalid">Ссылка для сброса недействительна или истекла</string>
+    <string name="error_rate_limit">Слишком много попыток. Подождите немного.</string>
+    <string name="error_account_banned">Аккаунт заблокирован</string>
+    <string name="error_account_muted">Аккаунт ограничен</string>
+</resources>

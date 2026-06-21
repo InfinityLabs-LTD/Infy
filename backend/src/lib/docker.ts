@@ -2,6 +2,18 @@ import { env } from './env.js'
 
 const BASE = env.DOCKER_PROXY_URL
 
+// M-6 / C-1: container id строго валидируется и URL-кодируется перед
+// подстановкой в путь Docker API, чтобы исключить path/param-инъекцию
+// (например `<id>/kill?...`) через proxy, разрешающий любые POST.
+const CONTAINER_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/
+
+function safeContainerId(id: string): string {
+  if (!CONTAINER_ID_RE.test(id)) {
+    throw new Error(`Invalid container id: ${id}`)
+  }
+  return encodeURIComponent(id)
+}
+
 async function dockerFetch(path: string, options?: RequestInit): Promise<Response> {
   const res = await fetch(`${BASE}${path}`, options)
   if (!res.ok) {
@@ -42,15 +54,16 @@ export async function listContainers(): Promise<ContainerInfo[]> {
 }
 
 export async function restartContainer(id: string): Promise<void> {
-  await dockerFetch(`/containers/${id}/restart`, { method: 'POST' })
+  await dockerFetch(`/containers/${safeContainerId(id)}/restart`, { method: 'POST' })
 }
 
 export async function* streamLogs(
   id: string,
   tail = 200,
 ): AsyncGenerator<string> {
+  const safeTail = Number.isInteger(tail) && tail > 0 && tail <= 5000 ? tail : 200
   const res = await fetch(
-    `${BASE}/containers/${id}/logs?stdout=1&stderr=1&follow=1&tail=${tail}&timestamps=1`,
+    `${BASE}/containers/${safeContainerId(id)}/logs?stdout=1&stderr=1&follow=1&tail=${safeTail}&timestamps=1`,
   )
   if (!res.ok || !res.body) {
     throw new Error(`Log stream failed: ${res.status}`)

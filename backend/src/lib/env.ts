@@ -102,3 +102,29 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data
+
+// M-14: в production запрещаем явно небезопасные значения по умолчанию из
+// .env.example, чтобы ручной `cp .env.example .env`-деплой не уехал в прод
+// с публично известными секретами/паролями.
+if (env.NODE_ENV === 'production') {
+  const insecure: string[] = []
+  const looksUnset = (v: string) => /change_me/i.test(v)
+  if (looksUnset(env.JWT_ACCESS_SECRET)) insecure.push('JWT_ACCESS_SECRET')
+  if (looksUnset(env.JWT_REFRESH_SECRET)) insecure.push('JWT_REFRESH_SECRET')
+  if (looksUnset(env.MINIO_ROOT_PASSWORD) || env.MINIO_ROOT_USER === 'minioadmin') {
+    insecure.push('MINIO_ROOT_USER/PASSWORD')
+  }
+  if (env.TURN_SECRET && looksUnset(env.TURN_SECRET)) insecure.push('TURN_SECRET')
+  if (insecure.length > 0) {
+    console.error(
+      `Refusing to start in production with placeholder secrets: ${insecure.join(', ')}.\n` +
+        'Generate real values (e.g. `openssl rand -hex 64`) before deploying.',
+    )
+    process.exit(1)
+  }
+}
+
+// H-5: фиксированные issuer/audience для привязки JWT к этому сервису.
+// Не выносим в env — это инварианты сервиса, а не конфигурация развёртывания.
+export const JWT_ISSUER = 'infy'
+export const JWT_AUDIENCE = 'infy-api'

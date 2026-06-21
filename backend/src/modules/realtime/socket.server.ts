@@ -6,6 +6,7 @@ import { PrismaClient } from '@prisma/client'
 import { verifyAccessToken } from '../../lib/jwt.js'
 import { AppError } from '../../lib/errors.js'
 import { subscribeToChannel, publishMessage } from '../../lib/pubsub.js'
+import { isSessionActive, markSessionActive } from '../../lib/sessionStore.js'
 import { setOnline, setOffline, refreshPresence, areOnline, getOnlineUserIds, addConnection, removeConnection } from '../../lib/presence.js'
 import { sendPush } from '../../lib/webpush.js'
 import * as ChatService from '../chat/chat.service.js'
@@ -173,7 +174,7 @@ export function createSocketServer(
   io.adapter(createAdapter(pubClient, subClient))
 
   // ── JWT auth middleware ────────────────────────────────────
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const token =
       (socket.handshake.auth as Record<string, string>).token ??
       socket.handshake.headers['authorization']?.replace('Bearer ', '')
@@ -182,6 +183,24 @@ export function createSocketServer(
 
     try {
       const payload = verifyAccessToken(token)
+
+      // M-4: при подключении проверяем, что сессия не отозвана (allowlist в
+      // Redis). Раньше WS-сессия жила всё время соединения, игнорируя
+      // logout/ban/смену пароля и срок access-токена. При отсутствии ключа
+      // (старая сессия / потеря Redis) сверяемся с БД и восстанавливаем.
+      let active = await isSessionActive(pubClient, payload.sessionId)
+      if (!active) {
+        const session = await prisma.deviceSession.findUnique({
+          where: { id: payload.sessionId },
+          select: { revokedAt: true },
+        })
+        if (session && !session.revokedAt) {
+          await markSessionActive(pubClient, payload.sessionId)
+          active = true
+        }
+      }
+      if (!active) return next(new Error('SESSION_REVOKED'))
+
       const s = socket as AuthSocket
       s.userId = payload.sub
       s.username = payload.username

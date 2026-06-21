@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Базовая тема приложения. Реальные цвета задаёт Compose (Material 3),
+         здесь — только splash/системные окна до первого кадра Compose. -->
+    <style name="Theme.Infy" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/infy_brand</item>
+        <item name="android:windowBackground">@color/infy_background</item>
+    </style>
+</resources>

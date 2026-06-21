@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Фиолетовый бренд Infy (см. редизайн Aurora на вебе). -->
+    <color name="infy_brand">#7C4DFF</color>
+    <color name="infy_background">#FFFBFE</color>
+    <color name="infy_background_dark">#141218</color>
+</resources>
