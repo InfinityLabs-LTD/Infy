@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -548,11 +549,13 @@ private fun Composer(
                             modifier = Modifier
                                 .padding(start = 4.dp)
                                 .pointerInput(Unit) {
-                                    androidx.compose.foundation.gestures.detectTapGestures(
+                                    detectTapGestures(
                                         onPress = {
+                                            // Запись идёт, пока кнопка удерживается;
+                                            // отпускание (или отмена жеста) завершает её.
                                             onRecordVoiceStart()
-                                            val released = tryAwaitRelease()
-                                            if (released) onRecordVoiceStop() else onRecordVoiceStop()
+                                            awaitRelease()
+                                            onRecordVoiceStop()
                                         },
                                     )
                                 },

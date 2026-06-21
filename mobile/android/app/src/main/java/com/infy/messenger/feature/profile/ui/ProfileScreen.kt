@@ -63,7 +63,8 @@ fun ProfileScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val message = uiState.message?.let { stringResource(it) }
+    // stringResource нельзя вызывать внутри не-composable лямбды let.
+    val message = if (uiState.message != null) stringResource(uiState.message!!) else null
     LaunchedEffect(message) {
         if (message != null) {
             snackbarHostState.showSnackbar(message)

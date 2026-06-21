@@ -34,9 +34,9 @@ fun ForgotPasswordScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Сообщение об ошибке вычисляем в composable-контексте (stringResource),
-    // показываем в LaunchedEffect.
-    val errorMessage = uiState.formError?.let { stringResource(it) }
+    // Сообщение об ошибке вычисляем в composable-контексте (stringResource нельзя
+    // внутри LaunchedEffect и внутри не-composable лямбды let).
+    val errorMessage = if (uiState.formError != null) stringResource(uiState.formError!!) else null
     LaunchedEffect(errorMessage) {
         if (errorMessage != null) {
             snackbarHostState.showSnackbar(errorMessage)
