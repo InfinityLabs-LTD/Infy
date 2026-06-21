@@ -133,6 +133,7 @@ section "Генерация секретов"
 JWT_ACCESS_SECRET=$(openssl rand -hex 64)
 JWT_REFRESH_SECRET=$(openssl rand -hex 64)
 DB_PASSWORD=$(openssl rand -hex 24)
+MINIO_USER=infy_$(openssl rand -hex 6)
 MINIO_PASSWORD=$(openssl rand -hex 24)
 
 cat > "$INSTALL_DIR/.env" <<EOF
@@ -150,7 +151,7 @@ JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
 JWT_ACCESS_EXPIRES_IN=15m
 JWT_REFRESH_EXPIRES_IN=30d
 
-MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_USER=${MINIO_USER}
 MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}
 MINIO_ENDPOINT=minio
 MINIO_PORT=9000
