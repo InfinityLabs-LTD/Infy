@@ -34,4 +34,17 @@ class MediaUrlBuilder @Inject constructor(
     /** URL превью, если есть thumbnailKey, иначе основной объект. */
     fun thumbnailUrl(thumbnailKey: String?, storageKey: String): String =
         url(thumbnailKey ?: storageKey)
+
+    /**
+     * Абсолютный URL для avatarUrl/coverUrl из профиля. Бэкенд отдаёт их
+     * относительными (`/media/avatars/…`); префиксуем origin'ом API-базы.
+     * Аватары публичны — токен не нужен. null/пусто → null.
+     */
+    fun absoluteOrNull(relativeOrAbsolute: String?): String? {
+        val v = relativeOrAbsolute?.takeIf { it.isNotBlank() } ?: return null
+        if (v.startsWith("http://") || v.startsWith("https://")) return v
+        val base = BuildConfig.API_BASE_URL.trimEnd('/')
+        // base оканчивается на ".../api"; относительный путь начинается с "/media/…".
+        return base + if (v.startsWith("/")) v else "/$v"
+    }
 }

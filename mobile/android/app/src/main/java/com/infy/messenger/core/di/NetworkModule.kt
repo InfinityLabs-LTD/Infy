@@ -123,6 +123,16 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideProfileApi(retrofit: Retrofit): com.infy.messenger.feature.profile.data.ProfileApi =
+        retrofit.create(com.infy.messenger.feature.profile.data.ProfileApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideSessionsApi(retrofit: Retrofit): com.infy.messenger.feature.profile.data.SessionsApi =
+        retrofit.create(com.infy.messenger.feature.profile.data.SessionsApi::class.java)
+
+    @Provides
+    @Singleton
     fun provideTokenRefreshApi(@RefreshClient retrofit: Retrofit): TokenRefreshApi =
         retrofit.create(TokenRefreshApi::class.java)
 }

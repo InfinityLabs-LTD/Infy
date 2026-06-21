@@ -164,8 +164,29 @@ app/src/main/java/com/infy/messenger/
 > Сигнальный протокол и ICE сверены с `docs/CALLS.md`, `backend/src/modules/calls`,
 > `lib/turn.ts`.
 
-## Что дальше (следующие этапы)
+## Этап 5 — профиль / настройки / сессии ✅
 
-- **Этап 5** — профиль / настройки / сессии устройств.
+- **Профиль** (`ProfileScreen`): `GET /profile/me` + `GET /profile/me/stats`,
+  редактирование (nickname, bio, дата рождения, часовой пояс, интересы-хэштеги),
+  загрузка аватара/обложки (`POST /profile/me/avatar|cover`, Photo Picker),
+  статистика (контакты/чаты/группы/устройства). Аватары — публичный URL
+  через `MediaUrlBuilder.absoluteOrNull`.
+- **Настройки** (`SettingsScreen`): переключатели уведомлений (баннеры/звук/
+  вибрация) и подсказок Infy AI — сохраняются через `PATCH /profile/me`.
+- **Сессии устройств**: `GET /sessions` (с пометкой текущего), отзыв
+  отдельной сессии (`DELETE /sessions/:id`), «завершить остальные»
+  (`POST /sessions/logout-all`), полный выход.
+- Вход в профиль — иконка аккаунта в шапке списка чатов.
+
+> Контракт сверен с `backend/src/modules/profile` и `backend/src/modules/sessions`.
+
+## Статус
+
+Все 5 этапов реализованы. Приложение покрывает: авторизацию, чаты с real-time
+и offline-кэшем, медиа (фото/видео/голосовые/кружки), звонки WebRTC 1:1,
+профиль/настройки/сессии. Сборка — в Android Studio (см. выше).
+
+> Push сейчас на web-push/VAPID (бэкенд); для Android нужен FCM — согласуется
+> отдельно (TODO следующего этапа).
 - **Push** — сейчас бэкенд использует web-push (VAPID); для Android нужен FCM —
   интерфейс согласуется отдельно (TODO).

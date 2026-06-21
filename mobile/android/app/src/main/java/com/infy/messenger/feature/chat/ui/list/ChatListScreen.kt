@@ -13,7 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.Badge
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -45,7 +45,7 @@ import com.infy.messenger.feature.chat.domain.MessageType
 @Composable
 fun ChatListScreen(
     onOpenChat: (chatId: String) -> Unit,
-    onLogout: () -> Unit,
+    onOpenProfile: () -> Unit,
     viewModel: ChatListViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -62,10 +62,10 @@ fun ChatListScreen(
                     Text(title)
                 },
                 actions = {
-                    IconButton(onClick = onLogout) {
+                    IconButton(onClick = onOpenProfile) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Logout,
-                            contentDescription = stringResource(R.string.chats_logout),
+                            imageVector = Icons.Filled.AccountCircle,
+                            contentDescription = stringResource(R.string.profile_open),
                         )
                     }
                 },

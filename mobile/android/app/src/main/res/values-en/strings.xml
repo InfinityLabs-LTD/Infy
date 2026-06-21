@@ -109,6 +109,44 @@
     <string name="call_start_audio">Audio call</string>
     <string name="call_start_video">Video call</string>
 
+    <string name="profile_title">Profile</string>
+    <string name="settings_title">Settings</string>
+    <string name="profile_open">Profile and settings</string>
+    <string name="profile_edit">Edit</string>
+    <string name="profile_save">Save</string>
+    <string name="profile_saved">Saved</string>
+    <string name="profile_change_avatar">Change avatar</string>
+    <string name="profile_change_cover">Change cover</string>
+    <string name="profile_nickname">Name</string>
+    <string name="profile_username">Username</string>
+    <string name="profile_bio">About</string>
+    <string name="profile_birthdate">Birthdate (YYYY-MM-DD)</string>
+    <string name="profile_timezone">Time zone</string>
+    <string name="profile_interests">Interests</string>
+    <string name="profile_interests_hint">Add up to 10 interests</string>
+    <string name="profile_interest_add">Add</string>
+    <string name="profile_email">Email</string>
+    <string name="profile_email_verified">verified</string>
+    <string name="profile_email_unverified">unverified</string>
+    <string name="profile_stat_contacts">Contacts</string>
+    <string name="profile_stat_chats">Chats</string>
+    <string name="profile_stat_groups">Groups</string>
+    <string name="profile_stat_devices">Devices</string>
+    <string name="profile_load_error">Failed to load profile</string>
+
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_notify_popup">Show banners</string>
+    <string name="settings_notify_sound">Sound</string>
+    <string name="settings_notify_vibrate">Vibration</string>
+    <string name="settings_ai_suggest">Infy AI reply suggestions</string>
+    <string name="settings_sessions">Devices</string>
+    <string name="settings_sessions_current">Current device</string>
+    <string name="settings_session_revoke">End</string>
+    <string name="settings_logout_others">Sign out other sessions</string>
+    <string name="settings_logout">Sign out</string>
+    <string name="settings_session_last_active">Last active: %1$s</string>
+    <string name="settings_revoked_count">Sessions ended: %1$d</string>
+
     <string name="error_generic">Something went wrong. Please try again.</string>
     <string name="error_network">No connection to the server. Check your internet.</string>
     <string name="error_auth_invalid_password">Invalid username or password</string>

@@ -21,6 +21,8 @@ import com.infy.messenger.feature.chat.ui.conversation.ConversationScreen
 import com.infy.messenger.feature.chat.ui.conversation.ConversationViewModel
 import com.infy.messenger.feature.chat.ui.list.ChatListScreen
 import com.infy.messenger.feature.media.ui.CircleRecorderScreen
+import com.infy.messenger.feature.profile.ui.ProfileScreen
+import com.infy.messenger.feature.settings.ui.SettingsScreen
 
 /**
  * Корневой граф. Глобальное состояние сессии ([AuthState]) управляет переходами
@@ -65,7 +67,20 @@ fun InfyNavHost(
         composable(Destinations.CHATS) {
             ChatListScreen(
                 onOpenChat = { chatId -> navController.navigate(Destinations.conversation(chatId)) },
-                onLogout = { sessionViewModel.logout() },
+                onOpenProfile = { navController.navigate(Destinations.PROFILE) },
+            )
+        }
+
+        composable(Destinations.PROFILE) {
+            ProfileScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onOpenSettings = { navController.navigate(Destinations.SETTINGS) },
+            )
+        }
+        composable(Destinations.SETTINGS) {
+            SettingsScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onLoggedOut = { /* AuthState переключит на login автоматически */ },
             )
         }
         composable(

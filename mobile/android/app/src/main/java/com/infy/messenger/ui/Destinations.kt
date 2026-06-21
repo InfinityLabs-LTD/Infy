@@ -16,4 +16,10 @@ object Destinations {
 
     /** Запись кружка (CIRCLE_VIDEO). Результат возвращается на экран переписки. */
     const val CIRCLE_RECORDER = "circle_recorder"
+
+    /** Профиль текущего пользователя. */
+    const val PROFILE = "profile"
+
+    /** Настройки и сессии. */
+    const val SETTINGS = "settings"
 }
