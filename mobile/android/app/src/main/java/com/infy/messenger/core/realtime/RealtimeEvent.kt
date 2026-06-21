@@ -41,6 +41,53 @@ sealed interface RealtimeEvent {
         val online: Boolean,
         val lastSeenAt: String?,
     ) : RealtimeEvent
+
+    // ── Звонки (WebRTC сигналинг) ────────────────────────────────────
+
+    /** Нам звонят. */
+    data class CallIncoming(
+        val callId: String,
+        val chatId: String,
+        val media: String,
+        val fromId: String,
+        val fromUsername: String,
+        val fromNickname: String,
+        val fromAvatarUrl: String?,
+    ) : RealtimeEvent
+
+    /** Наш исходящий пошёл (получатель получил incoming). */
+    data class CallRinging(val callId: String, val chatId: String, val media: String) : RealtimeEvent
+
+    /** Получатель принял — инициатор шлёт offer. */
+    data class CallAccepted(val callId: String) : RealtimeEvent
+
+    /** Ретрансляция SDP/ICE от пира (data — непрозрачный JSON-объект). */
+    data class CallSignal(val callId: String, val fromId: String, val dataJson: String) : RealtimeEvent
+
+    /** Изменение медиа-состояния пира (mute/камера/экран). */
+    data class CallMediaState(
+        val callId: String,
+        val fromId: String,
+        val micOn: Boolean?,
+        val camOn: Boolean?,
+        val screenOn: Boolean?,
+    ) : RealtimeEvent
+
+    /** Звонок завершён. */
+    data class CallEnded(
+        val callId: String,
+        val chatId: String,
+        val reason: String,
+        val status: String,
+        val durationSec: Int,
+        val by: String?,
+    ) : RealtimeEvent
+
+    /** Звонок принят на другом устройстве получателя. */
+    data class CallTakenElsewhere(val callId: String) : RealtimeEvent
+
+    /** Абонент занят. */
+    data class CallPeerBusy(val chatId: String) : RealtimeEvent
 }
 
 /** Состояние соединения с realtime-сервером. */

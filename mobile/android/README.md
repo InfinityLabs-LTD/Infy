@@ -142,9 +142,30 @@ app/src/main/java/com/infy/messenger/
 
 > Контракт загрузки/стриминга сверен с `backend/src/modules/media`.
 
+## Этап 4 — звонки WebRTC 1:1 ✅
+
+- **WebRTC** (`stream-webrtc-android`): mesh P2P 1:1, аудио и видео.
+  `WebRtcEngine` — `PeerConnection`, локальные треки (mic + камера),
+  perfect negotiation (инициатор `polite=false`, получатель `polite=true`).
+- **Сигналинг** поверх того же Socket.IO (события `call:*` из `docs/CALLS.md`):
+  `RealtimeClient` шлёт/принимает invite/accept/decline/cancel/hangup/signal/
+  media-state; `CallManager` — оркестратор: ICE-серверы (`GET /calls/ice`,
+  time-limited TURN), буферизация offer у получателя до accept, обмен SDP/ICE,
+  таймер длительности, единое `StateFlow<CallState>`.
+- **UI**: `CallOverlay` поверх всего приложения (исходящий/входящий/активный/
+  финальный), видео через `SurfaceViewRenderer` (полноэкранно + PiP локального),
+  контролы (микрофон, камера, смена камеры, динамик, завершение).
+- **Системное**: `CallForegroundService` (mic+camera) на время звонка,
+  `CallSystemController` — режим связи и маршрутизация динамик/разговорный.
+- **Безопасность/UX**: те же JWT и membership-проверки, что на вебе; запрос
+  разрешений микрофон/камера перед звонком; busy/peer-busy/taken-elsewhere.
+- Кнопки 📞/📹 в шапке диалога.
+
+> Сигнальный протокол и ICE сверены с `docs/CALLS.md`, `backend/src/modules/calls`,
+> `lib/turn.ts`.
+
 ## Что дальше (следующие этапы)
 
-- **Этап 4** — звонки WebRTC 1:1 (протокол сигналинга из `docs/CALLS.md`).
 - **Этап 5** — профиль / настройки / сессии устройств.
 - **Push** — сейчас бэкенд использует web-push (VAPID); для Android нужен FCM —
   интерфейс согласуется отдельно (TODO).

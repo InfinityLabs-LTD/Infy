@@ -103,6 +103,51 @@ class RealtimeClient @Inject constructor(
         socket?.emit("typing_stop", chatId)
     }
 
+    // ── Звонки: исходящие события ────────────────────────────────────
+
+    /** Инициировать звонок; ack возвращает callId/ошибку. */
+    fun callInvite(chatId: String, media: String, onAck: (ok: Boolean, callId: String?, error: String?) -> Unit) {
+        val payload = JSONObject(mapOf("chatId" to chatId, "media" to media))
+        socket?.emit("call:invite", arrayOf<Any>(payload), io.socket.client.Ack { args ->
+            val res = args.firstOrNull() as? JSONObject
+            onAck(
+                res?.optBoolean("ok") == true,
+                res?.optString("callId")?.takeIf { it.isNotEmpty() },
+                res?.optString("error")?.takeIf { it.isNotEmpty() },
+            )
+        })
+    }
+
+    fun callAccept(callId: String) {
+        socket?.emit("call:accept", JSONObject(mapOf("callId" to callId)))
+    }
+
+    fun callDecline(callId: String) = emitCall("call:decline", callId)
+    fun callCancel(callId: String) = emitCall("call:cancel", callId)
+    fun callHangup(callId: String) = emitCall("call:hangup", callId)
+    fun callFailed(callId: String) = emitCall("call:failed", callId)
+
+    /** Ретранслировать SDP/ICE пиру. [dataJson] — сериализованный объект. */
+    fun callSignal(callId: String, dataJson: String) {
+        val payload = JSONObject()
+        payload.put("callId", callId)
+        payload.put("data", org.json.JSONObject(dataJson))
+        socket?.emit("call:signal", payload)
+    }
+
+    fun callMediaState(callId: String, micOn: Boolean?, camOn: Boolean?, screenOn: Boolean?) {
+        val payload = JSONObject()
+        payload.put("callId", callId)
+        micOn?.let { payload.put("micOn", it) }
+        camOn?.let { payload.put("camOn", it) }
+        screenOn?.let { payload.put("screenOn", it) }
+        socket?.emit("call:media-state", payload)
+    }
+
+    private fun emitCall(event: String, callId: String) {
+        socket?.emit(event, JSONObject(mapOf("callId" to callId)))
+    }
+
     // ── Регистрация обработчиков ─────────────────────────────────────
 
     private fun registerHandlers(s: Socket) {
@@ -188,6 +233,78 @@ class RealtimeClient @Inject constructor(
                     lastSeenAt = obj.optString("lastSeenAt").takeIf { it.isNotEmpty() },
                 ),
             )
+        }
+
+        registerCallHandlers(s)
+    }
+
+    private fun registerCallHandlers(s: Socket) {
+        s.on("call:incoming") { args ->
+            val obj = args.firstOrNull() as? JSONObject ?: return@on
+            val from = obj.optJSONObject("from")
+            tryEmit(
+                RealtimeEvent.CallIncoming(
+                    callId = obj.optString("callId"),
+                    chatId = obj.optString("chatId"),
+                    media = obj.optString("media"),
+                    fromId = from?.optString("id").orEmpty(),
+                    fromUsername = from?.optString("username").orEmpty(),
+                    fromNickname = from?.optString("nickname").orEmpty(),
+                    fromAvatarUrl = from?.optString("avatarUrl")?.takeIf { it.isNotEmpty() },
+                ),
+            )
+        }
+        s.on("call:ringing") { args ->
+            val obj = args.firstOrNull() as? JSONObject ?: return@on
+            tryEmit(RealtimeEvent.CallRinging(obj.optString("callId"), obj.optString("chatId"), obj.optString("media")))
+        }
+        s.on("call:accepted") { args ->
+            val obj = args.firstOrNull() as? JSONObject ?: return@on
+            tryEmit(RealtimeEvent.CallAccepted(obj.optString("callId")))
+        }
+        s.on("call:signal") { args ->
+            val obj = args.firstOrNull() as? JSONObject ?: return@on
+            val data = obj.opt("data") ?: return@on
+            tryEmit(
+                RealtimeEvent.CallSignal(
+                    callId = obj.optString("callId"),
+                    fromId = obj.optString("from"),
+                    dataJson = data.toString(),
+                ),
+            )
+        }
+        s.on("call:media-state") { args ->
+            val obj = args.firstOrNull() as? JSONObject ?: return@on
+            tryEmit(
+                RealtimeEvent.CallMediaState(
+                    callId = obj.optString("callId"),
+                    fromId = obj.optString("from"),
+                    micOn = if (obj.has("micOn")) obj.optBoolean("micOn") else null,
+                    camOn = if (obj.has("camOn")) obj.optBoolean("camOn") else null,
+                    screenOn = if (obj.has("screenOn")) obj.optBoolean("screenOn") else null,
+                ),
+            )
+        }
+        s.on("call:ended") { args ->
+            val obj = args.firstOrNull() as? JSONObject ?: return@on
+            tryEmit(
+                RealtimeEvent.CallEnded(
+                    callId = obj.optString("callId"),
+                    chatId = obj.optString("chatId"),
+                    reason = obj.optString("reason"),
+                    status = obj.optString("status"),
+                    durationSec = obj.optInt("durationSec"),
+                    by = obj.optString("by").takeIf { it.isNotEmpty() },
+                ),
+            )
+        }
+        s.on("call:taken-elsewhere") { args ->
+            val obj = args.firstOrNull() as? JSONObject ?: return@on
+            tryEmit(RealtimeEvent.CallTakenElsewhere(obj.optString("callId")))
+        }
+        s.on("call:peer-busy") { args ->
+            val obj = args.firstOrNull() as? JSONObject ?: return@on
+            tryEmit(RealtimeEvent.CallPeerBusy(obj.optString("chatId")))
         }
     }
 

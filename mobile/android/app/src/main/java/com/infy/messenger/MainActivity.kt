@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import com.infy.messenger.feature.call.ui.CallOverlay
 import com.infy.messenger.ui.InfyNavHost
 import com.infy.messenger.ui.theme.InfyTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -24,6 +25,8 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background,
                 ) {
                     InfyNavHost()
+                    // Оверлей звонка поверх всего приложения (рисуется при активном звонке).
+                    CallOverlay()
                 }
             }
         }

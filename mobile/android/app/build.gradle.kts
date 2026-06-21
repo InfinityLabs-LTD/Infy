@@ -122,6 +122,9 @@ dependencies {
     // ListenableFuture.await() для CameraX ProcessCameraProvider.
     implementation(libs.concurrent.futures.ktx)
 
+    // WebRTC (mesh P2P 1:1) — поддерживаемый форк google-webrtc.
+    implementation(libs.stream.webrtc.android)
+
     implementation(libs.coil.compose)
     implementation(libs.timber)
 

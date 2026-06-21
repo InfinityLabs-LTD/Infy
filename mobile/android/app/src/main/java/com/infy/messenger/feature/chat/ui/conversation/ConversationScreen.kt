@@ -18,7 +18,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -95,6 +97,26 @@ fun ConversationScreen(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
     ) { granted -> if (granted) viewModel.startVoiceRecording() }
 
+    // Разрешения для звонка: аудио — всегда, камера — для видео. Запоминаем тип.
+    var pendingVideoCall by remember { mutableStateOf<Boolean?>(null) }
+    val callPermissions = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions(),
+    ) { result ->
+        val micOk = result[android.Manifest.permission.RECORD_AUDIO] == true
+        val video = pendingVideoCall
+        pendingVideoCall = null
+        if (micOk && video != null) viewModel.startCall(video)
+    }
+    fun requestCall(video: Boolean) {
+        pendingVideoCall = video
+        val perms = if (video) {
+            arrayOf(android.Manifest.permission.RECORD_AUDIO, android.Manifest.permission.CAMERA)
+        } else {
+            arrayOf(android.Manifest.permission.RECORD_AUDIO)
+        }
+        callPermissions.launch(perms)
+    }
+
     // Подгрузка истории: когда доскроллили почти до самых старых сообщений (низ
     // отрисовки при reverseLayout = конец списка) и есть ещё страницы — грузим.
     LaunchedEffect(listState, uiState.hasMoreHistory) {
@@ -128,6 +150,20 @@ fun ConversationScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.chat_back),
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { requestCall(video = false) }) {
+                        Icon(
+                            imageVector = Icons.Filled.Call,
+                            contentDescription = stringResource(R.string.call_start_audio),
+                        )
+                    }
+                    IconButton(onClick = { requestCall(video = true) }) {
+                        Icon(
+                            imageVector = Icons.Filled.Videocam,
+                            contentDescription = stringResource(R.string.call_start_video),
                         )
                     }
                 },

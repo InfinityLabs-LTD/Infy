@@ -118,6 +118,11 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    fun provideCallApi(retrofit: Retrofit): com.infy.messenger.feature.call.data.CallApi =
+        retrofit.create(com.infy.messenger.feature.call.data.CallApi::class.java)
+
+    @Provides
+    @Singleton
     fun provideTokenRefreshApi(@RefreshClient retrofit: Retrofit): TokenRefreshApi =
         retrofit.create(TokenRefreshApi::class.java)
 }

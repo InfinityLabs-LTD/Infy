@@ -8,6 +8,9 @@ import com.infy.messenger.core.media.MediaUrlBuilder
 import com.infy.messenger.core.media.VoiceRecorder
 import com.infy.messenger.core.realtime.RealtimeClient
 import com.infy.messenger.core.realtime.RealtimeSyncManager
+import com.infy.messenger.feature.call.data.CallManager
+import com.infy.messenger.feature.call.domain.CallMedia
+import com.infy.messenger.feature.call.domain.CallPeer
 import com.infy.messenger.feature.chat.domain.ChatMessage
 import com.infy.messenger.feature.chat.domain.ChatRepository
 import com.infy.messenger.feature.media.data.MediaRepository
@@ -19,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -45,6 +49,7 @@ class ConversationViewModel @Inject constructor(
     private val realtimeSyncManager: RealtimeSyncManager,
     private val mediaRepository: MediaRepository,
     private val voiceRecorder: VoiceRecorder,
+    private val callManager: CallManager,
     val mediaUrlBuilder: MediaUrlBuilder,
 ) : ViewModel() {
 
@@ -167,6 +172,20 @@ class ConversationViewModel @Inject constructor(
             runCatching {
                 mediaRepository.sendMedia(chatId, uri, MediaKind.CIRCLE_VIDEO, durationMs)
             }
+        }
+    }
+
+    /** Начать звонок собеседнику текущего чата (аудио или видео). */
+    fun startCall(video: Boolean) {
+        viewModelScope.launch {
+            // Берём собеседника из кэша списка чатов.
+            val chat = chatRepository.observeChats().first().firstOrNull { it.id == chatId }
+            val partner = chat?.partner ?: return@launch
+            callManager.startCall(
+                chatId = chatId,
+                peer = CallPeer(partner.id, partner.username, partner.nickname, partner.avatarUrl),
+                media = if (video) CallMedia.VIDEO else CallMedia.AUDIO,
+            )
         }
     }
 

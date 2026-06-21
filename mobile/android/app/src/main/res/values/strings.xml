@@ -91,6 +91,34 @@
     <string name="media_circle_record_hint">Удерживайте, чтобы записать кружок</string>
     <string name="media_circle_flip">Сменить камеру</string>
 
+    <!-- Звонки -->
+    <string name="call_audio">Аудиозвонок</string>
+    <string name="call_video">Видеозвонок</string>
+    <string name="call_incoming_audio">Входящий звонок</string>
+    <string name="call_incoming_video">Входящий видеозвонок</string>
+    <string name="call_calling">Вызов…</string>
+    <string name="call_ringing">Звоним…</string>
+    <string name="call_connecting">Соединение…</string>
+    <string name="call_accept">Принять</string>
+    <string name="call_decline">Отклонить</string>
+    <string name="call_hangup">Завершить</string>
+    <string name="call_mic_on">Микрофон включён</string>
+    <string name="call_mic_off">Микрофон выключен</string>
+    <string name="call_cam_on">Камера включена</string>
+    <string name="call_cam_off">Камера выключена</string>
+    <string name="call_switch_camera">Сменить камеру</string>
+    <string name="call_speaker">Динамик</string>
+    <string name="call_ongoing">Идёт звонок</string>
+    <string name="call_channel_name">Звонки</string>
+    <string name="call_ended">Звонок завершён</string>
+    <string name="call_ended_missed">Пропущенный звонок</string>
+    <string name="call_ended_declined">Звонок отклонён</string>
+    <string name="call_ended_busy">Абонент занят</string>
+    <string name="call_ended_failed">Не удалось соединиться</string>
+    <string name="call_permission_required">Нужен доступ к микрофону (и камере для видео)</string>
+    <string name="call_start_audio">Аудиозвонок</string>
+    <string name="call_start_video">Видеозвонок</string>
+
     <!-- Ошибки от сервера (маппинг error.code) -->
     <string name="error_generic">Что-то пошло не так. Попробуйте ещё раз.</string>
     <string name="error_network">Нет соединения с сервером. Проверьте интернет.</string>

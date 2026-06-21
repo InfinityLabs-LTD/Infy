@@ -28,6 +28,7 @@ media3 = "1.4.1"
 camerax = "1.3.4"
 accompanistPermissions = "0.36.0"
 concurrentFutures = "1.2.0"
+streamWebrtc = "1.1.1"
 
 coil = "2.7.0"
 timber = "5.0.1"
@@ -86,6 +87,7 @@ camerax-view = { group = "androidx.camera", name = "camera-view", version.ref = 
 
 accompanist-permissions = { group = "com.google.accompanist", name = "accompanist-permissions", version.ref = "accompanistPermissions" }
 concurrent-futures-ktx = { group = "androidx.concurrent", name = "concurrent-futures-ktx", version.ref = "concurrentFutures" }
+stream-webrtc-android = { group = "io.getstream", name = "stream-webrtc-android", version.ref = "streamWebrtc" }
 
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
