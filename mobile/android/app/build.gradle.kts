@@ -37,9 +37,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            // Прод: домен задаётся при сборке релиза. Заменить на боевой хост.
-            buildConfigField("String", "API_BASE_URL", "\"https://infy.example.com/api/\"")
-            buildConfigField("String", "REALTIME_URL", "\"https://infy.example.com\"")
+            // Прод: боевой хост Infy.
+            buildConfigField("String", "API_BASE_URL", "\"https://infyme.ru/api/\"")
+            buildConfigField("String", "REALTIME_URL", "\"https://infyme.ru\"")
             manifestPlaceholders["usesCleartextTraffic"] = "false"
         }
     }
