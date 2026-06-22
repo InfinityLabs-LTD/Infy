@@ -9,7 +9,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import timber.log.Timber
@@ -43,8 +42,8 @@ class FcmTokenRegistrar @Inject constructor(
     /** Реакция на смену состояния авторизации. Запускается один раз из InfyApp. */
     fun start() {
         scope.launch {
+            // authState — StateFlow, дубликаты он уже не эмитит сам.
             sessionManager.authState
-                .distinctUntilChanged()
                 .collect { state ->
                     when (state) {
                         is AuthState.Authenticated -> register()
