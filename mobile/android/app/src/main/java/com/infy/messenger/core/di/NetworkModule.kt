@@ -154,4 +154,24 @@ object NetworkModule {
     @Singleton
     fun provideTokenRefreshApi(@RefreshClient retrofit: Retrofit): TokenRefreshApi =
         retrofit.create(TokenRefreshApi::class.java)
+
+    @Provides
+    @Singleton
+    fun providePushApi(retrofit: Retrofit): com.infy.messenger.core.push.PushApi =
+        retrofit.create(com.infy.messenger.core.push.PushApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideCalendarApi(retrofit: Retrofit): com.infy.messenger.feature.calendar.data.CalendarApi =
+        retrofit.create(com.infy.messenger.feature.calendar.data.CalendarApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideReportsApi(retrofit: Retrofit): com.infy.messenger.feature.reports.data.ReportsApi =
+        retrofit.create(com.infy.messenger.feature.reports.data.ReportsApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideAiApi(retrofit: Retrofit): com.infy.messenger.feature.ai.data.AiApi =
+        retrofit.create(com.infy.messenger.feature.ai.data.AiApi::class.java)
 }

@@ -63,6 +63,15 @@ data class DeviceSessionDto(
     val isCurrent: Boolean = false,
 )
 
+/** Результат поиска пользователя (GET profile/search). */
+@Serializable
+data class UserSearchResultDto(
+    val id: String,
+    val username: String,
+    val nickname: String,
+    val avatarUrl: String? = null,
+)
+
 @Serializable
 data class LogoutAllRequest(val exceptCurrent: Boolean = true)
 

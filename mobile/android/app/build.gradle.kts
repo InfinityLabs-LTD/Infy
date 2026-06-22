@@ -7,6 +7,15 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// Плагин google-services применяем УСЛОВНО — только если рядом лежит
+// google-services.json (его кладёт владелец Firebase-проекта, см. README).
+// Без файла плагин не активируется и сборка не падает; FCM-классы при этом
+// всё равно компилируются (зависимость firebase-messaging присутствует),
+// просто push не работает до появления конфигурации Firebase.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.infy.messenger"
     compileSdk = 35
@@ -134,6 +143,13 @@ dependencies {
 
     implementation(libs.coil.compose)
     implementation(libs.timber)
+
+    // Firebase Cloud Messaging — фоновые push (новое сообщение/звонок/напоминание),
+    // работают даже при убитом процессе. BOM фиксирует согласованные версии.
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
+    // await() для Task<String> при получении FCM-токена.
+    implementation(libs.kotlinx.coroutines.play.services)
 
     testImplementation(libs.junit)
     testImplementation(libs.turbine)

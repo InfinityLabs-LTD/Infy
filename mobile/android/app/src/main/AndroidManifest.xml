@@ -48,6 +48,21 @@
             android:exported="false"
             android:foregroundServiceType="microphone|camera" />
 
+        <!-- Приём фоновых push (FCM): новое сообщение/звонок/напоминание. -->
+        <service
+            android:name=".core.push.InfyFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Канал по умолчанию для notification-сообщений FCM, которые система
+             показывает сама (приложение в фоне). Совпадает с CHANNEL_MESSAGES. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="messages" />
+
         <!-- Отдаёт записанные голосовые/кружки из кэша по content:// Uri. -->
         <provider
             android:name="androidx.core.content.FileProvider"

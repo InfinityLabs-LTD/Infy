@@ -70,12 +70,41 @@ class AppNotifier @Inject constructor(
         runCatching { manager.notify(message.chatId.hashCode(), notification) }
     }
 
+    /**
+     * Уведомление о сообщении из «сырых» полей (FCM `data`: chatId/title/body),
+     * когда полноценного [MessageDto] нет (процесс был убит, событие пришло пушем).
+     */
+    fun showMessageRaw(chatId: String, title: String, body: String) {
+        if (!hasPermission()) return
+        val safeBody = body.ifBlank { context.getString(R.string.chats_attachment) }
+        val notification = NotificationCompat.Builder(context, CHANNEL_MESSAGES)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title.ifBlank { context.getString(R.string.app_name) })
+            .setContentText(safeBody)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(openChatIntent(chatId))
+            .build()
+        runCatching { manager.notify(chatId.hashCode(), notification) }
+    }
+
     /** Высокоприоритетное уведомление о входящем звонке. */
     fun showIncomingCall(callerName: String, isVideo: Boolean) {
-        if (!hasPermission()) return
-        val text = context.getString(
-            if (isVideo) R.string.notif_incoming_video else R.string.notif_incoming_audio,
+        showIncomingCallRaw(
+            callerName = callerName,
+            text = context.getString(
+                if (isVideo) R.string.notif_incoming_video else R.string.notif_incoming_audio,
+            ),
         )
+    }
+
+    /**
+     * Входящий звонок из «сырых» полей (FCM `data`: title=имя звонящего, body=текст).
+     * Общий билдер для обычного пути и FCM-сервиса.
+     */
+    fun showIncomingCallRaw(callerName: String, text: String) {
+        if (!hasPermission()) return
         val notification = NotificationCompat.Builder(context, CHANNEL_CALLS)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(callerName)
@@ -88,6 +117,23 @@ class AppNotifier @Inject constructor(
             .setFullScreenIntent(openAppIntent(), true)
             .build()
         runCatching { manager.notify(CALL_NOTIFICATION_ID, notification) }
+    }
+
+    /** Простое уведомление-напоминание (FCM `data` без chatId): открывает приложение. */
+    fun showReminderRaw(title: String, body: String, tag: String?) {
+        if (!hasPermission()) return
+        val notification = NotificationCompat.Builder(context, CHANNEL_MESSAGES)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title.ifBlank { context.getString(R.string.app_name) })
+            .setContentText(body)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(openAppIntent())
+            .build()
+        // Тег делает уведомления различимыми; иначе используем хэш заголовка.
+        val id = (tag ?: title).hashCode()
+        runCatching { manager.notify(id, notification) }
     }
 
     /** Снять уведомление о звонке (приняли/отклонили/завершили). */

@@ -181,4 +181,159 @@
     <string name="notif_channel_calls_desc">Уведомления о входящих звонках</string>
     <string name="notif_incoming_audio">Входящий аудиозвонок</string>
     <string name="notif_incoming_video">Входящий видеозвонок</string>
+    <string name="notif_channel_reminders">Напоминания</string>
+    <string name="notif_channel_reminders_desc">Напоминания о событиях календаря</string>
+
+    <!-- Шапка диалога: присутствие и меню -->
+    <string name="chat_online">в сети</string>
+    <string name="chat_last_seen_just_now">был(а) недавно</string>
+    <string name="chat_last_seen_minutes">был(а) %1$d мин. назад</string>
+    <string name="chat_last_seen_hours">был(а) %1$d ч. назад</string>
+    <string name="chat_last_seen_at">был(а) в сети %1$s</string>
+    <string name="chat_menu">Меню</string>
+    <string name="chat_menu_search">Поиск по сообщениям</string>
+    <string name="chat_menu_calendar">Календарь</string>
+    <string name="chat_menu_ai">Infy AI</string>
+    <string name="chat_menu_profile">Профиль собеседника</string>
+    <string name="chat_menu_report">Пожаловаться</string>
+
+    <!-- Расшифровка голосовых/кружков -->
+    <string name="transcribe_action">Расшифровать</string>
+    <string name="transcribe_show">Показать текст</string>
+    <string name="transcribe_hide">Скрыть текст</string>
+    <string name="transcribe_loading">Распознаю…</string>
+    <string name="transcribe_error">Не удалось расшифровать</string>
+
+    <!-- Профиль собеседника -->
+    <string name="partner_profile_title">Профиль</string>
+    <string name="partner_tab_media">Медиа</string>
+    <string name="partner_tab_audio">Аудио</string>
+    <string name="partner_media_empty">Пока нет медиа</string>
+    <string name="partner_audio_empty">Пока нет аудио</string>
+    <string name="partner_profile_load_error">Не удалось загрузить профиль</string>
+    <string name="partner_write_message">Написать</string>
+    <string name="partner_load_more">Загрузить ещё</string>
+    <string name="partner_last_seen_at">был(а) в сети %1$s</string>
+    <string name="partner_member_since">на Infy с %1$s</string>
+    <string name="partner_voice">Голосовое</string>
+    <string name="partner_circle">Кружок</string>
+
+    <!-- Поиск -->
+    <string name="search_hint">Поиск по сообщениям…</string>
+    <string name="search_section_chats">Чаты</string>
+    <string name="search_section_messages">Сообщения</string>
+    <string name="search_section_people">Новые контакты</string>
+    <string name="search_empty">Ничего не найдено</string>
+
+    <!-- Жалоба -->
+    <string name="report_title">Пожаловаться</string>
+    <string name="report_on_user">Жалоба на %1$s</string>
+    <string name="report_category">Категория</string>
+    <string name="report_cat_spam">Спам</string>
+    <string name="report_cat_spam_desc">Реклама, рассылки</string>
+    <string name="report_cat_harassment">Оскорбления</string>
+    <string name="report_cat_harassment_desc">Травля, унижения</string>
+    <string name="report_cat_hate">Ненависть</string>
+    <string name="report_cat_hate_desc">Разжигание вражды</string>
+    <string name="report_cat_violence">Угрозы</string>
+    <string name="report_cat_violence_desc">Насилие, угрозы</string>
+    <string name="report_cat_sexual">18+</string>
+    <string name="report_cat_sexual_desc">Сексуальный контент</string>
+    <string name="report_cat_scam">Мошенничество</string>
+    <string name="report_cat_scam_desc">Обман, фишинг</string>
+    <string name="report_cat_illegal">Запрещённое</string>
+    <string name="report_cat_illegal_desc">Незаконный контент</string>
+    <string name="report_cat_other">Другое</string>
+    <string name="report_cat_other_desc">Иная причина</string>
+    <string name="report_description">Описание</string>
+    <string name="report_description_hint">Опишите проблему…</string>
+    <string name="report_submit">Отправить жалобу</string>
+    <string name="report_sent">Жалоба отправлена</string>
+    <string name="report_error">Не удалось отправить жалобу</string>
+
+    <!-- Календарь -->
+    <string name="calendar_title">Календарь</string>
+    <string name="calendar_empty_day">Нет событий на этот день</string>
+    <string name="calendar_add_event">Новое событие</string>
+    <string name="calendar_event_title">Название</string>
+    <string name="calendar_event_notes">Заметки</string>
+    <string name="calendar_event_datetime">Дата и время</string>
+    <string name="calendar_event_category">Категория</string>
+    <string name="calendar_event_reminder">Напоминание</string>
+    <string name="calendar_event_save">Сохранить</string>
+    <string name="calendar_event_delete">Удалить</string>
+    <string name="calendar_reminders_enabled">Напоминания включены</string>
+    <string name="calendar_load_error">Не удалось загрузить календарь</string>
+    <string name="calendar_save_error">Не удалось сохранить событие</string>
+    <!-- Доп. строки календаря (Android) -->
+    <string name="calendar_close">Закрыть</string>
+    <string name="calendar_prev_month">Предыдущий месяц</string>
+    <string name="calendar_next_month">Следующий месяц</string>
+    <string name="calendar_reminders_subtitle">Напоминания из этого чата</string>
+    <string name="calendar_reminders_on">Включены</string>
+    <string name="calendar_reminders_off">Выключены</string>
+    <string name="calendar_event_new">Новое событие</string>
+    <string name="calendar_event_edit">Событие</string>
+    <string name="calendar_event_create">Создать</string>
+    <string name="calendar_event_all_day">Весь день</string>
+    <string name="calendar_event_title_required">Введите название</string>
+    <string name="calendar_reminder_add">+ Добавить</string>
+    <string name="calendar_reminder_none">Без напоминаний</string>
+    <string name="calendar_reminder_push">Push</string>
+    <string name="calendar_reminder_remove">Удалить напоминание</string>
+    <string name="calendar_offset_at">В момент события</string>
+    <string name="calendar_offset_10m">За 10 минут</string>
+    <string name="calendar_offset_30m">За 30 минут</string>
+    <string name="calendar_offset_1h">За 1 час</string>
+    <string name="calendar_offset_1d">За 1 день</string>
+    <string name="calendar_offset_1w">За 1 неделю</string>
+    <string name="calendar_target_self">Только мне</string>
+    <string name="calendar_target_partner">Только партнёру</string>
+    <string name="calendar_target_both">Обоим</string>
+    <string name="calendar_categories_custom">Свои категории</string>
+    <string name="calendar_category_name_hint">Название категории</string>
+    <string name="calendar_category_add">Добавить</string>
+    <string name="calendar_category_delete">Удалить категорию</string>
+    <string name="calendar_pick_date">Выбрать дату</string>
+    <string name="calendar_pick_time">Выбрать время</string>
+    <string name="calendar_cancel">Отмена</string>
+    <string name="calendar_ok">ОК</string>
+    <string name="calendar_weekday_mon">Пн</string>
+    <string name="calendar_weekday_tue">Вт</string>
+    <string name="calendar_weekday_wed">Ср</string>
+    <string name="calendar_weekday_thu">Чт</string>
+    <string name="calendar_weekday_fri">Пт</string>
+    <string name="calendar_weekday_sat">Сб</string>
+    <string name="calendar_weekday_sun">Вс</string>
+    <string name="calendar_month_jan">Январь</string>
+    <string name="calendar_month_feb">Февраль</string>
+    <string name="calendar_month_mar">Март</string>
+    <string name="calendar_month_apr">Апрель</string>
+    <string name="calendar_month_may">Май</string>
+    <string name="calendar_month_jun">Июнь</string>
+    <string name="calendar_month_jul">Июль</string>
+    <string name="calendar_month_aug">Август</string>
+    <string name="calendar_month_sep">Сентябрь</string>
+    <string name="calendar_month_oct">Октябрь</string>
+    <string name="calendar_month_nov">Ноябрь</string>
+    <string name="calendar_month_dec">Декабрь</string>
+
+    <!-- Infy AI -->
+    <string name="ai_title">Infy AI</string>
+    <string name="ai_tab_assistant">Ассистент</string>
+    <string name="ai_tab_summary">Сводка</string>
+    <string name="ai_assistant_subtitle">AI-помощник чата</string>
+    <string name="ai_assistant_hint">Спросите Infy AI…</string>
+    <string name="ai_assistant_clear">Очистить</string>
+    <string name="ai_summary_period_all">Всё время</string>
+    <string name="ai_summary_period_week">Неделя</string>
+    <string name="ai_summary_period_month">Месяц</string>
+    <string name="ai_summary_analyze">Анализировать</string>
+    <string name="ai_summary_messages">Проанализировано сообщений: %1$d</string>
+    <string name="ai_replies_title">Подсказки ответа</string>
+    <string name="ai_bubble_query">Вопрос Infy AI</string>
+    <string name="ai_bubble_answer">Infy AI</string>
+    <string name="ai_error">Не удалось получить ответ Infy AI</string>
+    <string name="ai_disabled">Infy AI отключён</string>
+    <string name="ai_ask_hint">/ask вопрос — спросить Infy AI в чате</string>
 </resources>

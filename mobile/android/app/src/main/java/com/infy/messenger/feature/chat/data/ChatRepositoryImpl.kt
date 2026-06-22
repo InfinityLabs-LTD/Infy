@@ -136,6 +136,10 @@ class ChatRepositoryImpl @Inject constructor(
         messageDao.upsert(dto.toEntity(currentUserId()))
     }
 
+    override suspend fun transcribe(messageId: String): String = apiCall {
+        api.transcribe(messageId).data.transcript
+    }
+
     override suspend fun getOrCreateDirectChat(partnerId: String): String = apiCall {
         val dto = api.createDirectChat(CreateChatRequest(partnerId)).data
         chatDao.upsertChat(dto.toEntity())

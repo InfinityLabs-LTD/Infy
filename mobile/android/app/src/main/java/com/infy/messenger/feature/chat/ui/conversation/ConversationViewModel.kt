@@ -10,6 +10,7 @@ import com.infy.messenger.core.notification.ActiveChatTracker
 import com.infy.messenger.core.notification.AppNotifier
 import com.infy.messenger.core.realtime.RealtimeClient
 import com.infy.messenger.core.realtime.RealtimeSyncManager
+import com.infy.messenger.feature.ai.data.AiRepository
 import com.infy.messenger.feature.call.data.CallManager
 import com.infy.messenger.feature.call.domain.CallMedia
 import com.infy.messenger.feature.call.domain.CallPeer
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 
 data class ConversationUiState(
@@ -40,7 +42,14 @@ data class ConversationUiState(
     val loadError: Boolean = false,
     /** Имя и аватар собеседника для шапки (как в вебе). */
     val partnerName: String = "",
+    val partnerUsername: String = "",
     val partnerAvatarUrl: String? = null,
+    /** id собеседника — для открытия его профиля и presence. */
+    val partnerId: String? = null,
+    /** Собеседник сейчас в сети. */
+    val partnerOnline: Boolean = false,
+    /** «Был(а) в сети» (epoch ms) — если оффлайн. */
+    val partnerLastSeenAt: Long? = null,
 )
 
 /**
@@ -57,6 +66,7 @@ class ConversationViewModel @Inject constructor(
     private val mediaRepository: MediaRepository,
     private val voiceRecorder: VoiceRecorder,
     private val callManager: CallManager,
+    private val aiRepository: AiRepository,
     private val activeChatTracker: ActiveChatTracker,
     private val notifier: AppNotifier,
     val mediaUrlBuilder: MediaUrlBuilder,
@@ -114,10 +124,25 @@ class ConversationViewModel @Inject constructor(
         }
 
     val uiState: StateFlow<ConversationUiState> =
-        combine(baseState, partnerFlow) { state, partner ->
+        combine(
+            baseState,
+            partnerFlow,
+            realtimeSyncManager.onlineUsers,
+            realtimeSyncManager.lastSeen,
+        ) { state, partner, online, lastSeen ->
+            val partnerId = partner?.id
+            // Онлайн из realtime; «был в сети» — из realtime, иначе из кэша списка чатов.
+            val isOnline = partnerId != null && partnerId in online
+            val lastSeenMs = partnerId?.let { id ->
+                lastSeen[id]?.let { runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull() }
+            } ?: partner?.lastSeenAt
             state.copy(
                 partnerName = partner?.nickname ?: partner?.username.orEmpty(),
+                partnerUsername = partner?.username.orEmpty(),
                 partnerAvatarUrl = mediaUrlBuilder.absoluteOrNull(partner?.avatarUrl),
+                partnerId = partnerId,
+                partnerOnline = isOnline,
+                partnerLastSeenAt = lastSeenMs,
             )
         }.stateIn(
             scope = viewModelScope,
@@ -150,6 +175,18 @@ class ConversationViewModel @Inject constructor(
         val content = text.trim()
         if (content.isEmpty()) return
         stopTyping()
+        // Команда /ask <вопрос> — спросить Infy AI прямо в чате. Ответ прилетит
+        // асинхронно по сокету пузырями AI_QUERY/AI; обычное сообщение не шлём.
+        if (content.startsWith(ASK_PREFIX)) {
+            val question = content.removePrefix(ASK_PREFIX).trim()
+            if (question.isNotEmpty()) {
+                viewModelScope.launch {
+                    runCatching { aiRepository.ask(chatId, question) }
+                        .onFailure { Timber.w(it, "Infy AI /ask failed") }
+                }
+                return
+            }
+        }
         viewModelScope.launch {
             chatRepository.sendText(chatId, content, replyToId)
         }
@@ -231,6 +268,9 @@ class ConversationViewModel @Inject constructor(
         }
     }
 
+    /** Запросить расшифровку голосового/кружка. Бросает при ошибке (UI ловит). */
+    suspend fun transcribe(messageId: String): String = chatRepository.transcribe(messageId)
+
     /** Пометить последнее видимое сообщение прочитанным. */
     fun markRead(messageId: String) {
         if (messageId.isBlank()) return
@@ -263,5 +303,6 @@ class ConversationViewModel @Inject constructor(
 
     private companion object {
         const val TYPING_TIMEOUT_MS = 2_500L
+        const val ASK_PREFIX = "/ask "
     }
 }

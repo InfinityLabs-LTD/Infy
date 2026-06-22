@@ -203,13 +203,53 @@ app/src/main/java/com/infy/messenger/
 
 > Контракт сверен с `backend/src/modules/profile` и `backend/src/modules/sessions`.
 
+## Этап 6 — фоновые push (FCM) ✅
+
+Подключён **Firebase Cloud Messaging** для уведомлений, работающих даже когда
+процесс приложения убит (новое сообщение, входящий звонок, напоминание).
+
+- **`InfyFirebaseMessagingService`** (`core/push`) — приём push. Строит
+  уведомление через `AppNotifier` по полезной нагрузке `data`
+  (`title`/`body`/`chatId`/`tag`): сообщение чата, входящий звонок
+  (распознаётся по `tag`/тексту тела) или напоминание. Если открыт именно тот
+  чат, что в push (`ActiveChatTracker`), уведомление подавляется — сокет уже
+  показал событие. Зависимости берёт через Hilt `EntryPointAccessors`.
+- **`FcmTokenRegistrar`** (`core/push`, `@Singleton`) — следит за
+  `SessionManager.authState`: при входе `register()` (`POST /device-token`,
+  `platform="android"`), при выходе `unregister()` (`DELETE /device-token` +
+  `FirebaseMessaging.deleteToken()`). Если токен ротировался без авторизации —
+  помечается «грязным» и отправляется после следующего входа.
+- **`PushApi`** — Retrofit-контракт `device-token` (зарегистрирован в
+  `NetworkModule`). DELETE отправляется с телом (`@HTTP(hasBody=true)`).
+- Сервис и `meta-data` (`default_notification_channel_id=messages`) — в
+  `AndroidManifest.xml`. Канал `messages` уже создаётся `AppNotifier`.
+
+### Настройка Firebase (ОБЯЗАТЕЛЬНО для работы push)
+
+`app/google-services.json` **отсутствует в репозитории** (содержит ключи
+проекта, в `.gitignore`). Положить его может только владелец Firebase-проекта:
+
+1. Firebase Console → создать/выбрать проект → добавить Android-приложение с
+   package name **`com.infy.messenger`**.
+2. Скачать `google-services.json` и положить в **`mobile/android/app/`**
+   (шаблон полей — `app/google-services.json.example`).
+3. Включить **Cloud Messaging API** в проекте.
+4. Бэкенд должен слать push через FCM v1 API — задать сервисный аккаунт в
+   переменной окружения **`FCM_SERVICE_ACCOUNT`** (JSON ключа сервис-аккаунта
+   Firebase Admin) на стороне сервера.
+
+> **Без `google-services.json` приложение собирается и работает**, но push не
+> приходят: плагин `com.google.gms.google-services` применяется в
+> `app/build.gradle.kts` **условно** —
+> `if (file("google-services.json").exists()) apply(plugin = ...)`. Классы
+> FCM при этом всё равно компилируются (зависимость `firebase-messaging`
+> присутствует), просто Firebase не инициализируется.
+
 ## Статус
 
-Все 5 этапов реализованы. Приложение покрывает: авторизацию, чаты с real-time
-и offline-кэшем, медиа (фото/видео/голосовые/кружки), звонки WebRTC 1:1,
-профиль/настройки/сессии. Сборка — в Android Studio (см. выше).
+Все этапы (1–6) реализованы. Приложение покрывает: авторизацию, чаты с
+real-time и offline-кэшем, медиа (фото/видео/голосовые/кружки), звонки WebRTC
+1:1, профиль/настройки/сессии, фоновые push (FCM). Сборка — в Android Studio
+(см. выше).
 
-> Push сейчас на web-push/VAPID (бэкенд); для Android нужен FCM — согласуется
-> отдельно (TODO следующего этапа).
-- **Push** — сейчас бэкенд использует web-push (VAPID); для Android нужен FCM —
-  интерфейс согласуется отдельно (TODO).
+> Веб-клиент по-прежнему использует web-push/VAPID — это независимый транспорт.

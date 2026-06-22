@@ -1,0 +1,30 @@
+{
+  "_comment": "ШАБЛОН. Скопируйте этот файл в app/google-services.json и замените плейсхолдеры значениями из Firebase Console (Project settings -> Your apps -> Android app -> google-services.json). Без настоящего google-services.json push НЕ работают, но приложение всё равно собирается (плагин google-services применяется условно, см. app/build.gradle.kts). Сам google-services.json в git НЕ коммитим (он в .gitignore).",
+  "project_info": {
+    "project_number": "REPLACE_PROJECT_NUMBER",
+    "project_id": "REPLACE_PROJECT_ID",
+    "storage_bucket": "REPLACE_PROJECT_ID.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "REPLACE_MOBILESDK_APP_ID",
+        "android_client_info": {
+          "package_name": "com.infy.messenger"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "REPLACE_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

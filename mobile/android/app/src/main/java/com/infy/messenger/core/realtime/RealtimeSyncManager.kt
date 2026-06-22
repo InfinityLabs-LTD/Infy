@@ -36,6 +36,10 @@ class RealtimeSyncManager @Inject constructor(
     private val _onlineUsers = MutableStateFlow<Set<String>>(emptySet())
     val onlineUsers: StateFlow<Set<String>> = _onlineUsers.asStateFlow()
 
+    /** Последнее «был в сети» по userId (ISO-строка) — приходит при user_offline. */
+    private val _lastSeen = MutableStateFlow<Map<String, String>>(emptyMap())
+    val lastSeen: StateFlow<Map<String, String>> = _lastSeen.asStateFlow()
+
     /** Набор (chatId,userId) тех, кто сейчас печатает. */
     private val _typingByChat = MutableStateFlow<Map<String, Set<String>>>(emptyMap())
     val typingByChat: StateFlow<Map<String, Set<String>>> = _typingByChat.asStateFlow()
@@ -89,8 +93,14 @@ class RealtimeSyncManager @Inject constructor(
             is RealtimeEvent.MessagesRead ->
                 chatRepository.applyMessagesRead(event.chatId, event.userId, event.messageId)
             is RealtimeEvent.OnlineSnapshot -> _onlineUsers.value = event.userIds
-            is RealtimeEvent.Presence -> _onlineUsers.update { current ->
-                if (event.online) current + event.userId else current - event.userId
+            is RealtimeEvent.Presence -> {
+                _onlineUsers.update { current ->
+                    if (event.online) current + event.userId else current - event.userId
+                }
+                // При выходе из сети сервер присылает lastSeenAt — запоминаем для шапки.
+                if (!event.online && event.lastSeenAt != null) {
+                    _lastSeen.update { it + (event.userId to event.lastSeenAt) }
+                }
             }
             is RealtimeEvent.Typing -> _typingByChat.update { current ->
                 val set = current[event.chatId].orEmpty()

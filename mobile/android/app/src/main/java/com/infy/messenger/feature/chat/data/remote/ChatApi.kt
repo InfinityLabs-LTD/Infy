@@ -5,8 +5,10 @@ import com.infy.messenger.feature.chat.data.dto.ChatSummaryDto
 import com.infy.messenger.feature.chat.data.dto.CreateChatRequest
 import com.infy.messenger.feature.chat.data.dto.MessageDto
 import com.infy.messenger.feature.chat.data.dto.MessagePageDto
+import com.infy.messenger.feature.chat.data.dto.MessageSearchResultDto
 import com.infy.messenger.feature.chat.data.dto.ReactRequest
 import com.infy.messenger.feature.chat.data.dto.SendMessageRequest
+import com.infy.messenger.feature.chat.data.dto.TranscriptDto
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -44,8 +46,34 @@ interface ChatApi {
         @Body body: ReactRequest,
     ): ApiEnvelope<MessageDto>
 
+    /** Расшифровать голосовое/кружок (Whisper). Возвращает распознанный текст. */
+    @POST("messages/{id}/transcribe")
+    suspend fun transcribe(
+        @Path("id") messageId: String,
+    ): ApiEnvelope<TranscriptDto>
+
     @POST("chats")
     suspend fun createDirectChat(
         @Body body: CreateChatRequest,
     ): ApiEnvelope<ChatSummaryDto>
+
+    /** Получить/создать direct-чат с пользователем по его id (без POST, CDN-safe). */
+    @GET("chats/partner/{partnerId}")
+    suspend fun getOrCreateDirectChat(
+        @Path("partnerId") partnerId: String,
+    ): ApiEnvelope<ChatSummaryDto>
+
+    /** Медиа-сообщения чата (IMAGE/VIDEO/AUDIO/CIRCLE_VIDEO), курсорная пагинация. */
+    @GET("chats/{id}/media")
+    suspend fun getChatMedia(
+        @Path("id") chatId: String,
+        @Query("cursor") cursor: String?,
+        @Query("limit") limit: Int,
+    ): ApiEnvelope<MessagePageDto>
+
+    /** Глобальный поиск по сообщениям (q ≥ 2 символа, только TEXT, лимит 30). */
+    @GET("chats/search")
+    suspend fun searchMessages(
+        @Query("q") q: String,
+    ): ApiEnvelope<List<MessageSearchResultDto>>
 }

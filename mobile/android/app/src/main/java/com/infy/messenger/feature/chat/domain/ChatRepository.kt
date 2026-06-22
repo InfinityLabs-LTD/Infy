@@ -43,6 +43,9 @@ interface ChatRepository {
     /** Переключить реакцию-эмодзи. */
     suspend fun toggleReaction(messageId: String, emoji: String)
 
+    /** Расшифровать голосовое/кружок (Whisper). Возвращает распознанный текст. */
+    suspend fun transcribe(messageId: String): String
+
     /** Получить/создать прямой диалог с пользователем, вернуть его id. */
     suspend fun getOrCreateDirectChat(partnerId: String): String
 

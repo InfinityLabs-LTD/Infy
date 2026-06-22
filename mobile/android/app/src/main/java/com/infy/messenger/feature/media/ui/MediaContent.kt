@@ -64,6 +64,9 @@ fun MessageAttachments(
     type: MessageType,
     urlBuilder: MediaUrlBuilder,
     modifier: Modifier = Modifier,
+    messageId: String? = null,
+    /** Запрос расшифровки голосового/кружка по messageId (для кнопки «Расшифровать»). */
+    onTranscribe: (suspend (String) -> String)? = null,
 ) {
     if (attachments.isEmpty()) return
     val first = attachments.first()
@@ -83,15 +86,18 @@ fun MessageAttachments(
 
         MessageType.IMAGE -> ImageAttachment(first, urlBuilder, modifier)
         MessageType.VIDEO -> VideoAttachment(first, urlBuilder, modifier)
-        MessageType.CIRCLE_VIDEO -> CircleAttachment(first, urlBuilder, modifier)
-        MessageType.AUDIO -> VoiceAttachment(first, urlBuilder, modifier)
+        MessageType.CIRCLE_VIDEO ->
+            CircleAttachment(first, urlBuilder, modifier, messageId, onTranscribe)
+        MessageType.AUDIO ->
+            VoiceAttachment(first, urlBuilder, modifier, messageId, onTranscribe)
         else -> {
             // FILE и всё прочее — уточняем по mime: картинка/видео/аудио могут
             // приходить с обобщённым типом, иначе показываем как файл.
             when {
                 first.mimeType.startsWith("image/") -> ImageAttachment(first, urlBuilder, modifier)
                 first.mimeType.startsWith("video/") -> VideoAttachment(first, urlBuilder, modifier)
-                first.mimeType.startsWith("audio/") -> VoiceAttachment(first, urlBuilder, modifier)
+                first.mimeType.startsWith("audio/") ->
+                    VoiceAttachment(first, urlBuilder, modifier, messageId, onTranscribe)
                 else -> FileAttachment(first, urlBuilder, modifier)
             }
         }
@@ -177,50 +183,56 @@ private fun CircleAttachment(
     att: Attachment,
     urlBuilder: MediaUrlBuilder,
     modifier: Modifier = Modifier,
+    messageId: String? = null,
+    onTranscribe: (suspend (String) -> String)? = null,
 ) {
     var started by remember { mutableStateOf(false) }
 
-    Box(
-        modifier = modifier
-            .size(220.dp)
-            .clip(CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (started) {
-            val exo = rememberExoPlayer(
-                urlBuilder.url(att.storageKey),
-                playWhenReady = true,
-                repeat = true,
-            )
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        player = exo
-                        useController = false
-                    }
-                },
-                modifier = Modifier.fillMaxSize(),
-            )
-            // Прозрачный слой для тапа play/pause поверх кружка.
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable {
-                        if (exo.isPlaying) exo.pause() else exo.play()
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(220.dp)
+                .clip(CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (started) {
+                val exo = rememberExoPlayer(
+                    urlBuilder.url(att.storageKey),
+                    playWhenReady = true,
+                    repeat = true,
+                )
+                AndroidView(
+                    factory = { ctx ->
+                        PlayerView(ctx).apply {
+                            player = exo
+                            useController = false
+                        }
                     },
-            )
-        } else {
-            AsyncImage(
-                model = urlBuilder.thumbnailUrl(att.thumbnailKey, att.storageKey),
-                contentDescription = stringResource(R.string.media_circle),
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-            PlayBadge(
-                contentDescription = stringResource(R.string.media_circle),
-                modifier = Modifier.clickable { started = true },
-            )
+                    modifier = Modifier.fillMaxSize(),
+                )
+                // Прозрачный слой для тапа play/pause поверх кружка.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable {
+                            if (exo.isPlaying) exo.pause() else exo.play()
+                        },
+                )
+            } else {
+                AsyncImage(
+                    model = urlBuilder.thumbnailUrl(att.thumbnailKey, att.storageKey),
+                    contentDescription = stringResource(R.string.media_circle),
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                PlayBadge(
+                    contentDescription = stringResource(R.string.media_circle),
+                    modifier = Modifier.clickable { started = true },
+                )
+            }
         }
+        // Кнопка «Расшифровать» под кружком (как в вебе).
+        TranscribeBlock(att.transcript, messageId, onTranscribe)
     }
 }
 
@@ -233,6 +245,8 @@ private fun VoiceAttachment(
     att: Attachment,
     urlBuilder: MediaUrlBuilder,
     modifier: Modifier = Modifier,
+    messageId: String? = null,
+    onTranscribe: (suspend (String) -> String)? = null,
 ) {
     val player = rememberExoPlayer(urlBuilder.url(att.storageKey))
     var isPlaying by remember { mutableStateOf(false) }
@@ -270,15 +284,95 @@ private fun VoiceAttachment(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        att.transcript?.let { transcript ->
+        // Кнопка «Расшифровать» / показ транскрипта (как в вебе).
+        TranscribeBlock(att.transcript, messageId, onTranscribe)
+    }
+}
+
+/**
+ * Блок расшифровки голосового/кружка: кнопка «Расшифровать» (если транскрипта
+ * ещё нет) или toggle «Показать/Скрыть текст». При запросе — спиннер, при
+ * ошибке — приглушённое сообщение. Зеркалит web-поведение TranscriptButton.
+ */
+@Composable
+private fun TranscribeBlock(
+    existingTranscript: String?,
+    messageId: String?,
+    onTranscribe: (suspend (String) -> String)?,
+) {
+    // Без возможности запроса и без готового текста кнопку не показываем.
+    if (messageId == null || onTranscribe == null) {
+        existingTranscript?.let { TranscriptText(it) }
+        return
+    }
+
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var transcript by remember(messageId) { mutableStateOf(existingTranscript) }
+    var expanded by remember(messageId) { mutableStateOf(existingTranscript != null) }
+    var loading by remember(messageId) { mutableStateOf(false) }
+    var error by remember(messageId) { mutableStateOf(false) }
+
+    Column(modifier = Modifier.padding(top = 4.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.clickable(enabled = !loading) {
+                val current = transcript
+                if (current != null) {
+                    expanded = !expanded
+                } else {
+                    loading = true
+                    error = false
+                    scope.launch {
+                        runCatching { onTranscribe(messageId) }
+                            .onSuccess { transcript = it; expanded = true }
+                            .onFailure { error = true }
+                        loading = false
+                    }
+                }
+            },
+        ) {
+            if (loading) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+            val label = when {
+                loading -> stringResource(R.string.transcribe_loading)
+                transcript == null -> stringResource(R.string.transcribe_action)
+                expanded -> stringResource(R.string.transcribe_hide)
+                else -> stringResource(R.string.transcribe_show)
+            }
             Text(
-                text = transcript,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
             )
         }
+        if (error) {
+            Text(
+                text = stringResource(R.string.transcribe_error),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        val shown = transcript
+        if (expanded && shown != null) TranscriptText(shown)
     }
+}
+
+/** Приглушённый текст расшифровки под медиа. */
+@Composable
+private fun TranscriptText(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 4.dp),
+    )
 }
 
 /** Файл: иконка, имя и размер; по клику открывается системным интентом. */

@@ -137,7 +137,34 @@ data class ReactRequest(
     val emoji: String,
 )
 
+/** Ответ расшифровки голосового/кружка. */
+@Serializable
+data class TranscriptDto(
+    val transcript: String,
+)
+
 @Serializable
 data class CreateChatRequest(
     val partnerId: String,
+)
+
+// ── Глобальный поиск ──────────────────────────────────────────────────
+
+/** Найденное сообщение (GET chats/search). Бэкенд отдаёт только TEXT. */
+@Serializable
+data class MessageSearchResultDto(
+    val messageId: String,
+    val chatId: String,
+    val content: String? = null,
+    val createdAt: String,
+    val isOwn: Boolean = false,
+    val partner: MessageSearchPartnerDto? = null,
+)
+
+@Serializable
+data class MessageSearchPartnerDto(
+    val id: String,
+    val username: String,
+    val nickname: String,
+    val avatarUrl: String? = null,
 )

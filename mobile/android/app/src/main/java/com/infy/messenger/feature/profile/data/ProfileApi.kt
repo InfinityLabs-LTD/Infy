@@ -11,11 +11,16 @@ import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Part
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface ProfileApi {
 
     @GET("profile/me")
     suspend fun getMe(): ApiEnvelope<ProfileDto>
+
+    /** Публичный профиль другого пользователя по username. */
+    @GET("profile/{username}")
+    suspend fun getPublicProfile(@Path("username") username: String): ApiEnvelope<PublicProfileDto>
 
     @GET("profile/me/stats")
     suspend fun getStats(): ApiEnvelope<ProfileStatsDto>
@@ -30,6 +35,10 @@ interface ProfileApi {
     @Multipart
     @POST("profile/me/cover")
     suspend fun uploadCover(@Part file: MultipartBody.Part): ApiEnvelope<CoverResponse>
+
+    /** Поиск пользователей по username/nickname (для новых контактов). */
+    @GET("profile/search")
+    suspend fun searchUsers(@Query("q") q: String): ApiEnvelope<List<UserSearchResultDto>>
 }
 
 interface SessionsApi {

@@ -117,7 +117,36 @@ fun InfyNavHost(
             ConversationScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onOpenCircleRecorder = { navController.navigate(Destinations.CIRCLE_RECORDER) },
+                onOpenPartnerProfile = { username ->
+                    navController.navigate(Destinations.userProfile(username))
+                },
+                onOpenSearch = { navController.navigate(Destinations.SEARCH) },
                 viewModel = convVm,
+            )
+        }
+
+        composable(
+            route = Destinations.USER_PROFILE,
+            arguments = listOf(navArgument("username") { type = NavType.StringType }),
+        ) {
+            com.infy.messenger.feature.profile.ui.UserProfileScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onOpenChat = { chatId ->
+                    navController.navigate(Destinations.conversation(chatId)) {
+                        launchSingleTop = true
+                    }
+                },
+            )
+        }
+
+        composable(Destinations.SEARCH) {
+            com.infy.messenger.feature.chat.ui.search.SearchScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onOpenChat = { chatId ->
+                    navController.navigate(Destinations.conversation(chatId)) {
+                        launchSingleTop = true
+                    }
+                },
             )
         }
 

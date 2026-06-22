@@ -9,6 +9,7 @@ import { subscribeToChannel, publishMessage } from '../../lib/pubsub.js'
 import { isSessionActive, markSessionActive } from '../../lib/sessionStore.js'
 import { setOnline, setOffline, refreshPresence, areOnline, getOnlineUserIds, addConnection, removeConnection } from '../../lib/presence.js'
 import { sendPush } from '../../lib/webpush.js'
+import { sendFcm } from '../../lib/fcm.js'
 import * as ChatService from '../chat/chat.service.js'
 import { registerCallHandlers } from '../calls/calls.signaling.js'
 import { askInChat } from '../ai/ai.service.js'
@@ -69,6 +70,24 @@ async function pushToOfflineMembers(
     const senderName = msg.sender?.nickname ?? 'Infy'
     const senderAvatar = msg.sender?.avatarUrl ?? '/logo.png'
     const body = msg.type === 'TEXT' ? (msg.content ?? '') : '📎 Вложение'
+
+    // FCM для Android-устройств тех же получателей (рядом с web-push).
+    const deviceTokens = await prisma.deviceToken.findMany({
+      where: { userId: { in: allowedUserIds } },
+      select: { token: true },
+    })
+    if (deviceTokens.length > 0) {
+      const { invalidTokens } = await sendFcm(deviceTokens.map(d => d.token), {
+        title: senderName,
+        body,
+        icon: senderAvatar,
+        tag: msg.chatId,
+        url: `/chat/${msg.chatId}`,
+      })
+      if (invalidTokens.length > 0) {
+        await prisma.deviceToken.deleteMany({ where: { token: { in: invalidTokens } } })
+      }
+    }
 
     const results = await Promise.allSettled(
       subscriptions.map(sub => {

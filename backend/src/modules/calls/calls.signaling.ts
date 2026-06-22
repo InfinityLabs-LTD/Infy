@@ -4,6 +4,7 @@ import { PrismaClient, CallMedia } from '@prisma/client'
 import { ulid } from 'ulid'
 import { isOnline } from '../../lib/presence.js'
 import { sendPush } from '../../lib/webpush.js'
+import { sendFcm } from '../../lib/fcm.js'
 import * as CallsService from './calls.service.js'
 
 // Сколько секунд звоним без ответа, прежде чем считать звонок пропущенным.
@@ -114,16 +115,34 @@ async function pushIncomingCall(
       select: { notifyPopup: true, notifySound: true, notifyVibrate: true },
     })
     if (callee?.notifyPopup === false) return   // баннеры отключены
-    const subs = await prisma.pushSubscription.findMany({ where: { userId: BigInt(calleeId) } })
-    if (subs.length === 0) return
     const body = media === 'VIDEO' ? '📹 Входящий видеозвонок' : '📞 Входящий звонок'
-    await Promise.allSettled(subs.map(sub =>
-      sendPush(sub, {
+
+    const subs = await prisma.pushSubscription.findMany({ where: { userId: BigInt(calleeId) } })
+    if (subs.length > 0) {
+      await Promise.allSettled(subs.map(sub =>
+        sendPush(sub, {
+          title: callerName, body, icon: callerAvatar ?? '/logo.png', tag: 'call', url: '/',
+          sound: callee?.notifySound !== false,
+          vibrate: callee?.notifyVibrate !== false,
+        }),
+      ))
+    }
+
+    // FCM для Android-устройств получателя (рядом с web-push).
+    const deviceTokens = await prisma.deviceToken.findMany({
+      where: { userId: BigInt(calleeId) },
+      select: { token: true },
+    })
+    if (deviceTokens.length > 0) {
+      const { invalidTokens } = await sendFcm(deviceTokens.map(d => d.token), {
         title: callerName, body, icon: callerAvatar ?? '/logo.png', tag: 'call', url: '/',
         sound: callee?.notifySound !== false,
         vibrate: callee?.notifyVibrate !== false,
-      }),
-    ))
+      })
+      if (invalidTokens.length > 0) {
+        await prisma.deviceToken.deleteMany({ where: { token: { in: invalidTokens } } })
+      }
+    }
   } catch { /* push некритичен */ }
 }
 

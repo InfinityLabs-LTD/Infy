@@ -13,3 +13,7 @@ app/build/
 *.aab
 *.keystore
 !debug.keystore
+
+# Конфигурация Firebase (секреты проекта). В репозитории только *.example.
+google-services.json
+app/google-services.json

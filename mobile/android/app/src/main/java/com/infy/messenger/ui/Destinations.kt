@@ -20,6 +20,13 @@ object Destinations {
     /** Профиль текущего пользователя. */
     const val PROFILE = "profile"
 
+    /** Публичный профиль другого пользователя. Аргумент username. */
+    const val USER_PROFILE = "user/{username}"
+    fun userProfile(username: String): String = "user/$username"
+
+    /** Глобальный поиск (чаты, сообщения, новые контакты). */
+    const val SEARCH = "search"
+
     /** Настройки и сессии. */
     const val SETTINGS = "settings"
 }

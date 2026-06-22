@@ -9,6 +9,11 @@ const subscribeBodySchema = z.object({
   auth: z.string().min(1),
 })
 
+const deviceTokenBodySchema = z.object({
+  token: z.string().min(1),
+  platform: z.string().min(1).max(32).optional(),
+})
+
 const pushRoutes: FastifyPluginAsync = async (app) => {
   app.get('/vapid-public-key', {
     schema: { tags: ['Push'], summary: 'Get VAPID public key' },
@@ -41,6 +46,40 @@ const pushRoutes: FastifyPluginAsync = async (app) => {
 
     await app.prisma.pushSubscription.deleteMany({
       where: { endpoint: body.endpoint, userId },
+    })
+
+    return reply.code(204).send()
+  })
+
+  // ── FCM device tokens (Android) ──────────────────────────────
+  // Web остаётся на web-push (/subscribe); сюда регистрируются нативные
+  // устройства с FCM registration token.
+  app.post('/device-token', {
+    schema: { tags: ['Push'], summary: 'Register FCM device token' },
+    preHandler: [authenticate],
+  }, async (request, reply) => {
+    const userId = BigInt(request.user.sub)
+    const body = deviceTokenBodySchema.parse(request.body)
+    const platform = body.platform ?? 'android'
+
+    await app.prisma.deviceToken.upsert({
+      where: { token: body.token },
+      update: { userId, platform },
+      create: { userId, token: body.token, platform },
+    })
+
+    return reply.code(201).send({ data: { ok: true } })
+  })
+
+  app.delete('/device-token', {
+    schema: { tags: ['Push'], summary: 'Remove FCM device token' },
+    preHandler: [authenticate],
+  }, async (request, reply) => {
+    const userId = BigInt(request.user.sub)
+    const body = z.object({ token: z.string().min(1) }).parse(request.body)
+
+    await app.prisma.deviceToken.deleteMany({
+      where: { token: body.token, userId },
     })
 
     return reply.code(204).send()

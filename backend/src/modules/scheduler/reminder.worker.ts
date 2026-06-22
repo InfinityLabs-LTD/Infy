@@ -6,6 +6,7 @@ import { env } from '../../lib/env.js'
 import { gcOrphanMedia } from './media.gc.js'
 import { publishMessage } from '../../lib/pubsub.js'
 import { sendPush } from '../../lib/webpush.js'
+import { sendFcm } from '../../lib/fcm.js'
 import { getPreset } from '../calendar/calendar.presets.js'
 import { formatTimeInTz } from '../../lib/timezone.js'
 import { getBackupSchedule, isBackupDue, markBackupRun } from '../../lib/backupSettings.js'
@@ -153,6 +154,35 @@ async function deliverOne(
       .map(sub => sub.endpoint)
     if (deadEndpoints.length > 0) {
       await prisma.pushSubscription.deleteMany({ where: { endpoint: { in: deadEndpoints } } })
+    }
+
+    // FCM для Android-устройств тех же получателей (рядом с web-push).
+    // Время в теле — в часовом поясе владельца токена.
+    const tokens = allowed.length === 0 ? [] : await prisma.deviceToken.findMany({
+      where: { userId: { in: allowed } },
+      select: { token: true, userId: true },
+    })
+    if (tokens.length > 0) {
+      const invalidTokens: string[] = []
+      await Promise.all(tokens.map(async (t) => {
+        const pref = prefsByUser.get(t.userId.toString())
+        const when = event.allDay
+          ? 'сегодня'
+          : formatTimeInTz(eventAt, tzByUser.get(t.userId.toString()))
+        const res = await sendFcm([t.token], {
+          title: `📅 ${event.title}`,
+          body: `${categoryName} · ${when}${event.notes ? ` — ${event.notes}` : ''}`,
+          icon: event.createdBy.avatarUrl ?? '/logo.png',
+          tag: `reminder:${reminder.id}`,
+          url: '/',
+          sound: pref?.notifySound !== false,
+          vibrate: pref?.notifyVibrate !== false,
+        })
+        invalidTokens.push(...res.invalidTokens)
+      }))
+      if (invalidTokens.length > 0) {
+        await prisma.deviceToken.deleteMany({ where: { token: { in: invalidTokens } } })
+      }
     }
   }
 }

@@ -69,6 +69,14 @@ const schema = z.object({
   VAPID_PRIVATE_KEY: z.string().min(1),
   VAPID_SUBJECT: z.string().default('mailto:admin@example.com'),
 
+  // ── Firebase Cloud Messaging (push на Android) ─────────────
+  // Web остаётся на web-push (VAPID), Android получает FCM.
+  // Конфигурация одним из двух способов (оба опциональны — без них FCM выключен):
+  //   FCM_SERVICE_ACCOUNT_JSON — весь JSON service account строкой;
+  //   FCM_SERVICE_ACCOUNT_PATH — путь к файлу service account.
+  FCM_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  FCM_SERVICE_ACCOUNT_PATH: z.string().optional(),
+
   // AI (Infy Pulse) — опционально: без ключа фича отключена, остальное работает.
   // Провайдер, модель и ключ можно переопределить из админки (таблица app_settings);
   // переменные окружения служат значениями по умолчанию / фолбэком.

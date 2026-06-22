@@ -26,8 +26,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
@@ -67,6 +69,8 @@ import com.infy.messenger.ui.theme.AuroraBackground
 import com.infy.messenger.ui.theme.DockBg
 import com.infy.messenger.ui.theme.GlassStroke
 import com.infy.messenger.ui.theme.Glass2
+import com.infy.messenger.ui.theme.OnlineGreen
+import com.infy.messenger.ui.theme.StatusRead
 import com.infy.messenger.ui.theme.TextHi
 import com.infy.messenger.ui.theme.TextLow
 import com.infy.messenger.ui.theme.TextMid
@@ -82,6 +86,11 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 fun ConversationScreen(
     onNavigateBack: () -> Unit,
     onOpenCircleRecorder: () -> Unit,
+    onOpenPartnerProfile: (username: String) -> Unit = {},
+    onOpenSearch: () -> Unit = {},
+    onOpenCalendar: () -> Unit = {},
+    onOpenAi: () -> Unit = {},
+    onReport: (userId: String) -> Unit = {},
     viewModel: ConversationViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -96,6 +105,11 @@ fun ConversationScreen(
     val isRecording by viewModel.isRecordingVoice.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Внутренние панели (как slide-in панели в вебе): календарь, Infy AI, жалоба.
+    var showCalendar by remember { mutableStateOf(false) }
+    var showAi by remember { mutableStateOf(false) }
+    var showReport by remember { mutableStateOf(false) }
 
     // Выбор фото/видео из системного Photo Picker.
     val mediaPicker = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -169,9 +183,18 @@ fun ConversationScreen(
                 partnerName = uiState.partnerName,
                 partnerAvatarUrl = uiState.partnerAvatarUrl,
                 partnerTyping = uiState.partnerTyping,
+                partnerOnline = uiState.partnerOnline,
+                partnerLastSeenAt = uiState.partnerLastSeenAt,
                 onNavigateBack = onNavigateBack,
                 onAudioCall = { requestCall(video = false) },
                 onVideoCall = { requestCall(video = true) },
+                onOpenProfile = {
+                    if (uiState.partnerUsername.isNotBlank()) onOpenPartnerProfile(uiState.partnerUsername)
+                },
+                onOpenSearch = onOpenSearch,
+                onOpenCalendar = { showCalendar = true },
+                onOpenAi = { showAi = true },
+                onReport = { showReport = true },
             )
 
             LazyColumn(
@@ -191,6 +214,7 @@ fun ConversationScreen(
                         message = message,
                         urlBuilder = viewModel.mediaUrlBuilder,
                         onRetry = { clientId -> viewModel.retry(clientId) },
+                        onTranscribe = { id -> viewModel.transcribe(id) },
                     )
                 }
 
@@ -243,19 +267,56 @@ fun ConversationScreen(
                 onOpenCircle = onOpenCircleRecorder,
             )
         }
+
+        // Панели поверх чата (slide-in, как в вебе).
+        if (showCalendar) {
+            com.infy.messenger.feature.calendar.ui.CalendarPanel(
+                chatId = viewModel.chatId,
+                onClose = { showCalendar = false },
+            )
+        }
+        if (showAi) {
+            com.infy.messenger.feature.ai.ui.AiPanel(
+                chatId = viewModel.chatId,
+                onClose = { showAi = false },
+            )
+        }
+        if (showReport) {
+            val targetId = uiState.partnerId
+            if (targetId != null) {
+                com.infy.messenger.feature.reports.ui.ReportPanel(
+                    targetId = targetId,
+                    targetName = uiState.partnerName,
+                    chatId = viewModel.chatId,
+                    onClose = { showReport = false },
+                )
+            }
+        }
     }
 }
 
-/** Стеклянная шапка переписки: назад, аватар+имя собеседника, «печатает…», звонки. */
+/**
+ * Стеклянная шапка переписки: назад, аватар+имя (тап → профиль собеседника),
+ * присутствие («в сети»/«печатает…»/«был(а)…»), звонки, кнопка Infy AI и
+ * сэндвич-меню (поиск, календарь, профиль, пожаловаться) — как в вебе.
+ */
 @Composable
 private fun ConversationTopBar(
     partnerName: String,
     partnerAvatarUrl: String?,
     partnerTyping: Boolean,
+    partnerOnline: Boolean,
+    partnerLastSeenAt: Long?,
     onNavigateBack: () -> Unit,
     onAudioCall: () -> Unit,
     onVideoCall: () -> Unit,
+    onOpenProfile: () -> Unit,
+    onOpenSearch: () -> Unit,
+    onOpenCalendar: () -> Unit,
+    onOpenAi: () -> Unit,
+    onReport: () -> Unit,
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -272,47 +333,75 @@ private fun ConversationTopBar(
                 tint = TextHi,
             )
         }
-        // Аватар собеседника (градиент-плейсхолдер либо фото).
-        Box(
-            modifier = Modifier
-                .size(38.dp)
-                .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(Aurora.brandVertical),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (partnerAvatarUrl != null) {
-                coil.compose.AsyncImage(
-                    model = partnerAvatarUrl,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else if (partnerName.isNotEmpty()) {
-                Text(
-                    text = partnerName.take(1).uppercase(),
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-        }
-        Column(
+        // Аватар + имя кликабельны → профиль собеседника (как в вебе).
+        Row(
             modifier = Modifier
                 .weight(1f)
-                .padding(start = 10.dp),
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(onClick = onOpenProfile)
+                .padding(vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = partnerName,
-                color = TextHi,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (partnerTyping) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(Aurora.brandVertical),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (partnerAvatarUrl != null) {
+                    coil.compose.AsyncImage(
+                        model = partnerAvatarUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else if (partnerName.isNotEmpty()) {
+                    Text(
+                        text = partnerName.take(1).uppercase(),
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+                // Зелёная точка онлайна поверх аватара.
+                if (partnerOnline) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(11.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(DockBg)
+                            .padding(2.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(OnlineGreen),
+                    )
+                }
+            }
+            Column(modifier = Modifier.padding(start = 10.dp)) {
                 Text(
-                    text = stringResource(R.string.chat_typing),
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodySmall,
+                    text = partnerName,
+                    color = TextHi,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
+                // Присутствие: «печатает…» > «в сети» > «был(а)…».
+                val presence: Pair<String, Color>? = when {
+                    partnerTyping -> stringResource(R.string.chat_typing) to
+                        MaterialTheme.colorScheme.primary
+                    partnerOnline -> stringResource(R.string.chat_online) to OnlineGreen
+                    partnerLastSeenAt != null -> formatLastSeen(partnerLastSeenAt) to TextLow
+                    else -> null
+                }
+                if (presence != null) {
+                    Text(
+                        text = presence.first,
+                        color = presence.second,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
         IconButton(onClick = onAudioCall) {
@@ -320,6 +409,64 @@ private fun ConversationTopBar(
         }
         IconButton(onClick = onVideoCall) {
             Icon(Icons.Filled.Videocam, stringResource(R.string.call_start_video), tint = TextMid)
+        }
+        // Infy AI — отдельной кнопкой со звездой (как в вебе).
+        IconButton(onClick = onOpenAi) {
+            Icon(
+                Icons.Filled.AutoAwesome,
+                stringResource(R.string.ai_title),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+        // Сэндвич-меню.
+        Box {
+            IconButton(onClick = { menuOpen = true }) {
+                Icon(Icons.Filled.MoreVert, stringResource(R.string.chat_menu), tint = TextMid)
+            }
+            androidx.compose.material3.DropdownMenu(
+                expanded = menuOpen,
+                onDismissRequest = { menuOpen = false },
+            ) {
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(stringResource(R.string.chat_menu_search)) },
+                    onClick = { menuOpen = false; onOpenSearch() },
+                )
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(stringResource(R.string.chat_menu_calendar)) },
+                    onClick = { menuOpen = false; onOpenCalendar() },
+                )
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(stringResource(R.string.chat_menu_profile)) },
+                    onClick = { menuOpen = false; onOpenProfile() },
+                )
+                androidx.compose.material3.DropdownMenuItem(
+                    text = {
+                        Text(
+                            stringResource(R.string.chat_menu_report),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    },
+                    onClick = { menuOpen = false; onReport() },
+                )
+            }
+        }
+    }
+}
+
+/** Человекочитаемое «был(а) в сети» (как в вебе: только что / N мин / N ч / дата). */
+@Composable
+private fun formatLastSeen(epochMs: Long): String {
+    val diff = System.currentTimeMillis() - epochMs
+    val minutes = diff / 60_000
+    val hours = diff / 3_600_000
+    return when {
+        minutes < 1 -> stringResource(R.string.chat_last_seen_just_now)
+        minutes < 60 -> stringResource(R.string.chat_last_seen_minutes, minutes.toInt())
+        hours < 24 -> stringResource(R.string.chat_last_seen_hours, hours.toInt())
+        else -> {
+            val date = java.text.SimpleDateFormat("d MMM", java.util.Locale("ru"))
+                .format(java.util.Date(epochMs))
+            stringResource(R.string.chat_last_seen_at, date)
         }
     }
 }
@@ -339,6 +486,7 @@ private fun MessageBubble(
     message: ChatMessage,
     urlBuilder: com.infy.messenger.core.media.MediaUrlBuilder,
     onRetry: (clientMessageId: String) -> Unit,
+    onTranscribe: (suspend (messageId: String) -> String)? = null,
 ) {
     val isOwn = message.isOwn
     val contentColor = if (isOwn) Color.White else TextHi
@@ -402,6 +550,8 @@ private fun MessageBubble(
                         type = message.type,
                         urlBuilder = urlBuilder,
                         modifier = Modifier.padding(bottom = if (message.content.isNullOrBlank()) 0.dp else 6.dp),
+                        messageId = message.id.ifBlank { null },
+                        onTranscribe = onTranscribe,
                     )
                 }
 
@@ -484,35 +634,63 @@ private fun MessageMeta(
         )
 
         if (message.isOwn) {
-            val statusText: String? = when (message.deliveryStatus) {
-                DeliveryStatus.SENDING -> stringResource(R.string.chat_status_sending)
-                DeliveryStatus.FAILED -> stringResource(R.string.chat_status_failed)
-                DeliveryStatus.READ -> stringResource(R.string.chat_status_read)
-                DeliveryStatus.SENT -> "✓"
+            val clientId = message.clientMessageId
+            val statusModifier = if (
+                message.deliveryStatus == DeliveryStatus.FAILED && clientId != null
+            ) {
+                Modifier
+                    .padding(start = 6.dp)
+                    .clickable { onRetry(clientId) }
+            } else {
+                Modifier.padding(start = 6.dp)
             }
-            if (statusText != null) {
-                val clientId = message.clientMessageId
-                val statusModifier = if (
-                    message.deliveryStatus == DeliveryStatus.FAILED && clientId != null
-                ) {
-                    Modifier
-                        .padding(start = 6.dp)
-                        .clickable { onRetry(clientId) }
-                } else {
-                    Modifier.padding(start = 6.dp)
-                }
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = when (message.deliveryStatus) {
-                        DeliveryStatus.FAILED -> MaterialTheme.colorScheme.error
-                        DeliveryStatus.READ -> Color.White
-                        else -> mutedColor
-                    },
-                    modifier = statusModifier,
-                )
-            }
+            DeliveryTicks(
+                status = message.deliveryStatus,
+                mutedColor = mutedColor,
+                modifier = statusModifier,
+            )
         }
+    }
+}
+
+/**
+ * Статус доставки галочками, как в вебе:
+ *  - SENDING → часы (отправляется);
+ *  - SENT    → одна галочка (приглушённая);
+ *  - READ    → две галочки (фиолетовый акцент);
+ *  - FAILED  → «!» (красный), кликабельно для повтора.
+ */
+@Composable
+private fun DeliveryTicks(
+    status: DeliveryStatus,
+    mutedColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    when (status) {
+        DeliveryStatus.SENDING -> Text(
+            text = "🕓",
+            style = MaterialTheme.typography.labelSmall,
+            color = mutedColor,
+            modifier = modifier,
+        )
+        DeliveryStatus.FAILED -> Text(
+            text = "⚠",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = modifier,
+        )
+        DeliveryStatus.SENT -> Text(
+            text = "✓",
+            style = MaterialTheme.typography.labelSmall,
+            color = mutedColor,
+            modifier = modifier,
+        )
+        DeliveryStatus.READ -> Text(
+            text = "✓✓",
+            style = MaterialTheme.typography.labelSmall,
+            color = StatusRead,
+            modifier = modifier,
+        )
     }
 }
 
