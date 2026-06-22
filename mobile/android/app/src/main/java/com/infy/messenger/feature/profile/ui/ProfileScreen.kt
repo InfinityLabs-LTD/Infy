@@ -387,7 +387,10 @@ private fun PrimaryButtonSmall(text: String, enabled: Boolean, onClick: () -> Un
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(if (enabled) Aurora.gradOwn else Glass2)
+            .then(
+                if (enabled) Modifier.background(Aurora.gradOwn)
+                else Modifier.background(Glass2),
+            )
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
