@@ -30,6 +30,7 @@ import javax.inject.Singleton
 class RealtimeClient @Inject constructor(
     private val sessionManager: SessionManager,
     private val json: Json,
+    private val okHttpClient: okhttp3.OkHttpClient,
 ) {
     private var socket: Socket? = null
 
@@ -57,6 +58,8 @@ class RealtimeClient @Inject constructor(
             // Токен подставляем на каждое (ре)подключение — он мог обновиться.
             .setAuth(mapOf("token" to (sessionManager.currentAccessToken() ?: "")))
             .build()
+        options.callFactory = okHttpClient
+        options.webSocketFactory = okHttpClient
 
         _connectionState.value = ConnectionState.CONNECTING
         val s = IO.socket(BuildConfig.REALTIME_URL, options)

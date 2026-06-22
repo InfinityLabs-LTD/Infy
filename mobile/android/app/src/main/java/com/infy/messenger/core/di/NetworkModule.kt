@@ -11,10 +11,12 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
+import okhttp3.Dns
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
+import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 import javax.inject.Qualifier
 import javax.inject.Singleton
@@ -27,6 +29,19 @@ annotation class RefreshClient
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
+
+    @Provides
+    @Singleton
+    fun provideDns(): Dns = object : Dns {
+        override fun lookup(hostname: String): List<InetAddress> {
+            return if (hostname == "infyme.ru") {
+                // Прямой маппинг домена на IP, если системный DNS эмулятора тупит.
+                listOf(InetAddress.getByName("144.31.101.68"))
+            } else {
+                Dns.SYSTEM.lookup(hostname)
+            }
+        }
+    }
 
     @Provides
     @Singleton
@@ -54,7 +69,9 @@ object NetworkModule {
         authInterceptor: AuthInterceptor,
         authenticator: TokenAuthenticator,
         logging: HttpLoggingInterceptor,
+        dns: Dns,
     ): OkHttpClient = OkHttpClient.Builder()
+        .dns(dns)
         .addInterceptor(authInterceptor)
         .authenticator(authenticator)
         .addInterceptor(logging)
@@ -70,7 +87,9 @@ object NetworkModule {
     @RefreshClient
     fun provideRefreshOkHttpClient(
         logging: HttpLoggingInterceptor,
+        dns: Dns,
     ): OkHttpClient = OkHttpClient.Builder()
+        .dns(dns)
         .addInterceptor(logging)
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
