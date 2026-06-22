@@ -1,38 +1,37 @@
 package com.infy.messenger.feature.chat.ui.list
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material3.Badge
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -40,60 +39,77 @@ import com.infy.messenger.R
 import com.infy.messenger.core.realtime.ConnectionState
 import com.infy.messenger.core.util.formatChatTimestamp
 import com.infy.messenger.feature.chat.domain.MessageType
+import com.infy.messenger.ui.AuroraBottomNav
+import com.infy.messenger.ui.AuroraTab
+import com.infy.messenger.ui.theme.Aurora
+import com.infy.messenger.ui.theme.OnlineGreen
+import com.infy.messenger.ui.theme.PreviewRead
+import com.infy.messenger.ui.theme.TextHi
+import com.infy.messenger.ui.theme.TextLow
+import com.infy.messenger.ui.theme.TextMid
+import com.infy.messenger.ui.theme.AuroraBackground
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatListScreen(
     onOpenChat: (chatId: String) -> Unit,
-    onOpenProfile: () -> Unit,
+    currentTab: AuroraTab,
+    onSelectTab: (AuroraTab) -> Unit,
     viewModel: ChatListViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    val title = if (uiState.connectionState == ConnectionState.CONNECTED) {
-                        stringResource(R.string.chats_title)
-                    } else {
-                        stringResource(R.string.chats_connecting)
-                    }
-                    Text(title)
-                },
-                actions = {
-                    IconButton(onClick = onOpenProfile) {
-                        Icon(
-                            imageVector = Icons.Filled.AccountCircle,
-                            contentDescription = stringResource(R.string.profile_open),
+    AuroraBackground {
+        Box(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize()) {
+                // Шапка: крупный заголовок в духе веба + статус подключения.
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 8.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.chats_title),
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = TextHi,
+                    )
+                    if (uiState.connectionState != ConnectionState.CONNECTED) {
+                        Text(
+                            text = stringResource(R.string.chats_connecting),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextLow,
                         )
                     }
-                },
-            )
-        },
-    ) { padding ->
-        if (uiState.items.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = stringResource(R.string.chats_empty),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        } else {
-            LazyColumn(modifier = Modifier.padding(padding)) {
-                items(uiState.items, key = { it.chat.id }) { item ->
-                    ChatRow(item = item, onClick = { onOpenChat(item.chat.id) })
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = 80.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                    )
+                }
+
+                if (uiState.items.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = stringResource(R.string.chats_empty),
+                            color = TextLow,
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            start = 12.dp, end = 12.dp, top = 4.dp, bottom = 110.dp,
+                        ),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        items(uiState.items, key = { it.chat.id }) { item ->
+                            ChatRow(item = item, onClick = { onOpenChat(item.chat.id) })
+                        }
+                    }
                 }
             }
+
+            // Плавающая стеклянная навигация поверх списка.
+            AuroraBottomNav(
+                current = currentTab,
+                onSelect = onSelectTab,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
     }
 }
@@ -105,14 +121,16 @@ private fun ChatRow(
 ) {
     val chat = item.chat
     val title = chat.partner?.nickname ?: chat.partner?.username.orEmpty()
+    val hasUnread = chat.unreadCount > 0
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         ChatAvatar(
             avatarUrl = chat.partner?.avatarUrl,
@@ -126,6 +144,7 @@ private fun ChatRow(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
+                    color = TextHi,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
@@ -134,28 +153,48 @@ private fun ChatRow(
                     Text(
                         text = formatChatTimestamp(it),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (hasUnread) MaterialTheme.colorScheme.primary else TextLow,
                     )
                 }
             }
 
             Row(
+                modifier = Modifier.padding(top = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
                     text = previewText(chat.lastMessageType, chat.lastMessagePreview, chat.lastMessageIsOwn),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (hasUnread) TextMid else PreviewRead,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                if (chat.unreadCount > 0) {
-                    Badge { Text(chat.unreadCount.toString()) }
+                if (hasUnread) {
+                    UnreadBadge(chat.unreadCount)
                 }
             }
         }
+    }
+}
+
+/** Брендовый бейдж непрочитанных — градиентная пилюля. */
+@Composable
+private fun UnreadBadge(count: Int) {
+    Box(
+        modifier = Modifier
+            .size(if (count > 9) 24.dp else 22.dp)
+            .clip(CircleShape)
+            .background(Aurora.gradOwn),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = if (count > 99) "99+" else count.toString(),
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
@@ -166,11 +205,12 @@ private fun ChatAvatar(
     online: Boolean,
 ) {
     Box {
-        Surface(
+        Box(
             modifier = Modifier
-                .size(52.dp)
-                .clip(CircleShape),
-            color = MaterialTheme.colorScheme.primaryContainer,
+                .size(54.dp)
+                .clip(CircleShape)
+                .background(Aurora.brandVertical),
+            contentAlignment = Alignment.Center,
         ) {
             if (avatarUrl != null) {
                 AsyncImage(
@@ -179,27 +219,22 @@ private fun ChatAvatar(
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = title.take(1).uppercase(),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                }
+                Text(
+                    text = title.take(1).uppercase(),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White,
+                )
             }
         }
         if (online) {
-            Surface(
+            Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .size(14.dp)
-                    .clip(CircleShape),
-                color = MaterialTheme.colorScheme.tertiary,
-                border = androidx.compose.foundation.BorderStroke(
-                    2.dp,
-                    MaterialTheme.colorScheme.surface,
-                ),
-            ) {}
+                    .clip(CircleShape)
+                    .background(OnlineGreen)
+                    .border(BorderStroke(2.dp, com.infy.messenger.ui.theme.AuroraBgDeep), CircleShape),
+            )
         }
     }
 }

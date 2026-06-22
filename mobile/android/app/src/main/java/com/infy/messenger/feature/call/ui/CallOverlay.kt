@@ -51,11 +51,11 @@ import org.webrtc.RendererCommon
 import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoTrack
 
-// Цвета элементов управления звонком.
-private val ColorAccept = Color(0xFF2E7D32)
-private val ColorHangup = Color(0xFFD32F2F)
-private val ColorToggle = Color(0x33FFFFFF)
-private val ColorBackground = Color(0xFF101014)
+// Цвета элементов управления звонком (Aurora).
+private val ColorAccept = Color(0xFF22C55E)
+private val ColorHangup = Color(0xFFF43F5E)
+private val ColorToggle = Color(0x1FFFFFFF)        // стекло glass-3
+private val ColorBackground = Color(0xFF080B16)    // deep space
 
 /**
  * Полноэкранный оверлей активного звонка. Рисуется поверх всего приложения,
@@ -74,6 +74,18 @@ fun CallOverlay(viewModel: CallViewModel = hiltViewModel()) {
             .fillMaxSize()
             .background(ColorBackground),
     ) {
+        // Для аудиозвонка — мягкое aurora-свечение за аватаром (как в вебе).
+        if (!isVideo) {
+            Box(
+                Modifier.fillMaxSize().background(
+                    androidx.compose.ui.graphics.Brush.radialGradient(
+                        0.0f to Color(0xFF7C3AED).copy(alpha = 0.22f),
+                        0.65f to Color.Transparent,
+                        radius = 1300f,
+                    ),
+                ),
+            )
+        }
         // Полноэкранное удалённое видео + PiP локального (только видеозвонок).
         if (isVideo) {
             RemoteVideoView(track = remoteVideo, eglBase = viewModel.eglBase)

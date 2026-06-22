@@ -5,18 +5,21 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// Базовая типографика Material 3. На следующих этапах при необходимости
-// подключим брендовый шрифт через res/font.
+// Типографика Aurora. Заголовки — плотные и со сжатым трекингом (имитируют
+// Manrope из веба), тело — обычное (Inter). Брендовый шрифт можно позже
+// подключить через res/font без изменения этих стилей.
 val InfyTypography = Typography(
     headlineMedium = TextStyle(
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         fontSize = 28.sp,
-        lineHeight = 36.sp,
+        lineHeight = 34.sp,
+        letterSpacing = (-0.5).sp,
     ),
     titleLarge = TextStyle(
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         fontSize = 22.sp,
         lineHeight = 28.sp,
+        letterSpacing = (-0.3).sp,
     ),
     bodyLarge = TextStyle(
         fontWeight = FontWeight.Normal,

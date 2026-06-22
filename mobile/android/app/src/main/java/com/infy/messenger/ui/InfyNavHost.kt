@@ -67,14 +67,16 @@ fun InfyNavHost(
         composable(Destinations.CHATS) {
             ChatListScreen(
                 onOpenChat = { chatId -> navController.navigate(Destinations.conversation(chatId)) },
-                onOpenProfile = { navController.navigate(Destinations.PROFILE) },
+                currentTab = AuroraTab.CHATS,
+                onSelectTab = { tab -> navController.switchTab(tab) },
             )
         }
 
         composable(Destinations.PROFILE) {
             ProfileScreen(
-                onNavigateBack = { navController.popBackStack() },
                 onOpenSettings = { navController.navigate(Destinations.SETTINGS) },
+                currentTab = AuroraTab.PROFILE,
+                onSelectTab = { tab -> navController.switchTab(tab) },
             )
         }
         composable(Destinations.SETTINGS) {
@@ -134,5 +136,19 @@ private fun NavHostController.navigateClearingTo(route: String) {
     navigate(route) {
         popUpTo(graph.id) { inclusive = true }
         launchSingleTop = true
+    }
+}
+
+/**
+ * Переключение нижних вкладок (Чаты ↔ Профиль): single-top, с очисткой стека
+ * до корневой вкладки, чтобы между ними не копилась история и кнопка «назад»
+ * не возвращала на предыдущую вкладку.
+ */
+private fun NavHostController.switchTab(tab: AuroraTab) {
+    if (currentDestination?.route == tab.route) return
+    navigate(tab.route) {
+        popUpTo(Destinations.CHATS) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
     }
 }

@@ -1,5 +1,8 @@
 package com.infy.messenger.feature.chat.ui.conversation
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,11 +13,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -25,15 +32,12 @@ import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +47,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,14 +60,22 @@ import com.infy.messenger.feature.chat.domain.ChatMessage
 import com.infy.messenger.feature.chat.domain.DeliveryStatus
 import com.infy.messenger.feature.chat.domain.MessageType
 import androidx.compose.ui.res.stringResource
+import com.infy.messenger.ui.theme.Aurora
+import com.infy.messenger.ui.theme.AuroraBackground
+import com.infy.messenger.ui.theme.DockBg
+import com.infy.messenger.ui.theme.GlassStroke
+import com.infy.messenger.ui.theme.Glass2
+import com.infy.messenger.ui.theme.TextHi
+import com.infy.messenger.ui.theme.TextLow
+import com.infy.messenger.ui.theme.TextMid
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
- * Экран переписки: история сообщений с курсорной пагинацией вверх,
- * пузыри с ответами/реакциями/статусами доставки, индикатор «печатает…»,
- * отметка прочитанного и composer для отправки текста.
+ * Экран переписки в стиле Aurora: deep-space фон, свои пузыри — брендовый
+ * градиент, чужие — стекло, каскадные скругления. Шапка и composer —
+ * стеклянные панели. Логика (пагинация, отметка прочитанного, медиа,
+ * запись голоса/кружка, звонки) сохранена без изменений.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversationScreen(
     onNavigateBack: () -> Unit,
@@ -140,38 +154,61 @@ fun ConversationScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    // Название чата недоступно — показываем «печатает…» либо пусто.
-                    Text(if (uiState.partnerTyping) stringResource(R.string.chat_typing) else "")
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.chat_back),
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { requestCall(video = false) }) {
-                        Icon(
-                            imageVector = Icons.Filled.Call,
-                            contentDescription = stringResource(R.string.call_start_audio),
-                        )
-                    }
-                    IconButton(onClick = { requestCall(video = true) }) {
-                        Icon(
-                            imageVector = Icons.Filled.Videocam,
-                            contentDescription = stringResource(R.string.call_start_video),
-                        )
-                    }
-                },
+    AuroraBackground {
+        Column(Modifier.fillMaxSize()) {
+            ConversationTopBar(
+                partnerTyping = uiState.partnerTyping,
+                onNavigateBack = onNavigateBack,
+                onAudioCall = { requestCall(video = false) },
+                onVideoCall = { requestCall(video = true) },
             )
-        },
-        bottomBar = {
+
+            LazyColumn(
+                state = listState,
+                reverseLayout = true,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                items(
+                    items = uiState.messages.reversed(),
+                    key = { it.clientMessageId ?: it.id },
+                ) { message ->
+                    MessageBubble(
+                        message = message,
+                        urlBuilder = viewModel.mediaUrlBuilder,
+                        onRetry = { clientId -> viewModel.retry(clientId) },
+                    )
+                }
+
+                if (uiState.isLoadingHistory) {
+                    item(key = "history-loading") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.padding(8.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                } else if (uiState.loadError) {
+                    item(key = "history-error") {
+                        Text(
+                            text = stringResource(R.string.chat_load_error),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(8.dp),
+                        )
+                    }
+                }
+            }
+
             Composer(
                 uploadProgress = uploadProgress,
                 isRecording = isRecording,
@@ -193,52 +230,45 @@ fun ConversationScreen(
                 onRecordVoiceCancel = { viewModel.cancelVoiceRecording() },
                 onOpenCircle = onOpenCircleRecorder,
             )
-        },
-    ) { innerPadding ->
-        LazyColumn(
-            state = listState,
-            reverseLayout = true,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            // Сообщения в uiState идут по возрастанию времени; при reverseLayout
-            // рисуем их в обратном порядке (самое новое — снизу).
-            items(
-                items = uiState.messages.reversed(),
-                key = { it.clientMessageId ?: it.id },
-            ) { message ->
-                MessageBubble(
-                    message = message,
-                    urlBuilder = viewModel.mediaUrlBuilder,
-                    onRetry = { clientId -> viewModel.retry(clientId) },
-                )
-            }
+        }
+    }
+}
 
-            // Верхний элемент при reverseLayout = последний item: индикатор/ошибка истории.
-            if (uiState.isLoadingHistory) {
-                item(key = "history-loading") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.padding(8.dp))
-                    }
-                }
-            } else if (uiState.loadError) {
-                item(key = "history-error") {
-                    Text(
-                        text = stringResource(R.string.chat_load_error),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(8.dp),
-                    )
-                }
-            }
+/** Стеклянная шапка переписки: назад, статус «печатает…», звонки. */
+@Composable
+private fun ConversationTopBar(
+    partnerTyping: Boolean,
+    onNavigateBack: () -> Unit,
+    onAudioCall: () -> Unit,
+    onVideoCall: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(DockBg)
+            .border(BorderStroke(1.dp, GlassStroke), RoundedCornerShape(0.dp))
+            .statusBarsPadding()
+            .padding(horizontal = 4.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onNavigateBack) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = stringResource(R.string.chat_back),
+                tint = TextHi,
+            )
+        }
+        Text(
+            text = if (partnerTyping) stringResource(R.string.chat_typing) else "",
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onAudioCall) {
+            Icon(Icons.Filled.Call, stringResource(R.string.call_start_audio), tint = TextMid)
+        }
+        IconButton(onClick = onVideoCall) {
+            Icon(Icons.Filled.Videocam, stringResource(R.string.call_start_video), tint = TextMid)
         }
     }
 }
@@ -251,7 +281,7 @@ private val TEXT_LIKE_TYPES = setOf(
     MessageType.AI_QUERY,
 )
 
-/** Пузырь одного сообщения. */
+/** Пузырь одного сообщения. Свои — градиент, чужие — стекло. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MessageBubble(
@@ -260,49 +290,53 @@ private fun MessageBubble(
     onRetry: (clientMessageId: String) -> Unit,
 ) {
     val isOwn = message.isOwn
-    val bubbleColor = if (isOwn) {
-        MaterialTheme.colorScheme.primary
+    val contentColor = if (isOwn) Color.White else TextHi
+    // Каскадные скругления: «хвост» к своей/чужой стороне снизу (как в вебе).
+    val shape = if (isOwn) {
+        RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)
     } else {
-        MaterialTheme.colorScheme.surfaceVariant
+        RoundedCornerShape(20.dp, 20.dp, 20.dp, 6.dp)
     }
-    val contentColor = if (isOwn) {
-        MaterialTheme.colorScheme.onPrimary
+    val bubbleModifier = if (isOwn) {
+        Modifier.background(Aurora.gradOwn, shape)
     } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
+        Modifier
+            .background(Glass2, shape)
+            .border(BorderStroke(1.dp, GlassStroke), shape)
     }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start,
     ) {
-        Surface(
-            color = bubbleColor,
-            contentColor = contentColor,
-            shape = MaterialTheme.shapes.medium, // скругление ~16.dp
-            tonalElevation = 1.dp,
-            modifier = Modifier.widthIn(max = 300.dp),
+        Box(
+            modifier = Modifier
+                .widthIn(max = 300.dp)
+                .clip(shape)
+                .then(bubbleModifier),
         ) {
             Column(modifier = Modifier.padding(10.dp)) {
                 // Блок-цитата (ответ на сообщение).
                 val reply = message.replyTo
                 if (reply != null) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.35f),
-                        contentColor = contentColor,
-                        shape = MaterialTheme.shapes.small,
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 6.dp),
+                            .padding(bottom = 6.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.White.copy(alpha = 0.10f)),
                     ) {
                         Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
                             Text(
                                 text = reply.senderNickname,
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
+                                color = contentColor,
                             )
                             Text(
                                 text = if (reply.deleted) "—" else reply.content.orEmpty(),
                                 style = MaterialTheme.typography.bodySmall,
+                                color = contentColor.copy(alpha = 0.85f),
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -325,7 +359,11 @@ private fun MessageBubble(
                 if (isTextType || !message.content.isNullOrBlank()) {
                     val text = message.content.orEmpty()
                     if (text.isNotEmpty()) {
-                        Text(text = text, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            text = text,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = contentColor,
+                        )
                     }
                 }
 
@@ -338,14 +376,15 @@ private fun MessageBubble(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         message.reactions.forEach { reaction ->
-                            Surface(
-                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f),
-                                contentColor = contentColor,
-                                shape = MaterialTheme.shapes.small,
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color.White.copy(alpha = 0.14f)),
                             ) {
                                 Text(
                                     text = "${reaction.emoji} ${reaction.count}",
                                     style = MaterialTheme.typography.labelSmall,
+                                    color = contentColor,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                 )
                             }
@@ -368,7 +407,7 @@ private fun MessageBubble(
 @Composable
 private fun MessageMeta(
     message: ChatMessage,
-    contentColor: androidx.compose.ui.graphics.Color,
+    contentColor: Color,
     onRetry: (clientMessageId: String) -> Unit,
 ) {
     val mutedColor = contentColor.copy(alpha = 0.7f)
@@ -414,10 +453,10 @@ private fun MessageMeta(
                 Text(
                     text = statusText,
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (message.deliveryStatus == DeliveryStatus.FAILED) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        mutedColor
+                    color = when (message.deliveryStatus) {
+                        DeliveryStatus.FAILED -> MaterialTheme.colorScheme.error
+                        DeliveryStatus.READ -> Color.White
+                        else -> mutedColor
                     },
                     modifier = statusModifier,
                 )
@@ -427,9 +466,9 @@ private fun MessageMeta(
 }
 
 /**
- * Нижняя панель ввода: текст + действия. Когда поле пустое — показываем кнопки
- * вложения, кружка и микрофона (удержание = запись голосового). Когда есть текст —
- * кнопку отправки. Сверху — индикатор загрузки вложения, если идёт upload.
+ * Нижняя панель ввода Aurora: стеклянная пилюля с текстом + действия.
+ * Пусто — кнопки вложения/кружка/микрофона; есть текст — градиентная отправка.
+ * Логика записи/жестов сохранена.
  */
 @Composable
 private fun Composer(
@@ -448,127 +487,154 @@ private fun Composer(
     var menuOpen by remember { mutableStateOf(false) }
     val hasText = text.isNotBlank()
 
-    Surface(tonalElevation = 3.dp) {
-        Column {
-            // Прогресс загрузки вложения.
-            if (uploadProgress != null) {
-                androidx.compose.material3.LinearProgressIndicator(
-                    progress = { uploadProgress },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(DockBg)
+            .border(BorderStroke(1.dp, GlassStroke), RoundedCornerShape(0.dp))
+            .navigationBarsPadding(),
+    ) {
+        // Прогресс загрузки вложения.
+        if (uploadProgress != null) {
+            androidx.compose.material3.LinearProgressIndicator(
+                progress = { uploadProgress },
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
 
-            if (isRecording) {
-                // Режим записи голосового: подсказка + отмена + отправка.
-                Row(
+        if (isRecording) {
+            // Режим записи голосового: подсказка + отмена + отправка.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Mic,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                )
+                Text(
+                    text = stringResource(R.string.media_recording),
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Mic,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                    )
-                    Text(
-                        text = stringResource(R.string.media_recording),
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(start = 8.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    androidx.compose.material3.TextButton(onClick = onRecordVoiceCancel) {
-                        Text(stringResource(R.string.media_cancel))
-                    }
-                    IconButton(onClick = onRecordVoiceStop) {
+                        .weight(1f)
+                        .padding(start = 8.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextHi,
+                )
+                androidx.compose.material3.TextButton(onClick = onRecordVoiceCancel) {
+                    Text(stringResource(R.string.media_cancel), color = TextMid)
+                }
+                GradientSendButton(onClick = onRecordVoiceStop)
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                // Меню вложений.
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = stringResource(R.string.chat_send),
+                            imageVector = Icons.Filled.Add,
+                            contentDescription = stringResource(R.string.media_attach),
+                            tint = TextMid,
+                        )
+                    }
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = menuOpen,
+                        onDismissRequest = { menuOpen = false },
+                    ) {
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(stringResource(R.string.media_pick_gallery)) },
+                            onClick = { menuOpen = false; onPickMedia() },
+                        )
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(stringResource(R.string.media_pick_file)) },
+                            onClick = { menuOpen = false; onPickFile() },
+                        )
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(stringResource(R.string.media_record_circle)) },
+                            onClick = { menuOpen = false; onOpenCircle() },
                         )
                     }
                 }
-            } else {
-                Row(
+
+                TextField(
+                    value = text,
+                    onValueChange = {
+                        text = it
+                        onTyping()
+                    },
+                    placeholder = {
+                        Text(stringResource(R.string.chat_message_hint), color = TextLow)
+                    },
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // Меню вложений.
-                    Box {
-                        IconButton(onClick = { menuOpen = true }) {
-                            Icon(
-                                imageVector = Icons.Filled.Add,
-                                contentDescription = stringResource(R.string.media_attach),
-                            )
-                        }
-                        androidx.compose.material3.DropdownMenu(
-                            expanded = menuOpen,
-                            onDismissRequest = { menuOpen = false },
-                        ) {
-                            androidx.compose.material3.DropdownMenuItem(
-                                text = { Text(stringResource(R.string.media_pick_gallery)) },
-                                onClick = { menuOpen = false; onPickMedia() },
-                            )
-                            androidx.compose.material3.DropdownMenuItem(
-                                text = { Text(stringResource(R.string.media_pick_file)) },
-                                onClick = { menuOpen = false; onPickFile() },
-                            )
-                            androidx.compose.material3.DropdownMenuItem(
-                                text = { Text(stringResource(R.string.media_record_circle)) },
-                                onClick = { menuOpen = false; onOpenCircle() },
-                            )
-                        }
-                    }
+                        .weight(1f)
+                        .clip(RoundedCornerShape(22.dp)),
+                    maxLines = 5,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Glass2,
+                        unfocusedContainerColor = Glass2,
+                        disabledContainerColor = Glass2,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent,
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                        focusedTextColor = TextHi,
+                        unfocusedTextColor = TextHi,
+                    ),
+                )
 
-                    OutlinedTextField(
-                        value = text,
-                        onValueChange = {
-                            text = it
-                            onTyping()
-                        },
-                        placeholder = { Text(stringResource(R.string.chat_message_hint)) },
-                        modifier = Modifier.weight(1f),
-                        maxLines = 5,
-                    )
-
-                    if (hasText) {
-                        IconButton(
-                            onClick = { onSend(text); text = "" },
-                            modifier = Modifier.padding(start = 4.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = stringResource(R.string.chat_send),
-                            )
-                        }
-                    } else {
-                        // Удержание кнопки микрофона = запись голосового.
-                        IconButton(
-                            onClick = { /* старт/стоп через жесты ниже */ },
-                            modifier = Modifier
-                                .padding(start = 4.dp)
-                                .pointerInput(Unit) {
-                                    detectTapGestures(
-                                        onPress = {
-                                            // Запись идёт, пока кнопка удерживается;
-                                            // отпускание (или отмена жеста) завершает её.
-                                            onRecordVoiceStart()
-                                            awaitRelease()
-                                            onRecordVoiceStop()
-                                        },
-                                    )
+                if (hasText) {
+                    GradientSendButton(onClick = { onSend(text); text = "" })
+                } else {
+                    // Удержание кнопки микрофона = запись голосового.
+                    IconButton(
+                        onClick = { /* старт/стоп через жесты ниже */ },
+                        modifier = Modifier.pointerInput(Unit) {
+                            detectTapGestures(
+                                onPress = {
+                                    onRecordVoiceStart()
+                                    awaitRelease()
+                                    onRecordVoiceStop()
                                 },
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Mic,
-                                contentDescription = stringResource(R.string.media_record_voice),
                             )
-                        }
+                        },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Mic,
+                            contentDescription = stringResource(R.string.media_record_voice),
+                            tint = TextMid,
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+/** Круглая кнопка отправки с брендовым градиентом. */
+@Composable
+private fun GradientSendButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(Aurora.gradOwn)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.Send,
+            contentDescription = stringResource(R.string.chat_send),
+            tint = Color.White,
+            modifier = Modifier.size(20.dp),
+        )
     }
 }
