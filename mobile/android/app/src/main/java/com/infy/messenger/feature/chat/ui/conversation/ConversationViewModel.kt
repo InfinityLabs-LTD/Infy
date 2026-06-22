@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.infy.messenger.core.media.MediaUrlBuilder
 import com.infy.messenger.core.media.VoiceRecorder
+import com.infy.messenger.core.notification.ActiveChatTracker
+import com.infy.messenger.core.notification.AppNotifier
 import com.infy.messenger.core.realtime.RealtimeClient
 import com.infy.messenger.core.realtime.RealtimeSyncManager
 import com.infy.messenger.feature.call.data.CallManager
@@ -55,10 +57,23 @@ class ConversationViewModel @Inject constructor(
     private val mediaRepository: MediaRepository,
     private val voiceRecorder: VoiceRecorder,
     private val callManager: CallManager,
+    private val activeChatTracker: ActiveChatTracker,
+    private val notifier: AppNotifier,
     val mediaUrlBuilder: MediaUrlBuilder,
 ) : ViewModel() {
 
     val chatId: String = checkNotNull(savedStateHandle["chatId"])
+
+    /** Экран переписки открыт: подавляем уведомления этого чата и снимаем старые. */
+    fun onScreenActive() {
+        activeChatTracker.setActiveChat(chatId)
+        notifier.cancelChat(chatId)
+    }
+
+    /** Экран закрыт/ушёл в фон: больше не подавляем уведомления этого чата. */
+    fun onScreenInactive() {
+        activeChatTracker.setActiveChat(null)
+    }
 
     /** Прогресс загрузки вложения (0..1) либо null. */
     val uploadProgress: StateFlow<Float?> = mediaRepository.uploadProgress

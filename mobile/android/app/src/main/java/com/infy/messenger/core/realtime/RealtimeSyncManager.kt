@@ -1,5 +1,7 @@
 package com.infy.messenger.core.realtime
 
+import com.infy.messenger.core.notification.ActiveChatTracker
+import com.infy.messenger.core.notification.AppNotifier
 import com.infy.messenger.feature.auth.data.AuthState
 import com.infy.messenger.feature.auth.data.SessionManager
 import com.infy.messenger.feature.chat.data.ChatRepositoryImpl
@@ -26,6 +28,8 @@ class RealtimeSyncManager @Inject constructor(
     private val realtimeClient: RealtimeClient,
     private val chatRepository: ChatRepositoryImpl,
     private val sessionManager: SessionManager,
+    private val notifier: AppNotifier,
+    private val activeChatTracker: ActiveChatTracker,
 ) {
     private val scope = CoroutineScope(SupervisorJob())
 
@@ -69,7 +73,15 @@ class RealtimeSyncManager @Inject constructor(
 
     private suspend fun handle(event: RealtimeEvent) {
         when (event) {
-            is RealtimeEvent.MessageNew -> chatRepository.applyRealtimeMessage(event.message)
+            is RealtimeEvent.MessageNew -> {
+                chatRepository.applyRealtimeMessage(event.message)
+                maybeNotifyMessage(event)
+            }
+            is RealtimeEvent.CallIncoming -> notifier.showIncomingCall(
+                callerName = event.fromNickname.ifBlank { event.fromUsername },
+                isVideo = event.media.equals("VIDEO", true),
+            )
+            is RealtimeEvent.CallEnded, is RealtimeEvent.CallTakenElsewhere -> notifier.cancelCall()
             is RealtimeEvent.MessageUpdated -> chatRepository.applyRealtimeMessage(event.message)
             is RealtimeEvent.MessageDeleted ->
                 chatRepository.removeMessage(event.chatId, event.messageId)
@@ -85,8 +97,17 @@ class RealtimeSyncManager @Inject constructor(
                 val updated = if (event.typing) set + event.userId else set - event.userId
                 current + (event.chatId to updated)
             }
-            // События звонков обрабатывает CallManager — здесь игнорируем.
+            // Прочие события звонков обрабатывает CallManager — здесь игнорируем.
             else -> Unit
         }
+    }
+
+    /** Уведомление о новом сообщении: не своё и не в открытом сейчас чате. */
+    private fun maybeNotifyMessage(event: RealtimeEvent.MessageNew) {
+        val message = event.message
+        val myId = sessionManager.currentUserId()
+        if (myId != null && message.sender.id == myId) return
+        if (activeChatTracker.isViewing(message.chatId)) return
+        notifier.showMessage(message)
     }
 }

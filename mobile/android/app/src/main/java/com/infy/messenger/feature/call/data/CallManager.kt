@@ -1,6 +1,7 @@
 package com.infy.messenger.feature.call.data
 
 import com.infy.messenger.core.network.apiCall
+import com.infy.messenger.core.notification.AppNotifier
 import com.infy.messenger.core.realtime.RealtimeClient
 import com.infy.messenger.core.realtime.RealtimeEvent
 import com.infy.messenger.feature.call.domain.CallMedia
@@ -37,6 +38,7 @@ class CallManager @Inject constructor(
     private val realtimeClient: RealtimeClient,
     private val webRtcEngine: WebRtcEngine,
     private val callApi: CallApi,
+    private val notifier: AppNotifier,
 ) {
     private val scope = CoroutineScope(SupervisorJob())
 
@@ -90,6 +92,7 @@ class CallManager @Inject constructor(
     fun accept() {
         val state = _callState.value ?: return
         if (state.phase != CallPhase.INCOMING) return
+        notifier.cancelCall()
         realtimeClient.callAccept(state.callId)
         _callState.update { it?.copy(phase = CallPhase.CONNECTING) }
         // Получатель — polite=true; движок поднимаем и проигрываем буфер offer.
@@ -183,24 +186,30 @@ class CallManager @Inject constructor(
 
     private suspend fun onSignal(dataJson: String) {
         val obj = runCatching { JSONObject(dataJson) }.getOrNull() ?: return
-        when {
-            obj.has("type") && obj.has("sdp") -> {
-                val type = obj.getString("type")
-                val sdp = obj.getString("sdp")
-                val state = _callState.value ?: return
+        // Формат веб-клиента (frontend/src/lib/webrtc.ts):
+        //   { kind: 'sdp', description: { type, sdp } } | { kind: 'ice', candidate: {...} }
+        when (obj.optString("kind")) {
+            "sdp" -> {
+                val description = obj.optJSONObject("description") ?: return
+                val type = description.optString("type")
+                val sdp = description.optString("sdp")
+                if (type.isEmpty() || sdp.isEmpty()) return
+                _callState.value ?: return
                 if (!engineStarted) {
-                    // Offer пришёл получателю раньше accept — буферизуем.
+                    // Offer пришёл получателю раньше accept — буферизуем целиком.
                     if (type.equals("offer", true)) bufferedOffer = dataJson
                     return
                 }
                 applyRemoteSdp(type, sdp)
             }
-            obj.has("candidate") -> {
-                val candidate = obj.getJSONObject("candidate")
+            "ice" -> {
+                val candidate = obj.optJSONObject("candidate") ?: return
+                val sdp = candidate.optString("candidate")
+                if (sdp.isEmpty()) return
                 val ice = IceCandidate(
                     candidate.optString("sdpMid"),
                     candidate.optInt("sdpMLineIndex"),
-                    candidate.optString("candidate"),
+                    sdp,
                 )
                 if (remoteDescriptionSet) {
                     webRtcEngine.addRemoteIceCandidate(ice.sdpMid, ice.sdpMLineIndex, ice.sdp)
@@ -239,6 +248,7 @@ class CallManager @Inject constructor(
     }
 
     private fun clearCall() {
+        notifier.cancelCall()
         _callState.value = null
         _remoteVideo.value = null
         bufferedOffer = null
@@ -257,18 +267,25 @@ class CallManager @Inject constructor(
             polite = polite,
             listener = object : WebRtcEngine.Listener {
                 override fun onLocalDescription(sdp: SessionDescription) {
+                    // Формат сигнала строго как у веб-клиента (frontend/src/lib/webrtc.ts):
+                    //   { kind: 'sdp', description: { type, sdp } }
+                    val description = JSONObject()
+                    description.put("type", sdp.type.canonicalForm())
+                    description.put("sdp", sdp.description)
                     val data = JSONObject()
-                    data.put("type", sdp.type.canonicalForm())
-                    data.put("sdp", sdp.description)
+                    data.put("kind", "sdp")
+                    data.put("description", description)
                     realtimeClient.callSignal(state.callId, data.toString())
                 }
 
                 override fun onLocalIceCandidate(candidate: IceCandidate) {
-                    val data = JSONObject()
+                    // Формат как у веба: { kind: 'ice', candidate: RTCIceCandidateInit }.
                     val c = JSONObject()
                     c.put("candidate", candidate.sdp)
                     c.put("sdpMid", candidate.sdpMid)
                     c.put("sdpMLineIndex", candidate.sdpMLineIndex)
+                    val data = JSONObject()
+                    data.put("kind", "ice")
                     data.put("candidate", c)
                     realtimeClient.callSignal(state.callId, data.toString())
                 }
@@ -291,10 +308,11 @@ class CallManager @Inject constructor(
         engineStarted = true
 
         // Если у получателя есть буфер offer — проигрываем его сейчас.
+        // bufferedOffer хранит весь сигнал { kind:'sdp', description:{type,sdp} }.
         bufferedOffer?.let { json ->
             bufferedOffer = null
-            val obj = JSONObject(json)
-            applyRemoteSdp(obj.getString("type"), obj.getString("sdp"))
+            val description = JSONObject(json).optJSONObject("description") ?: return@let
+            applyRemoteSdp(description.optString("type"), description.optString("sdp"))
         }
     }
 

@@ -5,12 +5,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -94,6 +98,7 @@ fun CallOverlay(viewModel: CallViewModel = hiltViewModel()) {
                 eglBase = viewModel.eglBase,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
+                    .statusBarsPadding()
                     .padding(16.dp)
                     .size(width = 110.dp, height = 160.dp)
                     .clip(RoundedCornerShape(12.dp)),
@@ -101,19 +106,23 @@ fun CallOverlay(viewModel: CallViewModel = hiltViewModel()) {
         }
 
         // Блок с информацией о собеседнике. Для аудио — по центру,
-        // для видео — в верхней части поверх картинки.
+        // для видео — в верхней части поверх картинки. Учитываем системные
+        // отступы (статус-бар), чтобы текст не уезжал под чёлку.
         PeerInfo(
             state = current,
             isVideo = isVideo,
             avatarUrl = viewModel.avatarUrl(current.peer?.avatarUrl),
             modifier = if (isVideo) {
-                Modifier.align(Alignment.TopCenter).padding(top = 64.dp)
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(top = 24.dp)
             } else {
                 Modifier.align(Alignment.Center)
             },
         )
 
-        // Нижняя панель действий.
+        // Нижняя панель действий. Прижата к низу с учётом навигационной панели.
         ControlBar(
             state = current,
             isVideo = isVideo,
@@ -126,7 +135,8 @@ fun CallOverlay(viewModel: CallViewModel = hiltViewModel()) {
             onToggleSpeaker = viewModel::toggleSpeaker,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 48.dp),
+                .navigationBarsPadding()
+                .padding(bottom = 24.dp),
         )
     }
 }
@@ -222,6 +232,7 @@ private fun stringResWith(resId: Int): String =
     androidx.compose.ui.res.stringResource(resId)
 
 /** Нижняя панель кнопок управления. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ControlBar(
     state: com.infy.messenger.feature.call.domain.CallState,
@@ -235,10 +246,14 @@ private fun ControlBar(
     onToggleSpeaker: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier.padding(horizontal = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
+    // FlowRow вместо Row: на узких экранах кнопки переносятся на след. строку,
+    // а не уезжают за край. fillMaxWidth + центрирование держит их по центру.
+    androidx.compose.foundation.layout.FlowRow(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (state.phase == CallPhase.INCOMING) {
             // Входящий: принять / отклонить.

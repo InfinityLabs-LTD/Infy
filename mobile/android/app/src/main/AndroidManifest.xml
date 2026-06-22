@@ -33,6 +33,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.Infy"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>

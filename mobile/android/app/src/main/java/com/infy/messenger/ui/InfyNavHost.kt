@@ -32,8 +32,18 @@ import com.infy.messenger.feature.settings.ui.SettingsScreen
 fun InfyNavHost(
     navController: NavHostController = rememberNavController(),
     sessionViewModel: AuthSessionViewModel = hiltViewModel(),
+    openChatId: String? = null,
+    onChatOpened: () -> Unit = {},
 ) {
     val authState by sessionViewModel.authState.collectAsStateWithLifecycle()
+
+    // Открытие чата по тапу на уведомление: переходим, как только авторизованы.
+    LaunchedEffect(openChatId, authState) {
+        if (openChatId != null && authState is AuthState.Authenticated) {
+            navController.navigate(Destinations.conversation(openChatId))
+            onChatOpened()
+        }
+    }
 
     // Реакция на смену состояния авторизации: перебрасываем на нужный стек.
     LaunchedEffect(authState) {

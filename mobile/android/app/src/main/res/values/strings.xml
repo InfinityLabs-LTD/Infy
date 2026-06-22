@@ -77,6 +77,7 @@
     <string name="media_record_voice">Записать голосовое</string>
     <string name="media_record_circle">Записать кружок</string>
     <string name="media_recording">Идёт запись… отпустите для отправки</string>
+    <string name="media_slide_to_cancel">← смахните влево для отмены, вверх — закрепить</string>
     <string name="media_cancel">Отмена</string>
     <string name="media_play">Воспроизвести</string>
     <string name="media_pause">Пауза</string>
@@ -172,4 +173,12 @@
     <string name="error_rate_limit">Слишком много попыток. Подождите немного.</string>
     <string name="error_account_banned">Аккаунт заблокирован</string>
     <string name="error_account_muted">Аккаунт ограничен</string>
+
+    <!-- Уведомления -->
+    <string name="notif_channel_messages">Сообщения</string>
+    <string name="notif_channel_messages_desc">Уведомления о новых сообщениях</string>
+    <string name="notif_channel_calls">Звонки</string>
+    <string name="notif_channel_calls_desc">Уведомления о входящих звонках</string>
+    <string name="notif_incoming_audio">Входящий аудиозвонок</string>
+    <string name="notif_incoming_video">Входящий видеозвонок</string>
 </resources>

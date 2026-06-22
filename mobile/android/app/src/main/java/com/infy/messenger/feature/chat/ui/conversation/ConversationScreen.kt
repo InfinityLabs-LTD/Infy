@@ -29,8 +29,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Videocam
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,6 +41,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,6 +86,13 @@ fun ConversationScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val uploadProgress by viewModel.uploadProgress.collectAsStateWithLifecycle()
+
+    // Пока экран в композиции — отмечаем чат активным (не шлём по нему
+    // уведомления и снимаем уже показанные).
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        viewModel.onScreenActive()
+        onDispose { viewModel.onScreenInactive() }
+    }
     val isRecording by viewModel.isRecordingVoice.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -529,6 +538,20 @@ private fun Composer(
     var menuOpen by remember { mutableStateOf(false) }
     val hasText = text.isNotBlank()
 
+    // Запись «заблокирована» (hands-free): пользователь свайпнул вверх во время
+    // удержания — отпускание больше не завершает запись, появляются кнопки.
+    var recordLocked by remember { mutableStateOf(false) }
+    // Прогресс свайпа влево к отмене (0..1) — для подсветки и подсказки.
+    var cancelHint by remember { mutableFloatStateOf(0f) }
+
+    // Сбрасываем флаги, когда запись завершилась.
+    LaunchedEffect(isRecording) {
+        if (!isRecording) {
+            recordLocked = false
+            cancelHint = 0f
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -546,31 +569,12 @@ private fun Composer(
         }
 
         if (isRecording) {
-            // Режим записи голосового: подсказка + отмена + отправка.
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Mic,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                )
-                Text(
-                    text = stringResource(R.string.media_recording),
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 8.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextHi,
-                )
-                androidx.compose.material3.TextButton(onClick = onRecordVoiceCancel) {
-                    Text(stringResource(R.string.media_cancel), color = TextMid)
-                }
-                GradientSendButton(onClick = onRecordVoiceStop)
-            }
+            RecordingRow(
+                locked = recordLocked,
+                cancelHint = cancelHint,
+                onCancel = onRecordVoiceCancel,
+                onStop = onRecordVoiceStop,
+            )
         } else {
             Row(
                 modifier = Modifier
@@ -636,25 +640,23 @@ private fun Composer(
                 if (hasText) {
                     GradientSendButton(onClick = { onSend(text); text = "" })
                 } else {
-                    // Удержание кнопки микрофона = запись голосового.
-                    IconButton(
-                        onClick = { /* старт/стоп через жесты ниже */ },
-                        modifier = Modifier.pointerInput(Unit) {
-                            detectTapGestures(
-                                onPress = {
-                                    onRecordVoiceStart()
-                                    awaitRelease()
-                                    onRecordVoiceStop()
-                                },
-                            )
-                        },
-                    ) {
+                    // Кнопка кружка (рядом с микрофоном), как в вебе.
+                    IconButton(onClick = onOpenCircle) {
                         Icon(
-                            imageVector = Icons.Filled.Mic,
-                            contentDescription = stringResource(R.string.media_record_voice),
+                            imageVector = Icons.Filled.Videocam,
+                            contentDescription = stringResource(R.string.media_record_circle),
                             tint = TextMid,
                         )
                     }
+                    // Удержание микрофона = запись; свайп влево — отмена, вверх — блокировка.
+                    RecordMicButton(
+                        onStart = onRecordVoiceStart,
+                        onStop = onRecordVoiceStop,
+                        onCancel = onRecordVoiceCancel,
+                        onLock = { recordLocked = true },
+                        onCancelHint = { cancelHint = it },
+                        isLocked = { recordLocked },
+                    )
                 }
             }
         }
@@ -678,5 +680,148 @@ private fun GradientSendButton(onClick: () -> Unit) {
             tint = Color.White,
             modifier = Modifier.size(20.dp),
         )
+    }
+}
+
+/**
+ * Кнопка-микрофон с записью по удержанию (как в вебе):
+ *  - удержание начинает запись;
+ *  - свайп влево за порог = отмена;
+ *  - свайп вверх за порог = блокировка (hands-free): отпускание не завершает,
+ *    дальше управляют кнопки в строке записи;
+ *  - обычное отпускание = стоп и отправка (если запись достаточной длины).
+ */
+@Composable
+private fun RecordMicButton(
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onCancel: () -> Unit,
+    onLock: () -> Unit,
+    onCancelHint: (Float) -> Unit,
+    isLocked: () -> Boolean,
+) {
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    // Пороги свайпа в пикселях.
+    val cancelThreshold = with(density) { 120.dp.toPx() }
+    val lockThreshold = with(density) { 90.dp.toPx() }
+
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        // Ждём нажатия.
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        onStart()
+                        var dx = 0f
+                        var dy = 0f
+                        var resolved = false  // отменено/заблокировано в процессе
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id }
+                                ?: event.changes.firstOrNull()
+                            if (change == null) break
+                            if (change.pressed) {
+                                dx += change.positionChange().x
+                                dy += change.positionChange().y
+                                change.consume()
+                                // Свайп влево → прогресс отмены.
+                                val leftDrag = (-dx).coerceAtLeast(0f)
+                                onCancelHint((leftDrag / cancelThreshold).coerceIn(0f, 1f))
+                                if (leftDrag >= cancelThreshold) {
+                                    onCancel()
+                                    onCancelHint(0f)
+                                    resolved = true
+                                    break
+                                }
+                                // Свайп вверх → блокировка.
+                                if (-dy >= lockThreshold) {
+                                    onLock()
+                                    resolved = true
+                                    break
+                                }
+                            } else {
+                                break  // палец отпущен
+                            }
+                        }
+                        if (!resolved && !isLocked()) {
+                            onStop()
+                            onCancelHint(0f)
+                        }
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Mic,
+            contentDescription = stringResource(R.string.media_record_voice),
+            tint = TextMid,
+            modifier = Modifier.size(24.dp),
+        )
+    }
+}
+
+/** Строка активной записи: индикатор, таймер, подсказка свайпа / кнопки при блокировке. */
+@Composable
+private fun RecordingRow(
+    locked: Boolean,
+    cancelHint: Float,
+    onCancel: () -> Unit,
+    onStop: () -> Unit,
+) {
+    // Локальный таймер записи (мс с момента появления строки).
+    var elapsedMs by remember { mutableStateOf(0L) }
+    LaunchedEffect(Unit) {
+        val start = System.currentTimeMillis()
+        while (true) {
+            elapsedMs = System.currentTimeMillis() - start
+            kotlinx.coroutines.delay(200)
+        }
+    }
+    val seconds = (elapsedMs / 1000).toInt()
+    val timeLabel = "%d:%02d".format(seconds / 60, seconds % 60)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Мигающая красная точка + таймер.
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(MaterialTheme.colorScheme.error),
+        )
+        Text(
+            text = timeLabel,
+            modifier = Modifier.padding(start = 8.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextHi,
+        )
+
+        if (locked) {
+            // Заблокировано: явные кнопки «отмена» и «отправить».
+            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+            androidx.compose.material3.TextButton(onClick = onCancel) {
+                Text(stringResource(R.string.media_cancel), color = TextMid)
+            }
+            GradientSendButton(onClick = onStop)
+        } else {
+            // Удержание: подсказка «← смахните для отмены», подсвечивается при свайпе.
+            Text(
+                text = stringResource(R.string.media_slide_to_cancel),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = TextMid.copy(alpha = (1f - cancelHint).coerceIn(0.4f, 1f)),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
