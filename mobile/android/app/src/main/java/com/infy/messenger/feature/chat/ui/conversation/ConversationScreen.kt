@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -310,7 +311,7 @@ private fun MessageBubble(
                     .widthIn(max = 300.dp)
                     .pointerInput(canAct) {
                         if (canAct) {
-                            androidx.compose.foundation.gestures.detectTapGestures(
+                            detectTapGestures(
                                 onLongPress = { menuOpen = true },
                             )
                         }
@@ -690,7 +691,7 @@ private fun Composer(
                                 .padding(start = 4.dp)
                                 .minimumInteractiveComponentSize()
                                 .pointerInput(Unit) {
-                                    androidx.compose.foundation.gestures.detectTapGestures(
+                                    detectTapGestures(
                                         onLongPress = { onOpenCircle() },
                                         onTap = { onRecordVoiceStart() },
                                     )

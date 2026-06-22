@@ -14,6 +14,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -40,7 +41,9 @@ fun RegisterScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Текст ошибки формы вычисляем в composable-контексте (stringResource нельзя внутри LaunchedEffect)
-    val formErrorMessage = uiState.formError?.let { stringResource(it) }
+    val formError = uiState.formError
+    val formErrorMessage = if (formError != null) stringResource(formError) else null
+
     LaunchedEffect(formErrorMessage) {
         if (formErrorMessage != null) {
             snackbarHostState.showSnackbar(formErrorMessage)

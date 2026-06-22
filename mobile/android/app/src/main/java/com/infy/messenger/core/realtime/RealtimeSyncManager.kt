@@ -85,6 +85,7 @@ class RealtimeSyncManager @Inject constructor(
                 val updated = if (event.typing) set + event.userId else set - event.userId
                 current + (event.chatId to updated)
             }
+            else -> Unit
         }
     }
 }
