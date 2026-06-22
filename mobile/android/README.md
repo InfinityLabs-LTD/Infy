@@ -58,25 +58,48 @@
 
 ## Сборка и запуск
 
-### Android Studio (рекомендуется)
-1. Открыть папку `mobile/android` в Android Studio (Ladybug или новее).
-2. Studio сама скачает Gradle wrapper, JDK и Android SDK при первом Gradle Sync.
-3. Запустить конфигурацию `app` на эмуляторе (API 26+) или устройстве.
+Gradle-проект продублирован в **корне репозитория** (`settings.gradle.kts`,
+`gradlew`, `build.gradle.kts`), модуль `:app` перенаправлен на
+`mobile/android/app`. Поэтому собирать можно как из корня репо, так и из
+`mobile/android` — оба варианта работают независимо. Код приложения всегда
+лежит в `mobile/android/app`.
+
+### Android Studio
+Открыть **корень репозитория** или папку `mobile/android` — Studio сама скачает
+Gradle wrapper, JDK и Android SDK при первом Gradle Sync, затем запустить
+конфигурацию `app` на эмуляторе (API 26+) или устройстве.
+
+### VS Code (без Android Studio)
+В `.vscode/` уже настроены задачи и конфиг отладки. Рекомендованные расширения
+VS Code предложит установить сам (`.vscode/extensions.json`): **Android
+(adelphes.android-dev-ext)**, **Kotlin (fwcd.kotlin)**, **Gradle for Java**.
+
+Рабочий цикл:
+1. Поднять эмулятор — задача **Android: Start emulator** (Ctrl+Shift+P →
+   *Run Task*) или панель эмулятора VS Code.
+2. Собрать и запустить — задача **Android: Run (build + install + launch)**,
+   либо отдельно: **Android: Build (debug)**, **Android: Install on device**,
+   **Android: Launch app**.
+3. Тесты — **Android: Unit tests** (или `Run Test Task`).
+4. Логи — **Android: Logcat (app only)**.
+5. Отладка с точками останова — конфигурация запуска
+   **«Android: запуск и отладка»** (F5; требует расширение
+   `adelphes.android-dev-ext` и поднятый эмулятор).
+
+Все задачи берут `adb`/`emulator` из `%LOCALAPPDATA%\Android\Sdk` и AVD
+`Pixel_10_Pro` — поправьте `ANDROID_SDK`/`AVD_NAME` в `.vscode/tasks.json`,
+если у вас другой путь к SDK или имя эмулятора.
 
 ### CLI
-Требуется установленный JDK 17 и Android SDK (`ANDROID_HOME`/`local.properties`).
-Если в репозитории нет `gradle/wrapper/gradle-wrapper.jar` (он не коммитится как
-бинарник), один раз выполните `gradle wrapper` глобально установленным Gradle 8.9,
-после чего:
+Требуется JDK 17 и Android SDK (`local.properties` с `sdk.dir`). Из корня репо:
 
 ```bash
-cd mobile/android
 ./gradlew :app:assembleDebug      # сборка APK
 ./gradlew :app:testDebugUnitTest  # unit-тесты
 ./gradlew :app:installDebug       # установить на подключённое устройство/эмулятор
 ```
 
-`local.properties` (создаётся Studio автоматически) должен указывать путь к SDK:
+`local.properties` (создаётся Studio автоматически, git-ignored) указывает путь к SDK:
 
 ```
 sdk.dir=C:\\Users\\<you>\\AppData\\Local\\Android\\Sdk

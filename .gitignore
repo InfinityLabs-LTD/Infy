@@ -15,7 +15,14 @@ build/
 npm-debug.log*
 
 # Editor
-.vscode/
+# Игнорируем содержимое .vscode/, но общие конфиги проекта (Android-сборка/
+# отладка) — коммитим (негатив работает, только если исключён не сам каталог,
+# а его содержимое через .vscode/*).
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/settings.json
 .idea/
 *.swp
 *.swo

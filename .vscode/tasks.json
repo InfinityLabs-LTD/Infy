@@ -1,0 +1,130 @@
+{
+  // Сборка/запуск/тесты Android-клиента Infy прямо из VS Code.
+  // Все задачи работают из корня репо через корневой gradlew (см. settings.gradle.kts).
+  // adb/emulator берутся из Android SDK (по умолчанию %LOCALAPPDATA%\Android\Sdk).
+  "version": "2.0.0",
+  "options": {
+    "env": {
+      "ANDROID_SDK": "${env:LOCALAPPDATA}\\Android\\Sdk",
+      "APP_ID": "com.infy.messenger",
+      "MAIN_ACTIVITY": "com.infy.messenger.MainActivity",
+      "AVD_NAME": "Pixel_10_Pro"
+    },
+    "windows": {
+      // Жёстко фиксируем cmd.exe для Windows-команд: не зависим от того,
+      // какой терминал по умолчанию (PowerShell/Git Bash) у пользователя.
+      "shell": { "executable": "cmd.exe", "args": ["/d", "/c"] }
+    }
+  },
+  "tasks": [
+    {
+      "label": "Android: Build (debug)",
+      "type": "shell",
+      "windows": { "command": ".\\gradlew.bat" },
+      "command": "./gradlew",
+      "args": [":app:assembleDebug"],
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "Android: Clean",
+      "type": "shell",
+      "windows": { "command": ".\\gradlew.bat" },
+      "command": "./gradlew",
+      "args": ["clean"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Unit tests",
+      "type": "shell",
+      "windows": { "command": ".\\gradlew.bat" },
+      "command": "./gradlew",
+      "args": [":app:testDebugUnitTest"],
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+    },
+    {
+      "label": "Android: Lint",
+      "type": "shell",
+      "windows": { "command": ".\\gradlew.bat" },
+      "command": "./gradlew",
+      "args": [":app:lintDebug"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Install on device (debug)",
+      "type": "shell",
+      "windows": { "command": ".\\gradlew.bat" },
+      "command": "./gradlew",
+      "args": [":app:installDebug"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Start emulator",
+      "type": "shell",
+      "windows": {
+        "command": "\"${env:ANDROID_SDK}\\emulator\\emulator.exe\" -avd ${env:AVD_NAME} -netdelay none -netspeed full"
+      },
+      "command": "${env:ANDROID_SDK}/emulator/emulator -avd ${env:AVD_NAME} -netdelay none -netspeed full",
+      "isBackground": true,
+      "problemMatcher": {
+        "pattern": [{ "regexp": ".", "file": 1, "location": 2, "message": 3 }],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Boot completed|emulator: INFO: boot completed|Successfully loaded snapshot"
+        }
+      },
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "emulator" }
+    },
+    {
+      "label": "Android: Wait for device",
+      "type": "shell",
+      "windows": { "command": "\"${env:ANDROID_SDK}\\platform-tools\\adb.exe\" wait-for-device" },
+      "command": "${env:ANDROID_SDK}/platform-tools/adb wait-for-device",
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Launch app",
+      "type": "shell",
+      "windows": {
+        "command": "\"${env:ANDROID_SDK}\\platform-tools\\adb.exe\" shell am start -n ${env:APP_ID}/${env:MAIN_ACTIVITY}"
+      },
+      "command": "${env:ANDROID_SDK}/platform-tools/adb shell am start -n ${env:APP_ID}/${env:MAIN_ACTIVITY}",
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Run (build + install + launch)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Android: Wait for device",
+        "Android: Install on device (debug)",
+        "Android: Launch app"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Uninstall",
+      "type": "shell",
+      "windows": {
+        "command": "\"${env:ANDROID_SDK}\\platform-tools\\adb.exe\" uninstall ${env:APP_ID}"
+      },
+      "command": "${env:ANDROID_SDK}/platform-tools/adb uninstall ${env:APP_ID}",
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Logcat (app only)",
+      "detail": "Очистить буфер и стримить логи только приложения (по PID).",
+      "type": "shell",
+      "windows": {
+        "command": "\"${env:ANDROID_SDK}\\platform-tools\\adb.exe\" logcat -c & for /f \"tokens=*\" %i in ('\"${env:ANDROID_SDK}\\platform-tools\\adb.exe\" shell pidof -s ${env:APP_ID}') do \"${env:ANDROID_SDK}\\platform-tools\\adb.exe\" logcat --pid %i"
+      },
+      "command": "${env:ANDROID_SDK}/platform-tools/adb logcat -c; ${env:ANDROID_SDK}/platform-tools/adb logcat --pid=$(${env:ANDROID_SDK}/platform-tools/adb shell pidof -s ${env:APP_ID})",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "logcat" }
+    }
+  ]
+}

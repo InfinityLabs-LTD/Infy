@@ -1,0 +1,21 @@
+{
+  // Gradle-проект Android живёт в корне репозитория (settings.gradle.kts),
+  // модуль :app перенаправлен на mobile/android/app.
+  "gradle.nestedProjects": false,
+
+  // Не индексировать тяжёлые/несвязанные с Android папки (ускоряет тулинг).
+  "files.exclude": {
+    "**/.gradle": true,
+    "**/build/outputs": false
+  },
+  "files.watcherExclude": {
+    "**/.gradle/**": true,
+    "**/build/**": true,
+    "**/node_modules/**": true
+  },
+
+  // Java-тулинг (redhat.java) — не подтягивать backend/frontend как Java-проекты.
+  "java.import.gradle.enabled": true,
+  "java.import.maven.enabled": false,
+  "java.configuration.updateBuildConfiguration": "interactive"
+}

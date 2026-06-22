@@ -1,0 +1,25 @@
+{
+  // Запуск/отладка Android-приложения на эмуляторе или устройстве из VS Code.
+  //
+  // Конфигурация "Android: запуск и отладка" использует расширение
+  //   Android (adelphes.android-dev-ext)
+  // — оно собирает приложение через Gradle, ставит APK на подключённое
+  // устройство/эмулятор и подключает отладчик Kotlin/Java.
+  //
+  // Перед запуском поднимите эмулятор (задача "Android: Start emulator"
+  // или панель эмулятора VS Code) и убедитесь, что `adb devices` его видит.
+  //
+  // Если отладчик не нужен, а нужен просто запуск — используйте задачу
+  // "Android: Run (build + install + launch)" из tasks.json.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Android: запуск и отладка",
+      "type": "android",
+      "request": "launch",
+      "appSrcRoot": "${workspaceRoot}/mobile/android/app/src/main",
+      "apkFile": "${workspaceRoot}/mobile/android/app/build/outputs/apk/debug/app-debug.apk",
+      "adbPort": 5037
+    }
+  ]
+}
