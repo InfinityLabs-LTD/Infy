@@ -90,6 +90,7 @@
     <string name="media_permission_mic">Нужен доступ к микрофону для записи голосовых</string>
     <string name="media_permission_camera">Нужен доступ к камере и микрофону для кружков</string>
     <string name="media_circle_record_hint">Удерживайте, чтобы записать кружок</string>
+    <string name="media_circle_tap_to_record">Нажмите, чтобы записать кружок</string>
     <string name="media_circle_flip">Сменить камеру</string>
 
     <!-- Звонки -->

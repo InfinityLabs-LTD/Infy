@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.material3.CircularProgressIndicator
@@ -68,6 +69,7 @@ import com.infy.messenger.ui.theme.Aurora
 import com.infy.messenger.ui.theme.AuroraBackground
 import com.infy.messenger.ui.theme.DockBg
 import com.infy.messenger.ui.theme.GlassStroke
+import com.infy.messenger.ui.theme.GlassPopBg
 import com.infy.messenger.ui.theme.Glass2
 import com.infy.messenger.ui.theme.OnlineGreen
 import com.infy.messenger.ui.theme.StatusRead
@@ -426,17 +428,20 @@ private fun ConversationTopBar(
             androidx.compose.material3.DropdownMenu(
                 expanded = menuOpen,
                 onDismissRequest = { menuOpen = false },
+                containerColor = GlassPopBg,
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, GlassStroke),
             ) {
                 androidx.compose.material3.DropdownMenuItem(
-                    text = { Text(stringResource(R.string.chat_menu_search)) },
+                    text = { Text(stringResource(R.string.chat_menu_search), color = TextHi) },
                     onClick = { menuOpen = false; onOpenSearch() },
                 )
                 androidx.compose.material3.DropdownMenuItem(
-                    text = { Text(stringResource(R.string.chat_menu_calendar)) },
+                    text = { Text(stringResource(R.string.chat_menu_calendar), color = TextHi) },
                     onClick = { menuOpen = false; onOpenCalendar() },
                 )
                 androidx.compose.material3.DropdownMenuItem(
-                    text = { Text(stringResource(R.string.chat_menu_profile)) },
+                    text = { Text(stringResource(R.string.chat_menu_profile), color = TextHi) },
                     onClick = { menuOpen = false; onOpenProfile() },
                 )
                 androidx.compose.material3.DropdownMenuItem(
@@ -696,8 +701,8 @@ private fun DeliveryTicks(
 
 /**
  * Нижняя панель ввода Aurora: стеклянная пилюля с текстом + действия.
- * Пусто — кнопки вложения/кружка/микрофона; есть текст — градиентная отправка.
- * Логика записи/жестов сохранена.
+ * Пусто — единая кнопка записи (голос/кружок, как в вебе); есть текст —
+ * градиентная отправка. Логика записи/жестов зеркалит веб-композер.
  */
 @Composable
 private fun Composer(
@@ -716,6 +721,8 @@ private fun Composer(
     var menuOpen by remember { mutableStateOf(false) }
     val hasText = text.isNotBlank()
 
+    // Режим единой кнопки записи: голос или кружок (тап переключает, как в вебе).
+    var recordMode by remember { mutableStateOf(RecordMode.Voice) }
     // Запись «заблокирована» (hands-free): пользователь свайпнул вверх во время
     // удержания — отпускание больше не завершает запись, появляются кнопки.
     var recordLocked by remember { mutableStateOf(false) }
@@ -761,7 +768,7 @@ private fun Composer(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                // Меню вложений.
+                // Меню вложений (без записи кружка — она на единой кнопке записи).
                 Box {
                     IconButton(onClick = { menuOpen = true }) {
                         Icon(
@@ -773,64 +780,49 @@ private fun Composer(
                     androidx.compose.material3.DropdownMenu(
                         expanded = menuOpen,
                         onDismissRequest = { menuOpen = false },
+                        containerColor = GlassPopBg,
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, GlassStroke),
                     ) {
                         androidx.compose.material3.DropdownMenuItem(
-                            text = { Text(stringResource(R.string.media_pick_gallery)) },
+                            text = { Text(stringResource(R.string.media_pick_gallery), color = TextHi) },
                             onClick = { menuOpen = false; onPickMedia() },
                         )
                         androidx.compose.material3.DropdownMenuItem(
-                            text = { Text(stringResource(R.string.media_pick_file)) },
+                            text = { Text(stringResource(R.string.media_pick_file), color = TextHi) },
                             onClick = { menuOpen = false; onPickFile() },
-                        )
-                        androidx.compose.material3.DropdownMenuItem(
-                            text = { Text(stringResource(R.string.media_record_circle)) },
-                            onClick = { menuOpen = false; onOpenCircle() },
                         )
                     }
                 }
 
-                TextField(
+                ComposerTextField(
                     value = text,
                     onValueChange = {
                         text = it
                         onTyping()
                     },
-                    placeholder = {
-                        Text(stringResource(R.string.chat_message_hint), color = TextLow)
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(22.dp)),
-                    maxLines = 5,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Glass2,
-                        unfocusedContainerColor = Glass2,
-                        disabledContainerColor = Glass2,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        disabledIndicatorColor = Color.Transparent,
-                        cursorColor = MaterialTheme.colorScheme.primary,
-                        focusedTextColor = TextHi,
-                        unfocusedTextColor = TextHi,
-                    ),
+                    modifier = Modifier.weight(1f),
                 )
 
                 if (hasText) {
                     GradientSendButton(onClick = { onSend(text); text = "" })
                 } else {
-                    // Кнопка кружка (рядом с микрофоном), как в вебе.
-                    IconButton(onClick = onOpenCircle) {
-                        Icon(
-                            imageVector = Icons.Filled.Videocam,
-                            contentDescription = stringResource(R.string.media_record_circle),
-                            tint = TextMid,
-                        )
-                    }
-                    // Удержание микрофона = запись; свайп влево — отмена, вверх — блокировка.
-                    RecordMicButton(
-                        onStart = onRecordVoiceStart,
-                        onStop = onRecordVoiceStop,
-                        onCancel = onRecordVoiceCancel,
+                    // Единая кнопка записи (как в вебе): тап — переключить
+                    // голос/кружок; удержание — запись текущего режима;
+                    // свайп влево — отмена, вверх — закрепить.
+                    RecordButton(
+                        mode = recordMode,
+                        onToggleMode = {
+                            recordMode = if (recordMode == RecordMode.Voice) {
+                                RecordMode.Circle
+                            } else {
+                                RecordMode.Voice
+                            }
+                        },
+                        onStartVoice = onRecordVoiceStart,
+                        onStopVoice = onRecordVoiceStop,
+                        onCancelVoice = onRecordVoiceCancel,
+                        onOpenCircle = onOpenCircle,
                         onLock = { recordLocked = true },
                         onCancelHint = { cancelHint = it },
                         isLocked = { recordLocked },
@@ -839,6 +831,52 @@ private fun Composer(
             }
         }
     }
+}
+
+/** Режим единой кнопки записи. */
+private enum class RecordMode { Voice, Circle }
+
+/**
+ * Поле ввода сообщения в стиле web-композера: стеклянная пилюля с фиолетовой
+ * подсветкой обводки в фокусе (зеркалит `.composer-input`). Градиента-заливки
+ * в вебе нет — есть акцентная фиолетовая рамка/свечение, что мы и повторяем.
+ */
+@Composable
+private fun ComposerTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val focused by interactionSource.collectIsFocusedAsState()
+    val borderColor = if (focused) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)
+    } else {
+        GlassStroke
+    }
+    TextField(
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = {
+            Text(stringResource(R.string.chat_message_hint), color = TextLow)
+        },
+        interactionSource = interactionSource,
+        modifier = modifier
+            .clip(RoundedCornerShape(22.dp))
+            .border(BorderStroke(1.dp, borderColor), RoundedCornerShape(22.dp)),
+        maxLines = 5,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = Glass2,
+            unfocusedContainerColor = Glass2,
+            disabledContainerColor = Glass2,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            disabledIndicatorColor = Color.Transparent,
+            cursorColor = MaterialTheme.colorScheme.primary,
+            focusedTextColor = TextHi,
+            unfocusedTextColor = TextHi,
+        ),
+    )
 }
 
 /** Круглая кнопка отправки с брендовым градиентом. */
@@ -862,81 +900,140 @@ private fun GradientSendButton(onClick: () -> Unit) {
 }
 
 /**
- * Кнопка-микрофон с записью по удержанию (как в вебе):
- *  - удержание начинает запись;
- *  - свайп влево за порог = отмена;
- *  - свайп вверх за порог = блокировка (hands-free): отпускание не завершает,
- *    дальше управляют кнопки в строке записи;
- *  - обычное отпускание = стоп и отправка (если запись достаточной длины).
+ * Единая кнопка записи (зеркалит веб-композер):
+ *  - короткий тап (без удержания и без заметного движения) = переключение
+ *    режима голос ↔ кружок;
+ *  - удержание ≥250мс в режиме «голос» = запись голосового; свайп влево за
+ *    порог = отмена, свайп вверх за порог = закрепление (hands-free);
+ *    обычное отпускание = стоп и отправка;
+ *  - удержание в режиме «кружок» = открыть экран записи кружка.
+ *
+ * Все события указателя потребляются (consume), чтобы свайпы по кнопке не
+ * «протекали» в список сообщений и не уводили его в случайную точку.
  */
 @Composable
-private fun RecordMicButton(
-    onStart: () -> Unit,
-    onStop: () -> Unit,
-    onCancel: () -> Unit,
+private fun RecordButton(
+    mode: RecordMode,
+    onToggleMode: () -> Unit,
+    onStartVoice: () -> Unit,
+    onStopVoice: () -> Unit,
+    onCancelVoice: () -> Unit,
+    onOpenCircle: () -> Unit,
     onLock: () -> Unit,
     onCancelHint: (Float) -> Unit,
     isLocked: () -> Boolean,
 ) {
     val density = androidx.compose.ui.platform.LocalDensity.current
-    // Пороги свайпа в пикселях.
+    // Пороги свайпа в пикселях (как в вебе: отмена 120, фиксация 120 при малом dx).
     val cancelThreshold = with(density) { 120.dp.toPx() }
-    val lockThreshold = with(density) { 90.dp.toPx() }
+    val lockThreshold = with(density) { 120.dp.toPx() }
+    val tapSlop = with(density) { 16.dp.toPx() }
+    val holdDelayMs = 250L
 
     Box(
         modifier = Modifier
-            .size(48.dp)
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        // Ждём нажатия.
+            .size(44.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(Aurora.gradOwn)
+            .pointerInput(mode) {
+                while (true) {
+                    // Ждём нажатия.
+                    val downId = awaitPointerEventScope {
                         val down = awaitFirstDown(requireUnconsumed = false)
-                        onStart()
-                        var dx = 0f
-                        var dy = 0f
-                        var resolved = false  // отменено/заблокировано в процессе
+                        down.consume()
+                        down.id
+                    }
+
+                    // Накопленное смещение указателя за весь жест.
+                    var dx = 0f
+                    var dy = 0f
+
+                    // Фаза 1: ждём холд holdDelayMs. Отпускание до него = тап
+                    // (переключение режима); заметное движение = это скролл, не запись.
+                    // Результат: HELD | TAP | ABORT.
+                    val phase1 = kotlinx.coroutines.withTimeoutOrNull(holdDelayMs) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val ev = awaitPointerEvent()
+                                val ch = ev.changes.firstOrNull { it.id == downId }
+                                    ?: ev.changes.firstOrNull() ?: return@awaitPointerEventScope "ABORT"
+                                ch.consume()
+                                if (!ch.pressed) return@awaitPointerEventScope "TAP"
+                                dx += ch.positionChange().x
+                                dy += ch.positionChange().y
+                                if (kotlin.math.hypot(dx, dy) > tapSlop) {
+                                    return@awaitPointerEventScope "ABORT"
+                                }
+                            }
+                            @Suppress("UNREACHABLE_CODE")
+                            "ABORT"
+                        }
+                    } ?: "HELD"  // таймаут истёк при удержании на месте
+
+                    when (phase1) {
+                        "TAP" -> { onToggleMode(); continue }
+                        "ABORT" -> continue
+                    }
+
+                    // Фаза 2: удержание сработало — запускаем запись текущего режима.
+                    if (mode == RecordMode.Circle) {
+                        // Кружок: открываем экран записи (Telegram-style).
+                        onOpenCircle()
+                        continue
+                    }
+                    onStartVoice()
+
+                    var resolved = false  // отменено/закреплено в процессе
+                    awaitPointerEventScope {
                         while (true) {
                             val event = awaitPointerEvent()
-                            val change = event.changes.firstOrNull { it.id == down.id }
+                            val change = event.changes.firstOrNull { it.id == downId }
                                 ?: event.changes.firstOrNull()
                             if (change == null) break
-                            if (change.pressed) {
-                                dx += change.positionChange().x
-                                dy += change.positionChange().y
-                                change.consume()
-                                // Свайп влево → прогресс отмены.
-                                val leftDrag = (-dx).coerceAtLeast(0f)
-                                onCancelHint((leftDrag / cancelThreshold).coerceIn(0f, 1f))
-                                if (leftDrag >= cancelThreshold) {
-                                    onCancel()
-                                    onCancelHint(0f)
-                                    resolved = true
-                                    break
-                                }
-                                // Свайп вверх → блокировка.
-                                if (-dy >= lockThreshold) {
-                                    onLock()
-                                    resolved = true
-                                    break
-                                }
-                            } else {
-                                break  // палец отпущен
+                            change.consume()
+                            if (!change.pressed) break  // палец отпущен
+
+                            dx += change.positionChange().x
+                            dy += change.positionChange().y
+
+                            // Свайп влево → прогресс отмены.
+                            val leftDrag = (-dx).coerceAtLeast(0f)
+                            onCancelHint((leftDrag / cancelThreshold).coerceIn(0f, 1f))
+                            if (leftDrag >= cancelThreshold) {
+                                onCancelVoice()
+                                onCancelHint(0f)
+                                resolved = true
+                                break
+                            }
+                            // Свайп вверх (без заметного увода влево) → закрепить.
+                            if (-dy >= lockThreshold && -dx < lockThreshold / 2) {
+                                onLock()
+                                onCancelHint(0f)
+                                resolved = true
+                                break
                             }
                         }
-                        if (!resolved && !isLocked()) {
-                            onStop()
-                            onCancelHint(0f)
-                        }
+                    }
+
+                    if (resolved) continue
+
+                    if (!isLocked()) {
+                        // Отпускание во время записи голосового — стоп и отправка.
+                        onStopVoice()
+                        onCancelHint(0f)
                     }
                 }
             },
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            imageVector = Icons.Filled.Mic,
-            contentDescription = stringResource(R.string.media_record_voice),
-            tint = TextMid,
-            modifier = Modifier.size(24.dp),
+            imageVector = if (mode == RecordMode.Voice) Icons.Filled.Mic else Icons.Filled.Videocam,
+            contentDescription = stringResource(
+                if (mode == RecordMode.Voice) R.string.media_record_voice
+                else R.string.media_record_circle,
+            ),
+            tint = Color.White,
+            modifier = Modifier.size(22.dp),
         )
     }
 }

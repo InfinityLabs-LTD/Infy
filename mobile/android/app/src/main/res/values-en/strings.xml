@@ -80,6 +80,7 @@
     <string name="media_permission_mic">Microphone access is required to record voice messages</string>
     <string name="media_permission_camera">Camera and microphone access is required for circles</string>
     <string name="media_circle_record_hint">Hold to record a circle</string>
+    <string name="media_circle_tap_to_record">Tap to record a circle</string>
     <string name="media_circle_flip">Flip camera</string>
 
     <string name="call_audio">Audio call</string>
