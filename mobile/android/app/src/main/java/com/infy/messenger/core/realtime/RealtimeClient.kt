@@ -45,6 +45,12 @@ class RealtimeClient @Inject constructor(
 
     @Synchronized
     fun connect() {
+        val token = sessionManager.currentAccessToken()
+        if (token.isNullOrBlank()) {
+            Timber.w("Realtime: попытка подключения без токена")
+            return
+        }
+
         if (socket != null) {
             if (socket?.connected() == false) socket?.connect()
             return
@@ -56,7 +62,7 @@ class RealtimeClient @Inject constructor(
             .setReconnectionDelay(1_000)
             .setReconnectionDelayMax(10_000)
             // Токен подставляем на каждое (ре)подключение — он мог обновиться.
-            .setAuth(mapOf("token" to (sessionManager.currentAccessToken() ?: "")))
+            .setAuth(mapOf("token" to token))
             .build()
         options.callFactory = okHttpClient
         options.webSocketFactory = okHttpClient

@@ -2,6 +2,7 @@ package com.infy.messenger.core.push
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 import com.infy.messenger.feature.auth.data.AuthState
 import com.infy.messenger.feature.auth.data.SessionManager
@@ -30,7 +31,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class FcmTokenRegistrar @Inject constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
     private val sessionManager: SessionManager,
     private val pushApi: PushApi,
 ) {
@@ -38,6 +39,9 @@ class FcmTokenRegistrar @Inject constructor(
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private val isFirebaseAvailable: Boolean
+        get() = FirebaseApp.getApps(context).isNotEmpty()
 
     /** Реакция на смену состояния авторизации. Запускается один раз из InfyApp. */
     fun start() {
@@ -60,6 +64,10 @@ class FcmTokenRegistrar @Inject constructor(
      * же токена безвредна.
      */
     fun register() {
+        if (!isFirebaseAvailable) {
+            Timber.i("FCM: Firebase не инициализирован, пропуск регистрации")
+            return
+        }
         scope.launch {
             if (sessionManager.authState.value !is AuthState.Authenticated) {
                 // Ещё не вошли — отметим, что есть что регистрировать после входа.
@@ -87,6 +95,11 @@ class FcmTokenRegistrar @Inject constructor(
 
     /** При логауте: снять токен на бэкенде и удалить его в Firebase. */
     fun unregister() {
+        if (!isFirebaseAvailable) {
+            clearLastRegistered()
+            clearPending()
+            return
+        }
         scope.launch {
             val token = runCatching { FirebaseMessaging.getInstance().token.await() }
                 .getOrNull()
