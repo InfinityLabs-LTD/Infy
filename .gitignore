@@ -28,3 +28,13 @@ Thumbs.db
 
 # Local Claude Code config (содержит секреты — не коммитить)
 .claude/
+
+# Android / Gradle (сборка из корня репо, см. settings.gradle.kts)
+.gradle/
+local.properties
+/captures/
+*.iml
+*.apk
+*.aab
+*.keystore
+!debug.keystore
