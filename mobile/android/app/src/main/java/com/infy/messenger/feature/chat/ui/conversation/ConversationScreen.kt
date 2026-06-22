@@ -1,6 +1,7 @@
 package com.infy.messenger.feature.chat.ui.conversation
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.ui.input.pointer.pointerInput
@@ -27,6 +29,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -69,8 +72,10 @@ fun ConversationScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val uploadProgress by viewModel.uploadProgress.collectAsStateWithLifecycle()
     val isRecording by viewModel.isRecordingVoice.collectAsStateWithLifecycle()
+    val replyTo by viewModel.replyTo.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
 
     // Выбор фото/видео из системного Photo Picker.
     val mediaPicker = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -173,6 +178,8 @@ fun ConversationScreen(
             Composer(
                 uploadProgress = uploadProgress,
                 isRecording = isRecording,
+                replyTo = replyTo,
+                onCancelReply = viewModel::cancelReply,
                 onTyping = viewModel::onTyping,
                 onSend = { viewModel.sendMessage(it) },
                 onPickMedia = {
@@ -212,6 +219,14 @@ fun ConversationScreen(
                     message = message,
                     urlBuilder = viewModel.mediaUrlBuilder,
                     onRetry = { clientId -> viewModel.retry(clientId) },
+                    onReply = { viewModel.startReply(message) },
+                    onReact = { emoji -> viewModel.toggleReaction(message.id, emoji) },
+                    onCopy = {
+                        val text = message.content
+                        if (!text.isNullOrBlank()) {
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(text))
+                        }
+                    },
                 )
             }
 
@@ -241,6 +256,11 @@ fun ConversationScreen(
     }
 }
 
+/** Цвет «прочитано» (✓✓) — светло-голубой, контрастный на фиолетовом пузыре. */
+@Composable
+private fun readTickColor(): androidx.compose.ui.graphics.Color =
+    androidx.compose.ui.graphics.Color(0xFF4FC3F7)
+
 /** Типы сообщений, у которых основной носитель — текст. */
 private val TEXT_LIKE_TYPES = setOf(
     MessageType.TEXT,
@@ -256,6 +276,9 @@ private fun MessageBubble(
     message: ChatMessage,
     urlBuilder: com.infy.messenger.core.media.MediaUrlBuilder,
     onRetry: (clientMessageId: String) -> Unit,
+    onReply: () -> Unit,
+    onReact: (emoji: String) -> Unit,
+    onCopy: () -> Unit,
 ) {
     val isOwn = message.isOwn
     val bubbleColor = if (isOwn) {
@@ -268,18 +291,34 @@ private fun MessageBubble(
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
+    // Контекстное меню по долгому удержанию.
+    var menuOpen by remember { mutableStateOf(false) }
+    val hasCopyableText = !message.content.isNullOrBlank()
+    val canAct = message.id.isNotBlank() // действия доступны только подтверждённым
 
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start,
     ) {
-        Surface(
-            color = bubbleColor,
-            contentColor = contentColor,
-            shape = MaterialTheme.shapes.medium, // скругление ~16.dp
-            tonalElevation = 1.dp,
-            modifier = Modifier.widthIn(max = 300.dp),
-        ) {
+        Box {
+            Surface(
+                color = bubbleColor,
+                contentColor = contentColor,
+                shape = MaterialTheme.shapes.medium, // скругление ~16.dp
+                tonalElevation = 1.dp,
+                modifier = Modifier
+                    .widthIn(max = 300.dp)
+                    .pointerInput(canAct) {
+                        if (canAct) {
+                            androidx.compose.foundation.gestures.detectTapGestures(
+                                onLongPress = { menuOpen = true },
+                            )
+                        }
+                    },
+            ) {
+            // Колонка обнимает контент по ширине, поэтому пузырь растёт под текст
+            // (а не всегда до widthIn-максимума). Дочерние элементы не используют
+            // fillMaxWidth, иначе ширина схлопывалась бы к максимуму.
             Column(modifier = Modifier.padding(10.dp)) {
                 // Блок-цитата (ответ на сообщение).
                 val reply = message.replyTo
@@ -289,7 +328,7 @@ private fun MessageBubble(
                         contentColor = contentColor,
                         shape = MaterialTheme.shapes.small,
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .align(Alignment.Start)
                             .padding(bottom = 6.dp),
                     ) {
                         Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
@@ -331,7 +370,7 @@ private fun MessageBubble(
                 if (message.reactions.isNotEmpty()) {
                     FlowRow(
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .align(Alignment.Start)
                             .padding(top = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
@@ -356,8 +395,64 @@ private fun MessageBubble(
                     message = message,
                     contentColor = contentColor,
                     onRetry = onRetry,
+                    modifier = Modifier.align(Alignment.End),
                 )
             }
+            }
+
+            MessageContextMenu(
+                expanded = menuOpen,
+                hasCopyableText = hasCopyableText,
+                onDismiss = { menuOpen = false },
+                onReply = { menuOpen = false; onReply() },
+                onReact = { emoji -> menuOpen = false; onReact(emoji) },
+                onCopy = { menuOpen = false; onCopy() },
+            )
+        }
+    }
+}
+
+/** Быстрый набор эмодзи для реакций из контекстного меню. */
+private val QUICK_REACTIONS = listOf("👍", "❤️", "😂", "😮", "😢", "🔥")
+
+/** Контекстное меню сообщения: реакции + ответить + копировать. */
+@Composable
+private fun MessageContextMenu(
+    expanded: Boolean,
+    hasCopyableText: Boolean,
+    onDismiss: () -> Unit,
+    onReply: () -> Unit,
+    onReact: (emoji: String) -> Unit,
+    onCopy: () -> Unit,
+) {
+    androidx.compose.material3.DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+    ) {
+        // Ряд быстрых реакций.
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            QUICK_REACTIONS.forEach { emoji ->
+                Text(
+                    text = emoji,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier
+                        .clickable { onReact(emoji) }
+                        .padding(4.dp),
+                )
+            }
+        }
+        androidx.compose.material3.DropdownMenuItem(
+            text = { Text(stringResource(R.string.chat_action_reply)) },
+            onClick = onReply,
+        )
+        if (hasCopyableText) {
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text(stringResource(R.string.chat_action_copy)) },
+                onClick = onCopy,
+            )
         }
     }
 }
@@ -368,12 +463,12 @@ private fun MessageMeta(
     message: ChatMessage,
     contentColor: androidx.compose.ui.graphics.Color,
     onRetry: (clientMessageId: String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val mutedColor = contentColor.copy(alpha = 0.7f)
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .padding(top = 4.dp),
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically,
@@ -392,33 +487,43 @@ private fun MessageMeta(
         )
 
         if (message.isOwn) {
-            val statusText: String? = when (message.deliveryStatus) {
-                DeliveryStatus.SENDING -> stringResource(R.string.chat_status_sending)
-                DeliveryStatus.FAILED -> stringResource(R.string.chat_status_failed)
-                DeliveryStatus.READ -> stringResource(R.string.chat_status_read)
-                DeliveryStatus.SENT -> "✓"
-            }
-            if (statusText != null) {
-                val clientId = message.clientMessageId
-                val statusModifier = if (
-                    message.deliveryStatus == DeliveryStatus.FAILED && clientId != null
-                ) {
-                    Modifier
-                        .padding(start = 6.dp)
-                        .clickable { onRetry(clientId) }
-                } else {
-                    Modifier.padding(start = 6.dp)
-                }
-                Text(
-                    text = statusText,
+            // Статус доставки: ⏱ отправляется, ✓ доставлено, ✓✓ прочитано (синим),
+            // «!» с возможностью повтора при ошибке.
+            when (message.deliveryStatus) {
+                DeliveryStatus.SENDING -> Text(
+                    text = "🕓",
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (message.deliveryStatus == DeliveryStatus.FAILED) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        mutedColor
-                    },
-                    modifier = statusModifier,
+                    color = mutedColor,
+                    modifier = Modifier.padding(start = 6.dp),
                 )
+                DeliveryStatus.SENT -> Text(
+                    text = "✓",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = mutedColor,
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+                DeliveryStatus.READ -> Text(
+                    text = "✓✓",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = readTickColor(),
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+                DeliveryStatus.FAILED -> {
+                    val clientId = message.clientMessageId
+                    val statusModifier = if (clientId != null) {
+                        Modifier
+                            .padding(start = 6.dp)
+                            .clickable { onRetry(clientId) }
+                    } else {
+                        Modifier.padding(start = 6.dp)
+                    }
+                    Text(
+                        text = "⚠",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = statusModifier,
+                    )
+                }
             }
         }
     }
@@ -433,6 +538,8 @@ private fun MessageMeta(
 private fun Composer(
     uploadProgress: Float?,
     isRecording: Boolean,
+    replyTo: ChatMessage?,
+    onCancelReply: () -> Unit,
     onTyping: () -> Unit,
     onSend: (String) -> Unit,
     onPickMedia: () -> Unit,
@@ -454,6 +561,39 @@ private fun Composer(
                     progress = { uploadProgress },
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
+
+            // Блок-цитата над полем ввода, когда отвечаем на сообщение.
+            if (replyTo != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = replyTo.senderNickname.ifBlank {
+                                stringResource(R.string.chat_action_reply)
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            text = replyTo.content.orEmpty(),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    IconButton(onClick = onCancelReply) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.media_cancel),
+                        )
+                    }
+                }
             }
 
             if (isRecording) {
@@ -542,20 +682,20 @@ private fun Composer(
                             )
                         }
                     } else {
-                        // Удержание кнопки микрофона = запись голосового.
-                        IconButton(
-                            onClick = { /* старт/стоп через жесты ниже */ },
+                        // Тап по микрофону — старт записи голосового (явная остановка/
+                        // отправка происходит в режиме записи кнопкой «Отправить»).
+                        // Долгое удержание — открыть запись кружка.
+                        Box(
                             modifier = Modifier
                                 .padding(start = 4.dp)
+                                .minimumInteractiveComponentSize()
                                 .pointerInput(Unit) {
                                     androidx.compose.foundation.gestures.detectTapGestures(
-                                        onPress = {
-                                            onRecordVoiceStart()
-                                            val released = tryAwaitRelease()
-                                            if (released) onRecordVoiceStop() else onRecordVoiceStop()
-                                        },
+                                        onLongPress = { onOpenCircle() },
+                                        onTap = { onRecordVoiceStart() },
                                     )
                                 },
+                            contentAlignment = Alignment.Center,
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Mic,

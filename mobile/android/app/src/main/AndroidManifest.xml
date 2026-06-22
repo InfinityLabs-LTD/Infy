@@ -18,6 +18,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <!-- Full-screen-intent для входящего звонка (всплывает поверх экрана блокировки) -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:name=".InfyApp"
@@ -46,6 +49,11 @@
             android:name=".feature.call.CallForegroundService"
             android:exported="false"
             android:foregroundServiceType="microphone|camera" />
+
+        <!-- Действия «Принять»/«Отклонить» из уведомления входящего звонка. -->
+        <receiver
+            android:name=".feature.call.CallActionReceiver"
+            android:exported="false" />
 
         <!-- Отдаёт записанные голосовые/кружки из кэша по content:// Uri. -->
         <provider

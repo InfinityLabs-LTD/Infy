@@ -3,6 +3,7 @@ package com.infy.messenger.feature.call.data
 import android.content.Context
 import android.media.AudioManager
 import com.infy.messenger.feature.call.CallForegroundService
+import com.infy.messenger.feature.call.IncomingCallNotifier
 import com.infy.messenger.feature.call.domain.CallPhase
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +23,7 @@ import javax.inject.Singleton
 class CallSystemController @Inject constructor(
     @ApplicationContext private val context: Context,
     private val callManager: CallManager,
+    private val incomingCallNotifier: IncomingCallNotifier,
 ) {
     private val scope = CoroutineScope(SupervisorJob())
     private val audioManager =
@@ -37,6 +39,19 @@ class CallSystemController @Inject constructor(
                 .map { it?.phase }
                 .distinctUntilChanged()
                 .collect { phase -> onPhaseChanged(phase) }
+        }
+        // Системное уведомление входящего звонка (full-screen-intent в стиле Telegram).
+        scope.launch {
+            callManager.callState
+                .map { it?.takeIf { s -> s.phase == CallPhase.INCOMING } }
+                .distinctUntilChanged { a, b -> a?.callId == b?.callId }
+                .collect { incoming ->
+                    if (incoming != null) {
+                        incomingCallNotifier.show(incoming.peer, incoming.media)
+                    } else {
+                        incomingCallNotifier.cancel()
+                    }
+                }
         }
         // Динамик/разговорный по флагу speakerOn.
         scope.launch {

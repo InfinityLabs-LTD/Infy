@@ -121,8 +121,14 @@ fun CircleRecorderScreen(
     // --- Состояние камеры/записи ---
     // Текущая камера: по умолчанию фронтальная
     var lensFacing by remember { mutableStateOf(CameraSelector.LENS_FACING_FRONT) }
-    // PreviewView держим в remember, чтобы привязать к нему surfaceProvider
-    val previewView = remember { PreviewView(context) }
+    // PreviewView держим в remember, чтобы привязать к нему surfaceProvider.
+    // ВАЖНО: COMPATIBLE (TextureView) вместо SurfaceView — SurfaceView не
+    // обрезается под CircleShape и часто даёт чёрный экран при клипе/трансформации.
+    val previewView = remember {
+        PreviewView(context).apply {
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+        }
+    }
     // Готовый VideoCapture (заполняется в LaunchedEffect после биндинга)
     var videoCapture by remember { mutableStateOf<VideoCapture<Recorder>?>(null) }
     // Активная запись (если идёт) и момент её старта

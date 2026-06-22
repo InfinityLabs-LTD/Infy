@@ -61,13 +61,15 @@
     <string name="chat_reply_to">Reply: %1$s</string>
     <string name="chat_edited">edited</string>
     <string name="chat_back">Back</string>
+    <string name="chat_action_reply">Reply</string>
+    <string name="chat_action_copy">Copy</string>
 
     <string name="media_attach">Attach</string>
     <string name="media_pick_gallery">Photo or video</string>
     <string name="media_pick_file">File</string>
     <string name="media_record_voice">Record voice</string>
     <string name="media_record_circle">Record circle</string>
-    <string name="media_recording">Recording… release to send</string>
+    <string name="media_recording">Recording…</string>
     <string name="media_cancel">Cancel</string>
     <string name="media_play">Play</string>
     <string name="media_pause">Pause</string>
@@ -100,6 +102,7 @@
     <string name="call_speaker">Speaker</string>
     <string name="call_ongoing">Call in progress</string>
     <string name="call_channel_name">Calls</string>
+    <string name="call_incoming_channel_name">Incoming calls</string>
     <string name="call_ended">Call ended</string>
     <string name="call_ended_missed">Missed call</string>
     <string name="call_ended_declined">Call declined</string>

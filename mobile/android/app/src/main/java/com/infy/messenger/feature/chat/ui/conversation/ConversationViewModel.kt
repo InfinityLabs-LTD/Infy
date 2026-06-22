@@ -13,6 +13,7 @@ import com.infy.messenger.feature.call.domain.CallMedia
 import com.infy.messenger.feature.call.domain.CallPeer
 import com.infy.messenger.feature.chat.domain.ChatMessage
 import com.infy.messenger.feature.chat.domain.ChatRepository
+import com.infy.messenger.feature.chat.domain.DeliveryStatus
 import com.infy.messenger.feature.media.data.MediaRepository
 import com.infy.messenger.feature.media.domain.MediaKind
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,7 +22,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -61,12 +64,26 @@ class ConversationViewModel @Inject constructor(
     private val _isRecordingVoice = MutableStateFlow(false)
     val isRecordingVoice: StateFlow<Boolean> = _isRecordingVoice
 
+    /** Сообщение, на которое отвечаем (для блока-цитаты над composer). */
+    private val _replyTo = MutableStateFlow<ChatMessage?>(null)
+    val replyTo: StateFlow<ChatMessage?> = _replyTo
+
+    fun startReply(message: ChatMessage) { _replyTo.value = message }
+
+    fun cancelReply() { _replyTo.value = null }
+
     private val historyCursor = MutableStateFlow<String?>(null)
     private val isLoadingHistory = MutableStateFlow(false)
     private val hasMoreHistory = MutableStateFlow(true)
     private val loadError = MutableStateFlow(false)
 
     private var typingJob: Job? = null
+
+    /** Маркер «последнее прочитанное собеседником» из кэша чата — для статуса READ. */
+    private val partnerLastReadId: Flow<String?> =
+        chatRepository.observeChats()
+            .map { chats -> chats.firstOrNull { it.id == chatId }?.partnerLastReadMessageId }
+            .distinctUntilChanged()
 
     val uiState: StateFlow<ConversationUiState> =
         combine(
@@ -75,9 +92,19 @@ class ConversationViewModel @Inject constructor(
             isLoadingHistory,
             hasMoreHistory,
             loadError,
-        ) { messages, partnerTyping, loading, hasMore, error ->
+            partnerLastReadId,
+        ) { values ->
+            @Suppress("UNCHECKED_CAST")
+            val messages = values[0] as List<ChatMessage>
+            val partnerTyping = values[1] as Boolean
+            val loading = values[2] as Boolean
+            val hasMore = values[3] as Boolean
+            val error = values[4] as Boolean
+            val lastReadId = values[5] as String?
             ConversationUiState(
-                messages = messages,
+                // Помечаем собственные подтверждённые сообщения прочитанными, если их
+                // серверный id не позже маркера «последнее прочитанное» (ULID сортируем лексикографически).
+                messages = applyReadMarker(messages, lastReadId),
                 isLoadingHistory = loading,
                 hasMoreHistory = hasMore,
                 partnerTyping = partnerTyping,
@@ -113,9 +140,12 @@ class ConversationViewModel @Inject constructor(
     fun sendMessage(text: String, replyToId: String? = null) {
         val content = text.trim()
         if (content.isEmpty()) return
+        // Если задан ответ через контекстное меню — берём его id (или явный параметр).
+        val effectiveReplyId = replyToId ?: _replyTo.value?.id?.takeIf { it.isNotBlank() }
         stopTyping()
+        _replyTo.value = null
         viewModelScope.launch {
-            chatRepository.sendText(chatId, content, replyToId)
+            chatRepository.sendText(chatId, content, effectiveReplyId)
         }
     }
 
@@ -223,6 +253,30 @@ class ConversationViewModel @Inject constructor(
         stopTyping()
         if (_isRecordingVoice.value) voiceRecorder.cancel()
         super.onCleared()
+    }
+
+    /**
+     * Проставить статус READ собственным подтверждённым сообщениям, чей серверный id
+     * не позже [lastReadId] (маркер «последнее прочитанное собеседником»). ULID
+     * монотонно растёт по времени, поэтому сравнение строк корректно отражает порядок.
+     */
+    private fun applyReadMarker(
+        messages: List<ChatMessage>,
+        lastReadId: String?,
+    ): List<ChatMessage> {
+        if (lastReadId.isNullOrEmpty()) return messages
+        return messages.map { msg ->
+            if (
+                msg.isOwn &&
+                msg.deliveryStatus == DeliveryStatus.SENT &&
+                msg.id.isNotEmpty() &&
+                msg.id <= lastReadId
+            ) {
+                msg.copy(deliveryStatus = DeliveryStatus.READ)
+            } else {
+                msg
+            }
+        }
     }
 
     private companion object {

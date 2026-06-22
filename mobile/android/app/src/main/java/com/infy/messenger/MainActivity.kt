@@ -18,6 +18,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // Чтобы full-screen-intent входящего звонка показывался поверх экрана блокировки.
+        showWhenLockedAndTurnScreenOn()
         setContent {
             InfyTheme {
                 Surface(
@@ -29,6 +31,20 @@ class MainActivity : ComponentActivity() {
                     CallOverlay()
                 }
             }
+        }
+    }
+
+    /** Разрешает показ Activity на экране блокировки и пробуждение экрана. */
+    private fun showWhenLockedAndTurnScreenOn() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
+            )
         }
     }
 }
