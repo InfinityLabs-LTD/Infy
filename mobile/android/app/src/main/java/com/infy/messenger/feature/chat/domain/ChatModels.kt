@@ -63,7 +63,7 @@ data class Attachment(
     val width: Int?,
     val height: Int?,
     val durationMs: Int?,
-    val waveform: List<Int>,
+    val waveform: List<Float>,
     val transcript: String?,
     val listenedAt: Long?,
 )

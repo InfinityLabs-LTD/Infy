@@ -105,6 +105,7 @@ fun CallOverlay(viewModel: CallViewModel = hiltViewModel()) {
         PeerInfo(
             state = current,
             isVideo = isVideo,
+            avatarUrl = viewModel.avatarUrl(current.peer?.avatarUrl),
             modifier = if (isVideo) {
                 Modifier.align(Alignment.TopCenter).padding(top = 64.dp)
             } else {
@@ -135,6 +136,7 @@ fun CallOverlay(viewModel: CallViewModel = hiltViewModel()) {
 private fun PeerInfo(
     state: com.infy.messenger.feature.call.domain.CallState,
     isVideo: Boolean,
+    avatarUrl: String?,
     modifier: Modifier = Modifier,
 ) {
     val peer = state.peer
@@ -145,7 +147,6 @@ private fun PeerInfo(
     ) {
         // Аватар: показываем только когда нет полноэкранного видеопотока.
         if (!isVideo) {
-            val avatarUrl = peer?.avatarUrl
             if (avatarUrl != null) {
                 AsyncImage(
                     model = avatarUrl,

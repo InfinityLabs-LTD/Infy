@@ -13,7 +13,8 @@ data class UploadResultDto(
     val width: Int? = null,
     val height: Int? = null,
     val durationMs: Int? = null,
-    val waveform: List<Int> = emptyList(),
+    // Нормализованная амплитуда 0..1 (Float) — бэкенд считает RMS-уровни.
+    val waveform: List<Float> = emptyList(),
     val publicUrl: String,
     val thumbnailUrl: String? = null,
 )

@@ -349,7 +349,7 @@ private fun PlayBadge(
 /** Простая визуализация waveform: вертикальные столбики, нормализованные к высоте. */
 @Composable
 private fun Waveform(
-    waveform: List<Int>,
+    waveform: List<Float>,
     color: Color,
     modifier: Modifier = Modifier,
 ) {
@@ -365,7 +365,9 @@ private fun Waveform(
         )
         return
     }
-    val maxValue = max(1, waveform.maxOrNull() ?: 1)
+    // Бэкенд уже нормализует значения в 0..1; на всякий случай страхуемся от
+    // выбросов делением на фактический максимум (не меньше 1.0).
+    val maxValue = max(1f, waveform.maxOrNull() ?: 1f)
     Row(
         modifier = modifier.heightIn(max = 32.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -373,7 +375,7 @@ private fun Waveform(
     ) {
         waveform.forEach { value ->
             // Нормализуем к диапазону [4.dp, 32.dp].
-            val fraction = value.coerceIn(0, maxValue).toFloat() / maxValue
+            val fraction = value.coerceIn(0f, maxValue) / maxValue
             val barHeight = (4f + fraction * 28f).dp
             Box(
                 modifier = Modifier

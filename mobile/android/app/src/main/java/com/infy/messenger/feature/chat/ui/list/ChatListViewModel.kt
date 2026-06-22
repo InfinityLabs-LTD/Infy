@@ -2,6 +2,7 @@ package com.infy.messenger.feature.chat.ui.list
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.infy.messenger.core.media.MediaUrlBuilder
 import com.infy.messenger.core.realtime.ConnectionState
 import com.infy.messenger.core.realtime.RealtimeSyncManager
 import com.infy.messenger.feature.chat.domain.ChatRepository
@@ -29,6 +30,7 @@ data class ChatListUiState(
 class ChatListViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val realtimeSyncManager: RealtimeSyncManager,
+    val mediaUrlBuilder: MediaUrlBuilder,
 ) : ViewModel() {
 
     val uiState: StateFlow<ChatListUiState> =

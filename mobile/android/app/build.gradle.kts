@@ -20,6 +20,11 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+
+        // Приложение всегда на русском, независимо от языка системы:
+        // оставляем только русские ресурсы (дефолтные values/), английские
+        // values-en/ отбрасываются из сборки.
+        resourceConfigurations += listOf("ru")
     }
 
     buildTypes {

@@ -94,7 +94,9 @@ data class AttachmentDto(
     val width: Int? = null,
     val height: Int? = null,
     val durationMs: Int? = null,
-    val waveform: List<Int> = emptyList(),
+    // Бэкенд отдаёт нормализованные значения 0..1 (Float), НЕ целые —
+    // иначе парсинг падает и весь чат не грузится («Не удалось загрузить…»).
+    val waveform: List<Float> = emptyList(),
     val transcript: String? = null,
     val listenedAt: String? = null,
 )
@@ -127,7 +129,7 @@ data class AttachmentInput(
     val width: Int? = null,
     val height: Int? = null,
     val durationMs: Int? = null,
-    val waveform: List<Int> = emptyList(),
+    val waveform: List<Float> = emptyList(),
 )
 
 @Serializable

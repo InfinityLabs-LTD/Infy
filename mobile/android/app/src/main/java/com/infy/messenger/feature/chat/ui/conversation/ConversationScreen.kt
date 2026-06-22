@@ -157,6 +157,8 @@ fun ConversationScreen(
     AuroraBackground {
         Column(Modifier.fillMaxSize()) {
             ConversationTopBar(
+                partnerName = uiState.partnerName,
+                partnerAvatarUrl = uiState.partnerAvatarUrl,
                 partnerTyping = uiState.partnerTyping,
                 onNavigateBack = onNavigateBack,
                 onAudioCall = { requestCall(video = false) },
@@ -203,6 +205,7 @@ fun ConversationScreen(
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .clickable { viewModel.loadMore() }
                                 .padding(8.dp),
                         )
                     }
@@ -234,9 +237,11 @@ fun ConversationScreen(
     }
 }
 
-/** Стеклянная шапка переписки: назад, статус «печатает…», звонки. */
+/** Стеклянная шапка переписки: назад, аватар+имя собеседника, «печатает…», звонки. */
 @Composable
 private fun ConversationTopBar(
+    partnerName: String,
+    partnerAvatarUrl: String?,
     partnerTyping: Boolean,
     onNavigateBack: () -> Unit,
     onAudioCall: () -> Unit,
@@ -258,12 +263,49 @@ private fun ConversationTopBar(
                 tint = TextHi,
             )
         }
-        Text(
-            text = if (partnerTyping) stringResource(R.string.chat_typing) else "",
-            color = MaterialTheme.colorScheme.primary,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f),
-        )
+        // Аватар собеседника (градиент-плейсхолдер либо фото).
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(Aurora.brandVertical),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (partnerAvatarUrl != null) {
+                coil.compose.AsyncImage(
+                    model = partnerAvatarUrl,
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else if (partnerName.isNotEmpty()) {
+                Text(
+                    text = partnerName.take(1).uppercase(),
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 10.dp),
+        ) {
+            Text(
+                text = partnerName,
+                color = TextHi,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (partnerTyping) {
+                Text(
+                    text = stringResource(R.string.chat_typing),
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
         IconButton(onClick = onAudioCall) {
             Icon(Icons.Filled.Call, stringResource(R.string.call_start_audio), tint = TextMid)
         }

@@ -98,7 +98,14 @@ fun ChatListScreen(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         items(uiState.items, key = { it.chat.id }) { item ->
-                            ChatRow(item = item, onClick = { onOpenChat(item.chat.id) })
+                            ChatRow(
+                                item = item,
+                                // Бэкенд отдаёт avatarUrl относительным (/media/avatars/…);
+                                // префиксуем origin'ом, иначе Coil не загрузит картинку.
+                                avatarUrl = viewModel.mediaUrlBuilder
+                                    .absoluteOrNull(item.chat.partner?.avatarUrl),
+                                onClick = { onOpenChat(item.chat.id) },
+                            )
                         }
                     }
                 }
@@ -117,6 +124,7 @@ fun ChatListScreen(
 @Composable
 private fun ChatRow(
     item: ChatListItemUi,
+    avatarUrl: String?,
     onClick: () -> Unit,
 ) {
     val chat = item.chat
@@ -133,7 +141,7 @@ private fun ChatRow(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         ChatAvatar(
-            avatarUrl = chat.partner?.avatarUrl,
+            avatarUrl = avatarUrl,
             title = title,
             online = item.isPartnerOnline,
         )

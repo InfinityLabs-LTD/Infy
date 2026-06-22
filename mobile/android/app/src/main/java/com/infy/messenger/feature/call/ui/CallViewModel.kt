@@ -1,6 +1,7 @@
 package com.infy.messenger.feature.call.ui
 
 import androidx.lifecycle.ViewModel
+import com.infy.messenger.core.media.MediaUrlBuilder
 import com.infy.messenger.feature.call.data.CallManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.StateFlow
@@ -15,6 +16,7 @@ import javax.inject.Inject
 @HiltViewModel
 class CallViewModel @Inject constructor(
     private val callManager: CallManager,
+    private val mediaUrlBuilder: MediaUrlBuilder,
 ) : ViewModel() {
 
     val callState = callManager.callState
@@ -22,6 +24,9 @@ class CallViewModel @Inject constructor(
 
     val eglBase: EglBase get() = callManager.eglBase
     val localVideo: VideoTrack? get() = callManager.localVideo
+
+    /** Абсолютный URL аватара собеседника (бэкенд отдаёт относительный путь). */
+    fun avatarUrl(relative: String?): String? = mediaUrlBuilder.absoluteOrNull(relative)
 
     fun accept() = callManager.accept()
     fun decline() = callManager.decline()

@@ -18,10 +18,12 @@ import com.infy.messenger.feature.media.domain.MediaKind
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -34,6 +36,9 @@ data class ConversationUiState(
     val hasMoreHistory: Boolean = true,
     val partnerTyping: Boolean = false,
     val loadError: Boolean = false,
+    /** Имя и аватар собеседника для шапки (как в вебе). */
+    val partnerName: String = "",
+    val partnerAvatarUrl: String? = null,
 )
 
 /**
@@ -68,7 +73,15 @@ class ConversationViewModel @Inject constructor(
 
     private var typingJob: Job? = null
 
-    val uiState: StateFlow<ConversationUiState> =
+    /** Собеседник текущего чата из кэша списка (имя + относительный avatarUrl). */
+    private val partnerFlow = chatRepository.observeChats()
+        .map { chats -> chats.firstOrNull { it.id == chatId }?.partner }
+        .distinctUntilChanged()
+
+    // Базовое состояние из 5 потоков (типизированный overload combine), затем
+    // отдельным combine домешиваем собеседника — так избегаем нетипизированного
+    // vararg-combine для разнотипных потоков.
+    private val baseState: Flow<ConversationUiState> =
         combine(
             chatRepository.observeMessages(chatId),
             realtimeSyncManager.typingByChat.map { it[chatId].orEmpty().isNotEmpty() },
@@ -82,6 +95,14 @@ class ConversationViewModel @Inject constructor(
                 hasMoreHistory = hasMore,
                 partnerTyping = partnerTyping,
                 loadError = error,
+            )
+        }
+
+    val uiState: StateFlow<ConversationUiState> =
+        combine(baseState, partnerFlow) { state, partner ->
+            state.copy(
+                partnerName = partner?.nickname ?: partner?.username.orEmpty(),
+                partnerAvatarUrl = mediaUrlBuilder.absoluteOrNull(partner?.avatarUrl),
             )
         }.stateIn(
             scope = viewModelScope,
