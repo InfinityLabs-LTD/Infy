@@ -50,6 +50,7 @@ import com.infy.messenger.core.media.MediaUrlBuilder
 import com.infy.messenger.core.media.rememberExoPlayer
 import com.infy.messenger.feature.chat.domain.Attachment
 import com.infy.messenger.feature.chat.domain.MessageType
+import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.roundToInt
 
