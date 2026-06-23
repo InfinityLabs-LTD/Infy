@@ -17,5 +17,6 @@
   // Java-тулинг (redhat.java) — не подтягивать backend/frontend как Java-проекты.
   "java.import.gradle.enabled": true,
   "java.import.maven.enabled": false,
-  "java.configuration.updateBuildConfiguration": "interactive"
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "java.compile.nullAnalysis.mode": "automatic"
 }
