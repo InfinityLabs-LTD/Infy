@@ -74,7 +74,7 @@ import java.util.Locale
 @Composable
 fun UserProfileScreen(
     onNavigateBack: () -> Unit,
-    onOpenChat: (chatId: String) -> Unit,
+    onOpenFullProfile: (username: String) -> Unit,
     viewModel: UserProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -103,7 +103,11 @@ fun UserProfileScreen(
                 }
 
                 else -> {
-                    Content(state = state, viewModel = viewModel, onOpenChat = onOpenChat)
+                    Content(
+                        state = state,
+                        viewModel = viewModel,
+                        onOpenFullProfile = onOpenFullProfile,
+                    )
                 }
             }
 
@@ -132,9 +136,58 @@ fun UserProfileScreen(
     }
 }
 
+/**
+ * Полный профиль пользователя: обложка, аватар, имя, presence, «о себе»,
+ * бейджи, интересы и кнопка «Написать». Без вкладок Медиа/Аудио — те живут
+ * в [UserProfileScreen] (карточка из чата). Паритет с web /u/:username.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Content(
+fun PublicProfileScreen(
+    onNavigateBack: () -> Unit,
+    onOpenChat: (chatId: String) -> Unit,
+    viewModel: UserProfileViewModel = hiltViewModel(),
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    AuroraBackground {
+        Box(Modifier.fillMaxSize()) {
+            when {
+                state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                }
+                state.loadError || state.profile == null -> Column(
+                    Modifier.fillMaxSize().padding(24.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        stringResource(R.string.partner_profile_load_error),
+                        color = TextMid,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+                else -> ProfileDetailsContent(state = state, viewModel = viewModel, onOpenChat = onOpenChat)
+            }
+
+            IconButton(
+                onClick = onNavigateBack,
+                modifier = Modifier.statusBarsPadding().padding(start = 4.dp, top = 4.dp),
+            ) {
+                Box(
+                    Modifier.size(40.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.35f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.chat_back), tint = Color.White)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ProfileDetailsContent(
     state: UserProfileUiState,
     viewModel: UserProfileViewModel,
     onOpenChat: (String) -> Unit,
@@ -143,35 +196,19 @@ private fun Content(
     val builder = viewModel.mediaUrlBuilder
 
     Column(
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
     ) {
-        // ── Обложка ───────────────────────────────────────────────────
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(180.dp)
-                .background(Aurora.brandVertical),
-        ) {
-            val cover = builder.absoluteOrNull(profile.coverUrl)
-            if (cover != null) {
-                AsyncImage(
-                    cover,
-                    null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                )
+        // Обложка.
+        Box(Modifier.fillMaxWidth().height(180.dp).background(Aurora.brandVertical)) {
+            builder.absoluteOrNull(profile.coverUrl)?.let {
+                AsyncImage(it, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             }
         }
 
         Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Аватар (наезжает на обложку).
             val avatar = builder.absoluteOrNull(profile.avatarUrl)
             Box(
                 Modifier
@@ -185,11 +222,7 @@ private fun Content(
                 if (avatar != null) {
                     AsyncImage(avatar, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 } else {
-                    Text(
-                        profile.nickname.take(1).uppercase(),
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = Color.White,
-                    )
+                    Text(profile.nickname.take(1).uppercase(), style = MaterialTheme.typography.headlineMedium, color = Color.White)
                 }
             }
 
@@ -202,10 +235,9 @@ private fun Content(
             )
             Text("@${profile.username}", color = TextLow, style = MaterialTheme.typography.bodyMedium)
 
-            // Был(а) в сети / дата регистрации.
             PresenceLine(profile.lastSeenAt, profile.createdAt)
 
-            // Био.
+            // «О себе».
             profile.bio?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     it,
@@ -275,7 +307,7 @@ private fun Content(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .padding(top = 16.dp)
+                    .padding(top = 16.dp, bottom = 24.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Aurora.gradOwn)
                     .clickable { viewModel.startChat(onOpenChat) }
@@ -288,6 +320,112 @@ private fun Content(
                     fontWeight = FontWeight.SemiBold,
                 )
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun Content(
+    state: UserProfileUiState,
+    viewModel: UserProfileViewModel,
+    onOpenFullProfile: (String) -> Unit,
+) {
+    val profile = state.profile ?: return
+    val builder = viewModel.mediaUrlBuilder
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+    ) {
+        // ── Обложка ───────────────────────────────────────────────────
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(180.dp)
+                .background(Aurora.brandVertical),
+        ) {
+            val cover = builder.absoluteOrNull(profile.coverUrl)
+            if (cover != null) {
+                AsyncImage(
+                    cover,
+                    null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                )
+            }
+        }
+
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            // Аватар (наезжает на обложку). Клик → полный профиль пользователя.
+            val avatar = builder.absoluteOrNull(profile.avatarUrl)
+            Box(
+                Modifier
+                    .offset(y = (-44).dp)
+                    .size(96.dp)
+                    .clip(CircleShape)
+                    .clickable { onOpenFullProfile(profile.username) }
+                    .background(Aurora.brandVertical)
+                    .border(BorderStroke(3.dp, GlassStroke), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (avatar != null) {
+                    AsyncImage(avatar, null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                } else {
+                    Text(
+                        profile.nickname.take(1).uppercase(),
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = Color.White,
+                    )
+                }
+            }
+
+            Text(
+                profile.nickname,
+                style = MaterialTheme.typography.headlineSmall,
+                color = TextHi,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onOpenFullProfile(profile.username) }
+                    .padding(top = 8.dp, start = 4.dp, end = 4.dp),
+            )
+            Text("@${profile.username}", color = TextLow, style = MaterialTheme.typography.bodyMedium)
+
+            // Был(а) в сети / дата регистрации.
+            PresenceLine(profile.lastSeenAt, profile.createdAt)
+
+            // Бейджи.
+            if (profile.badges.isNotEmpty()) {
+                FlowRow(
+                    Modifier.fillMaxWidth().padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    profile.badges.forEach { badge ->
+                        val color = parseRgbColor(badge.color)
+                        Row(
+                            Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(color.copy(alpha = 0.18f))
+                                .border(BorderStroke(1.dp, color.copy(alpha = 0.4f)), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            badge.icon?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 14.sp) }
+                            Text(badge.label, color = TextHi, style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                }
+            }
+
         }
 
         // ── Вкладки ───────────────────────────────────────────────────

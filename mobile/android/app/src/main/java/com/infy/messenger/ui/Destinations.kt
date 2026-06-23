@@ -20,9 +20,13 @@ object Destinations {
     /** Профиль текущего пользователя. */
     const val PROFILE = "profile"
 
-    /** Публичный профиль другого пользователя. Аргумент username. */
+    /** Карточка собеседника из чата (Медиа/Аудио). Аргумент username. */
     const val USER_PROFILE = "user/{username}"
     fun userProfile(username: String): String = "user/$username"
+
+    /** Полный профиль пользователя (о себе, теги, «Написать»). Аргумент username. */
+    const val PUBLIC_PROFILE = "profile/{username}"
+    fun publicProfile(username: String): String = "profile/$username"
 
     /** Глобальный поиск (чаты, сообщения, новые контакты). */
     const val SEARCH = "search"

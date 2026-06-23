@@ -131,6 +131,18 @@ fun InfyNavHost(
         ) {
             com.infy.messenger.feature.profile.ui.UserProfileScreen(
                 onNavigateBack = { navController.popBackStack() },
+                onOpenFullProfile = { username ->
+                    navController.navigate(Destinations.publicProfile(username))
+                },
+            )
+        }
+
+        composable(
+            route = Destinations.PUBLIC_PROFILE,
+            arguments = listOf(navArgument("username") { type = NavType.StringType }),
+        ) {
+            com.infy.messenger.feature.profile.ui.PublicProfileScreen(
+                onNavigateBack = { navController.popBackStack() },
                 onOpenChat = { chatId ->
                     navController.navigate(Destinations.conversation(chatId)) {
                         launchSingleTop = true
