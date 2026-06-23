@@ -1,5 +1,6 @@
 package com.infy.messenger.feature.chat.ui.conversation
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
@@ -48,12 +50,16 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -77,6 +83,7 @@ import com.infy.messenger.ui.theme.TextHi
 import com.infy.messenger.ui.theme.TextLow
 import com.infy.messenger.ui.theme.TextMid
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 
 /**
  * Экран переписки в стиле Aurora: deep-space фон, свои пузыри — брендовый
@@ -179,6 +186,35 @@ fun ConversationScreen(
         }
     }
 
+    // При reverseLayout индекс 0 — это визуальный низ (самое новое сообщение).
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    // Вход в чат / возврат из профиля собеседника: всегда показываем конец чата,
+    // а не верх. Скроллим к низу, как только появились сообщения.
+    var didInitialScroll by rememberSaveable(viewModel.chatId) { mutableStateOf(false) }
+    LaunchedEffect(uiState.messages.isNotEmpty()) {
+        if (!didInitialScroll && uiState.messages.isNotEmpty()) {
+            listState.scrollToItem(0)
+            didInitialScroll = true
+        }
+    }
+
+    // Новое сообщение: если оно своё (мы отправили) — плавно уводим скролл вниз.
+    val lastMessageKey = uiState.messages.lastOrNull()?.let { it.clientMessageId ?: it.id }
+    LaunchedEffect(lastMessageKey) {
+        val last = uiState.messages.lastOrNull() ?: return@LaunchedEffect
+        if (last.isOwn) {
+            listState.animateScrollToItem(0)
+        }
+    }
+
+    // Показывать кнопку «вниз», если ушли вверх от конца чата (низ = индекс 0).
+    val showScrollToBottom by remember {
+        androidx.compose.runtime.derivedStateOf {
+            listState.firstVisibleItemIndex > 2
+        }
+    }
+
     AuroraBackground {
         Column(Modifier.fillMaxSize()) {
             ConversationTopBar(
@@ -199,12 +235,11 @@ fun ConversationScreen(
                 onReport = { showReport = true },
             )
 
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             LazyColumn(
                 state = listState,
                 reverseLayout = true,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxSize(),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
@@ -245,6 +280,33 @@ fun ConversationScreen(
                         )
                     }
                 }
+            }
+
+            // Кнопка моментального перехода в конец чата (низ = индекс 0).
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showScrollToBottom,
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(),
+                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 16.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(GlassPopBg)
+                        .border(BorderStroke(1.dp, GlassStroke), RoundedCornerShape(22.dp))
+                        .clickable { scope.launch { listState.animateScrollToItem(0) } },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowDown,
+                        contentDescription = stringResource(R.string.chat_scroll_to_bottom),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
             }
 
             Composer(
@@ -675,32 +737,54 @@ private fun DeliveryTicks(
     modifier: Modifier = Modifier,
 ) {
     when (status) {
-        DeliveryStatus.SENDING -> Text(
-            text = "🕓",
-            style = MaterialTheme.typography.labelSmall,
-            color = mutedColor,
-            modifier = modifier,
-        )
-        DeliveryStatus.FAILED -> Text(
-            text = "⚠",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.error,
-            modifier = modifier,
-        )
-        // Как в web: всегда двойная галочка; отличается только цвет —
-        // приглушённый «доставлено» или фиолетовый «прочитано».
-        DeliveryStatus.SENT -> Text(
-            text = "✓✓",
-            style = MaterialTheme.typography.labelSmall,
-            color = mutedColor,
-            modifier = modifier,
-        )
-        DeliveryStatus.READ -> Text(
-            text = "✓✓",
-            style = MaterialTheme.typography.labelSmall,
-            color = StatusRead,
-            modifier = modifier,
-        )
+        // Часики «отправляется» — кружок со стрелкой, как pending в web.
+        DeliveryStatus.SENDING -> Canvas(modifier = modifier.size(13.dp)) {
+            val stroke = Stroke(width = size.minDimension * 0.12f, cap = StrokeCap.Round)
+            val r = size.minDimension * 0.42f
+            val c = Offset(size.width / 2f, size.height / 2f)
+            drawCircle(color = mutedColor, radius = r, center = c, style = stroke)
+            // Стрелки часов: вверх и вправо.
+            drawLine(mutedColor, c, Offset(c.x, c.y - r * 0.55f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+            drawLine(mutedColor, c, Offset(c.x + r * 0.45f, c.y), strokeWidth = stroke.width, cap = StrokeCap.Round)
+        }
+        // «Не отправлено» — кружок с восклицательным знаком (как в web).
+        DeliveryStatus.FAILED -> {
+            val color = MaterialTheme.colorScheme.error
+            Canvas(modifier = modifier.size(13.dp)) {
+            val stroke = Stroke(width = size.minDimension * 0.12f, cap = StrokeCap.Round)
+            val r = size.minDimension * 0.42f
+            val c = Offset(size.width / 2f, size.height / 2f)
+            drawCircle(color = color, radius = r, center = c, style = stroke)
+            drawLine(color, Offset(c.x, c.y - r * 0.45f), Offset(c.x, c.y + r * 0.1f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+            drawLine(color, Offset(c.x, c.y + r * 0.45f), Offset(c.x, c.y + r * 0.5f), strokeWidth = stroke.width, cap = StrokeCap.Round)
+            }
+        }
+        // Как в web: всегда двойная галочка; цвет = статус
+        // (приглушённый «доставлено» или фиолетовый «прочитано»).
+        DeliveryStatus.SENT -> DoubleCheck(color = mutedColor, modifier = modifier)
+        DeliveryStatus.READ -> DoubleCheck(color = StatusRead, modifier = modifier)
+    }
+}
+
+/**
+ * Двойная галочка, визуально идентичная web (MessageBubble.tsx):
+ * две накладывающиеся «птички» в системе координат 18×10, обводка
+ * со скруглением — без «слипания», читается чисто.
+ */
+@Composable
+private fun DoubleCheck(color: Color, modifier: Modifier = Modifier) {
+    // Соотношение сторон 18:10, как в web viewBox.
+    Canvas(modifier = modifier.size(width = 18.dp, height = 10.dp)) {
+        val w = size.width / 18f
+        val h = size.height / 10f
+        val sw = h * 1.4f
+        fun p(x: Float, y: Float) = Offset(x * w, y * h)
+        // Первая галочка: M1 5 l3 3 L11 1
+        drawLine(color, p(1f, 5f), p(4f, 8f), strokeWidth = sw, cap = StrokeCap.Round)
+        drawLine(color, p(4f, 8f), p(11f, 1f), strokeWidth = sw, cap = StrokeCap.Round)
+        // Вторая галочка (со сдвигом): M5 5 l3 3 L15 1
+        drawLine(color, p(5f, 5f), p(8f, 8f), strokeWidth = sw, cap = StrokeCap.Round)
+        drawLine(color, p(8f, 8f), p(15f, 1f), strokeWidth = sw, cap = StrokeCap.Round)
     }
 }
 

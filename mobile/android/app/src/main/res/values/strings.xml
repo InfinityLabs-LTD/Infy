@@ -69,6 +69,7 @@
     <string name="chat_reply_to">Ответ: %1$s</string>
     <string name="chat_edited">изменено</string>
     <string name="chat_back">Назад</string>
+    <string name="chat_scroll_to_bottom">В конец чата</string>
 
     <!-- Медиа -->
     <string name="media_attach">Прикрепить</string>
