@@ -339,35 +339,19 @@ private fun Content(
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
     ) {
-        // ── Обложка ───────────────────────────────────────────────────
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(180.dp)
-                .background(Aurora.brandVertical),
-        ) {
-            val cover = builder.absoluteOrNull(profile.coverUrl)
-            if (cover != null) {
-                AsyncImage(
-                    cover,
-                    null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                )
-            }
-        }
-
         Column(
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Аватар (наезжает на обложку). Клик → полный профиль пользователя.
+            // Аватар. Клик → полный профиль пользователя. Обложка и бейджи
+            // живут только в полном профиле (PublicProfileScreen).
             val avatar = builder.absoluteOrNull(profile.avatarUrl)
             Box(
                 Modifier
-                    .offset(y = (-44).dp)
+                    .statusBarsPadding()
+                    .padding(top = 48.dp)
                     .size(96.dp)
                     .clip(CircleShape)
                     .clickable { onOpenFullProfile(profile.username) }
@@ -394,38 +378,12 @@ private fun Content(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
                     .clickable { onOpenFullProfile(profile.username) }
-                    .padding(top = 8.dp, start = 4.dp, end = 4.dp),
+                    .padding(top = 3.dp, start = 4.dp, end = 4.dp),
             )
             Text("@${profile.username}", color = TextLow, style = MaterialTheme.typography.bodyMedium)
 
             // Был(а) в сети / дата регистрации.
             PresenceLine(profile.lastSeenAt, profile.createdAt)
-
-            // Бейджи.
-            if (profile.badges.isNotEmpty()) {
-                FlowRow(
-                    Modifier.fillMaxWidth().padding(top = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    profile.badges.forEach { badge ->
-                        val color = parseRgbColor(badge.color)
-                        Row(
-                            Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(color.copy(alpha = 0.18f))
-                                .border(BorderStroke(1.dp, color.copy(alpha = 0.4f)), RoundedCornerShape(12.dp))
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            badge.icon?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 14.sp) }
-                            Text(badge.label, color = TextHi, style = MaterialTheme.typography.labelLarge)
-                        }
-                    }
-                }
-            }
-
         }
 
         // ── Вкладки ───────────────────────────────────────────────────
