@@ -574,7 +574,17 @@ private fun MessageBubble(
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Bottom,
     ) {
+        // Мета (время + статус) снаружи пузыря, как в web: для своих — слева
+        // от пузыря, для чужих — справа. Прижата к низу (verticalAlignment.Bottom).
+        if (isOwn) {
+            MessageMeta(
+                message = message,
+                onRetry = onRetry,
+                modifier = Modifier.padding(end = 6.dp),
+            )
+        }
         Box(
             modifier = Modifier
                 .widthIn(max = 300.dp)
@@ -660,34 +670,34 @@ private fun MessageBubble(
                     }
                 }
 
-                // Нижняя строка: время, метка «изменено», статус доставки.
-                // Прижимаем к правому краю пузыря, но НЕ растягиваем колонку —
-                // иначе короткие сообщения получают пузырь во всю ширину.
-                MessageMeta(
-                    message = message,
-                    contentColor = contentColor,
-                    onRetry = onRetry,
-                    modifier = Modifier.align(Alignment.End),
-                )
             }
+        }
+        // Мета чужого сообщения — справа от пузыря.
+        if (!isOwn) {
+            MessageMeta(
+                message = message,
+                onRetry = onRetry,
+                modifier = Modifier.padding(start = 6.dp),
+            )
         }
     }
 }
 
-/** Нижняя строка пузыря: время + «изменено» + статус для исходящих. */
+/**
+ * Мета сообщения СНАРУЖИ пузыря (как в web): время + «изменено» и для своих —
+ * статус доставки. Приглушённый серый цвет, прижата к низу пузыря.
+ */
 @Composable
 private fun MessageMeta(
     message: ChatMessage,
-    contentColor: Color,
     onRetry: (clientMessageId: String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val mutedColor = contentColor.copy(alpha = 0.7f)
+    val mutedColor = TextLow
 
     Row(
-        modifier = modifier
-            .padding(top = 4.dp),
-        horizontalArrangement = Arrangement.End,
+        modifier = modifier.padding(bottom = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val timeLabel = buildString {
@@ -708,11 +718,9 @@ private fun MessageMeta(
             val statusModifier = if (
                 message.deliveryStatus == DeliveryStatus.FAILED && clientId != null
             ) {
-                Modifier
-                    .padding(start = 6.dp)
-                    .clickable { onRetry(clientId) }
+                Modifier.clickable { onRetry(clientId) }
             } else {
-                Modifier.padding(start = 6.dp)
+                Modifier
             }
             DeliveryTicks(
                 status = message.deliveryStatus,
