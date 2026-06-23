@@ -3,6 +3,7 @@ package com.infy.messenger.feature.chat.data.remote
 import com.infy.messenger.core.network.ApiEnvelope
 import com.infy.messenger.feature.chat.data.dto.ChatSummaryDto
 import com.infy.messenger.feature.chat.data.dto.CreateChatRequest
+import com.infy.messenger.feature.chat.data.dto.EditMessageRequest
 import com.infy.messenger.feature.chat.data.dto.MessageDto
 import com.infy.messenger.feature.chat.data.dto.MessagePageDto
 import com.infy.messenger.feature.chat.data.dto.MessageSearchResultDto
@@ -44,6 +45,25 @@ interface ChatApi {
     suspend fun react(
         @Path("id") messageId: String,
         @Body body: ReactRequest,
+    ): ApiEnvelope<MessageDto>
+
+    /** Редактировать текст своего сообщения. */
+    @retrofit2.http.PATCH("chats/messages/{id}")
+    suspend fun editMessage(
+        @Path("id") messageId: String,
+        @Body body: EditMessageRequest,
+    ): ApiEnvelope<MessageDto>
+
+    /** Удалить своё сообщение для всех. */
+    @retrofit2.http.DELETE("chats/messages/{id}")
+    suspend fun deleteMessage(
+        @Path("id") messageId: String,
+    ): ApiEnvelope<Unit>
+
+    /** Закрепить/открепить сообщение (toggle на сервере). */
+    @POST("chats/messages/{id}/pin")
+    suspend fun pinMessage(
+        @Path("id") messageId: String,
     ): ApiEnvelope<MessageDto>
 
     /** Расшифровать голосовое/кружок (Whisper). Возвращает распознанный текст. */

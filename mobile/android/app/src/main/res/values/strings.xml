@@ -70,6 +70,19 @@
     <string name="chat_edited">изменено</string>
     <string name="chat_back">Назад</string>
     <string name="chat_scroll_to_bottom">В конец чата</string>
+    <!-- Контекстное меню сообщения -->
+    <string name="msg_reply">Ответить</string>
+    <string name="msg_copy">Скопировать</string>
+    <string name="msg_edit">Изменить</string>
+    <string name="msg_pin">Закрепить</string>
+    <string name="msg_unpin">Открепить</string>
+    <string name="msg_delete">Удалить для всех</string>
+    <string name="msg_read_at">Прочитано %1$s</string>
+    <string name="msg_copied">Скопировано</string>
+    <string name="msg_more_emoji">Все эмодзи</string>
+    <string name="reply_cancel">Отменить ответ</string>
+    <string name="edit_title">Редактирование</string>
+    <string name="edit_cancel">Отменить редактирование</string>
 
     <!-- Медиа -->
     <string name="media_attach">Прикрепить</string>

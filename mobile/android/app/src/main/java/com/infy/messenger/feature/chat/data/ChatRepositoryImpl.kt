@@ -4,6 +4,7 @@ import com.infy.messenger.core.network.apiCall
 import com.infy.messenger.core.realtime.RealtimeClient
 import com.infy.messenger.feature.auth.data.SessionManager
 import com.infy.messenger.feature.chat.data.dto.CreateChatRequest
+import com.infy.messenger.feature.chat.data.dto.EditMessageRequest
 import com.infy.messenger.feature.chat.data.dto.MessageDto
 import com.infy.messenger.feature.chat.data.dto.ReactRequest
 import com.infy.messenger.feature.chat.data.dto.SendMessageRequest
@@ -155,6 +156,21 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun toggleReaction(messageId: String, emoji: String) = apiCall {
         val dto = api.react(messageId, ReactRequest(emoji)).data
+        messageDao.upsert(dto.toEntity(currentUserId()))
+    }
+
+    override suspend fun editMessage(messageId: String, content: String) = apiCall {
+        val dto = api.editMessage(messageId, EditMessageRequest(content)).data
+        messageDao.upsert(dto.toEntity(currentUserId()))
+    }
+
+    override suspend fun deleteMessage(messageId: String) = apiCall {
+        api.deleteMessage(messageId)
+        messageDao.deleteByServerId(messageId)
+    }
+
+    override suspend fun pinMessage(messageId: String) = apiCall {
+        val dto = api.pinMessage(messageId).data
         messageDao.upsert(dto.toEntity(currentUserId()))
     }
 

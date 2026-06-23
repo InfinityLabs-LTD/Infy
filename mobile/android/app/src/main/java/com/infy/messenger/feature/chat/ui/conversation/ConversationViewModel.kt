@@ -50,6 +50,10 @@ data class ConversationUiState(
     val partnerOnline: Boolean = false,
     /** «Был(а) в сети» (epoch ms) — если оффлайн. */
     val partnerLastSeenAt: Long? = null,
+    /** Сообщение, на которое отвечаем (показывает цитату над композером). */
+    val replyingTo: ChatMessage? = null,
+    /** Сообщение, которое редактируем (текст подставляется в композер). */
+    val editing: ChatMessage? = null,
 )
 
 /**
@@ -96,6 +100,10 @@ class ConversationViewModel @Inject constructor(
     private val hasMoreHistory = MutableStateFlow(true)
     private val loadError = MutableStateFlow(false)
 
+    // id сообщений для ответа/редактирования (резолвятся в объекты по ленте).
+    private val replyingToId = MutableStateFlow<String?>(null)
+    private val editingId = MutableStateFlow<String?>(null)
+
     private var typingJob: Job? = null
 
     /** Собеседник текущего чата из кэша списка (имя + относительный avatarUrl). */
@@ -123,7 +131,7 @@ class ConversationViewModel @Inject constructor(
             )
         }
 
-    val uiState: StateFlow<ConversationUiState> =
+    private val partnerState: Flow<ConversationUiState> =
         combine(
             baseState,
             partnerFlow,
@@ -143,6 +151,18 @@ class ConversationViewModel @Inject constructor(
                 partnerId = partnerId,
                 partnerOnline = isOnline,
                 partnerLastSeenAt = lastSeenMs,
+            )
+        }
+
+    val uiState: StateFlow<ConversationUiState> =
+        combine(
+            partnerState,
+            replyingToId,
+            editingId,
+        ) { state, replyId, editId ->
+            state.copy(
+                replyingTo = replyId?.let { id -> state.messages.firstOrNull { it.id == id } },
+                editing = editId?.let { id -> state.messages.firstOrNull { it.id == id } },
             )
         }.stateIn(
             scope = viewModelScope,
@@ -174,6 +194,9 @@ class ConversationViewModel @Inject constructor(
     fun sendMessage(text: String, replyToId: String? = null) {
         val content = text.trim()
         if (content.isEmpty()) return
+        // Если активен ответ — прикрепляем его и сбрасываем состояние ответа.
+        val effectiveReplyTo = replyToId ?: replyingToId.value
+        replyingToId.value = null
         stopTyping()
         // Команда /ask <вопрос> — спросить Infy AI прямо в чате. Ответ прилетит
         // асинхронно по сокету пузырями AI_QUERY/AI; обычное сообщение не шлём.
@@ -188,7 +211,7 @@ class ConversationViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            chatRepository.sendText(chatId, content, replyToId)
+            chatRepository.sendText(chatId, content, effectiveReplyTo)
         }
     }
 
@@ -265,6 +288,58 @@ class ConversationViewModel @Inject constructor(
     fun toggleReaction(messageId: String, emoji: String) {
         viewModelScope.launch {
             runCatching { chatRepository.toggleReaction(messageId, emoji) }
+        }
+    }
+
+    // ── Контекстное меню сообщения: ответ / редактирование / закрепление / удаление ──
+
+    /** Начать ответ на сообщение (отменяет редактирование). */
+    fun startReply(messageId: String) {
+        editingId.value = null
+        replyingToId.value = messageId
+    }
+
+    /** Отменить ответ. */
+    fun cancelReply() {
+        replyingToId.value = null
+    }
+
+    /** Начать редактирование своего сообщения (отменяет ответ). */
+    fun startEdit(messageId: String) {
+        replyingToId.value = null
+        editingId.value = messageId
+    }
+
+    /** Отменить редактирование. */
+    fun cancelEdit() {
+        editingId.value = null
+    }
+
+    /** Сохранить отредактированный текст текущего редактируемого сообщения. */
+    fun confirmEdit(content: String) {
+        val id = editingId.value ?: return
+        val text = content.trim()
+        editingId.value = null
+        if (text.isEmpty()) return
+        viewModelScope.launch {
+            runCatching { chatRepository.editMessage(id, text) }
+                .onFailure { Timber.w(it, "editMessage failed") }
+        }
+    }
+
+    /** Закрепить/открепить сообщение. */
+    fun pinMessage(messageId: String) {
+        viewModelScope.launch {
+            runCatching { chatRepository.pinMessage(messageId) }
+                .onFailure { Timber.w(it, "pinMessage failed") }
+        }
+    }
+
+    /** Удалить сообщение для всех. */
+    fun deleteMessage(messageId: String) {
+        viewModelScope.launch {
+            runCatching { chatRepository.deleteMessage(messageId) }
+                .onFailure { Timber.w(it, "deleteMessage failed") }
         }
     }
 

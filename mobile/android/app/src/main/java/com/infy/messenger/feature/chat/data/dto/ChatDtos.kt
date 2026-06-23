@@ -137,6 +137,12 @@ data class ReactRequest(
     val emoji: String,
 )
 
+/** Тело запроса редактирования текста сообщения. */
+@Serializable
+data class EditMessageRequest(
+    val content: String,
+)
+
 /** Ответ расшифровки голосового/кружка. */
 @Serializable
 data class TranscriptDto(

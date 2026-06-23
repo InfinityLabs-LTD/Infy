@@ -43,6 +43,15 @@ interface ChatRepository {
     /** Переключить реакцию-эмодзи. */
     suspend fun toggleReaction(messageId: String, emoji: String)
 
+    /** Редактировать текст своего сообщения. */
+    suspend fun editMessage(messageId: String, content: String)
+
+    /** Удалить своё сообщение для всех. */
+    suspend fun deleteMessage(messageId: String)
+
+    /** Закрепить/открепить сообщение (toggle на сервере). */
+    suspend fun pinMessage(messageId: String)
+
     /** Расшифровать голосовое/кружок (Whisper). Возвращает распознанный текст. */
     suspend fun transcribe(messageId: String): String
 

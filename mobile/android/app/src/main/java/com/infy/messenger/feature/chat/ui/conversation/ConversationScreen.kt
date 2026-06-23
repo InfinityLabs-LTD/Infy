@@ -6,13 +6,17 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -30,6 +34,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Videocam
@@ -57,7 +62,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
@@ -73,7 +81,9 @@ import com.infy.messenger.feature.chat.domain.MessageType
 import androidx.compose.ui.res.stringResource
 import com.infy.messenger.ui.theme.Aurora
 import com.infy.messenger.ui.theme.AuroraBackground
+import com.infy.messenger.ui.theme.DangerRed
 import com.infy.messenger.ui.theme.DockBg
+import com.infy.messenger.ui.theme.Hairline
 import com.infy.messenger.ui.theme.GlassStroke
 import com.infy.messenger.ui.theme.GlassPopBg
 import com.infy.messenger.ui.theme.Glass2
@@ -119,6 +129,10 @@ fun ConversationScreen(
     var showCalendar by remember { mutableStateOf(false) }
     var showAi by remember { mutableStateOf(false) }
     var showReport by remember { mutableStateOf(false) }
+    // Сообщение, по которому открыто контекстное меню (long-press), и позиция
+    // его пузыря в окне — для анкорного позиционирования меню рядом с ним.
+    var selectedMessage by remember { mutableStateOf<ChatMessage?>(null) }
+    var selectedBounds by remember { mutableStateOf(Rect.Zero) }
 
     // Выбор фото/видео из системного Photo Picker.
     val mediaPicker = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -251,6 +265,7 @@ fun ConversationScreen(
                         message = message,
                         urlBuilder = viewModel.mediaUrlBuilder,
                         onRetry = { clientId -> viewModel.retry(clientId) },
+                        onLongPress = { m, rect -> selectedMessage = m; selectedBounds = rect },
                         onTranscribe = { id -> viewModel.transcribe(id) },
                     )
                 }
@@ -309,11 +324,29 @@ fun ConversationScreen(
             }
             }
 
+            // Баннер ответа/редактирования над композером (как в web).
+            ReplyEditBanner(
+                replyingTo = uiState.replyingTo,
+                editing = uiState.editing,
+                onCancel = {
+                    viewModel.cancelReply()
+                    viewModel.cancelEdit()
+                },
+            )
+
             Composer(
                 uploadProgress = uploadProgress,
                 isRecording = isRecording,
+                prefillText = uiState.editing?.content.orEmpty(),
+                prefillKey = uiState.editing?.id,
                 onTyping = viewModel::onTyping,
-                onSend = { viewModel.sendMessage(it) },
+                onSend = {
+                    if (uiState.editing != null) {
+                        viewModel.confirmEdit(it)
+                    } else {
+                        viewModel.sendMessage(it)
+                    }
+                },
                 onPickMedia = {
                     mediaPicker.launch(
                         androidx.activity.result.PickVisualMediaRequest(
@@ -355,6 +388,40 @@ fun ConversationScreen(
                     onClose = { showReport = false },
                 )
             }
+        }
+
+        // Контекстное меню сообщения по long-press (реакции + действия), как в web.
+        selectedMessage?.let { msg ->
+            val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+            MessageContextMenu(
+                message = msg,
+                anchor = selectedBounds,
+                onDismiss = { selectedMessage = null },
+                onReact = { emoji ->
+                    viewModel.toggleReaction(msg.id, emoji)
+                    selectedMessage = null
+                },
+                onReply = {
+                    viewModel.startReply(msg.id)
+                    selectedMessage = null
+                },
+                onCopy = {
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(msg.content.orEmpty()))
+                    selectedMessage = null
+                },
+                onEdit = {
+                    viewModel.startEdit(msg.id)
+                    selectedMessage = null
+                },
+                onPin = {
+                    viewModel.pinMessage(msg.id)
+                    selectedMessage = null
+                },
+                onDelete = {
+                    viewModel.deleteMessage(msg.id)
+                    selectedMessage = null
+                },
+            )
         }
     }
 }
@@ -547,12 +614,13 @@ private val TEXT_LIKE_TYPES = setOf(
 )
 
 /** Пузырь одного сообщения. Свои — градиент, чужие — стекло. */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(
     message: ChatMessage,
     urlBuilder: com.infy.messenger.core.media.MediaUrlBuilder,
     onRetry: (clientMessageId: String) -> Unit,
+    onLongPress: (ChatMessage, androidx.compose.ui.geometry.Rect) -> Unit,
     onTranscribe: (suspend (messageId: String) -> String)? = null,
 ) {
     val isOwn = message.isOwn
@@ -585,11 +653,17 @@ private fun MessageBubble(
                 modifier = Modifier.padding(end = 6.dp),
             )
         }
+        var bubbleBounds by remember { mutableStateOf(androidx.compose.ui.geometry.Rect.Zero) }
         Box(
             modifier = Modifier
                 .widthIn(max = 300.dp)
+                .onGloballyPositioned { bubbleBounds = it.boundsInWindow() }
                 .clip(shape)
-                .then(bubbleModifier),
+                .then(bubbleModifier)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = { onLongPress(message, bubbleBounds) },
+                ),
         ) {
             Column(modifier = Modifier.padding(10.dp)) {
                 // Блок-цитата (ответ на сообщение).
@@ -813,10 +887,18 @@ private fun Composer(
     onRecordVoiceStop: () -> Unit,
     onRecordVoiceCancel: () -> Unit,
     onOpenCircle: () -> Unit,
+    prefillText: String = "",
+    prefillKey: String? = null,
 ) {
     var text by remember { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
     val hasText = text.isNotBlank()
+
+    // Старт редактирования (prefillKey сменился на id сообщения) — подставляем его
+    // текст в поле; выход из редактирования (key стал null) очищает поле.
+    LaunchedEffect(prefillKey) {
+        text = if (prefillKey != null) prefillText else ""
+    }
 
     // Режим единой кнопки записи: голос или кружок (тап переключает, как в вебе).
     var recordMode by remember { mutableStateOf(RecordMode.Voice) }
@@ -1193,6 +1275,262 @@ private fun RecordingRow(
                 color = TextMid.copy(alpha = (1f - cancelHint).coerceIn(0.4f, 1f)),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** Быстрые реакции в контекстном меню (зеркалит web QUICK_EMOJIS). */
+private val QUICK_EMOJIS = listOf("👍", "❤️", "😂", "😮", "😢", "🔥")
+
+/**
+ * Контекстное меню сообщения по long-press (как в web): затемнённый оверлей,
+ * сверху ряд быстрых эмодзи-реакций, ниже — список действий. Видимость пунктов
+ * зависит от own/текст (copy — только текст, edit — own+текст, delete — own).
+ */
+@Composable
+private fun MessageContextMenu(
+    message: ChatMessage,
+    anchor: Rect,
+    onDismiss: () -> Unit,
+    onReact: (String) -> Unit,
+    onReply: () -> Unit,
+    onCopy: () -> Unit,
+    onEdit: () -> Unit,
+    onPin: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val isOwn = message.isOwn
+    val isText = message.type in TEXT_LIKE_TYPES && !message.content.isNullOrBlank()
+    val density = androidx.compose.ui.platform.LocalDensity.current
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null,
+                onClick = onDismiss,
+            ),
+    ) {
+        val viewW = with(density) { maxWidth.toPx() }
+        val viewH = with(density) { maxHeight.toPx() }
+
+        // Затемнение с «вырезом» вокруг пузыря: сам пузырь остаётся ярким и
+        // визуально приподнят над фоном (как в web — дублированный bubble).
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val scrim = Color(0xB3080B16)
+            if (anchor == Rect.Zero) {
+                drawRect(scrim)
+            } else {
+                val pad = 0f
+                val l = (anchor.left - pad).coerceIn(0f, size.width)
+                val t = (anchor.top - pad).coerceIn(0f, size.height)
+                val r = (anchor.right + pad).coerceIn(0f, size.width)
+                val b = (anchor.bottom + pad).coerceIn(0f, size.height)
+                // Четыре прямоугольника вокруг выреза.
+                drawRect(scrim, topLeft = Offset(0f, 0f), size = androidx.compose.ui.geometry.Size(size.width, t))
+                drawRect(scrim, topLeft = Offset(0f, b), size = androidx.compose.ui.geometry.Size(size.width, size.height - b))
+                drawRect(scrim, topLeft = Offset(0f, t), size = androidx.compose.ui.geometry.Size(l, b - t))
+                drawRect(scrim, topLeft = Offset(r, t), size = androidx.compose.ui.geometry.Size(size.width - r, b - t))
+            }
+        }
+
+        // Меню (эмодзи + действия) позиционируем у пузыря: под ним, если влезает,
+        // иначе над ним. По горизонтали — к стороне сообщения (own → справа).
+        val menuWidthPx = with(density) { 240.dp.toPx() }
+        val emojiRowHpx = with(density) { 56.dp.toPx() }
+        val actionCount = 1 + (if (isText) 1 else 0) + (if (isOwn && isText) 1 else 0) +
+            1 + (if (isOwn) 1 else 0)
+        val readHpx = if (isOwn && message.deliveryStatus == DeliveryStatus.READ) {
+            with(density) { 36.dp.toPx() }
+        } else {
+            0f
+        }
+        val actionsHpx = with(density) { (actionCount * 46).dp.toPx() } + readHpx
+        val gapPx = with(density) { 8.dp.toPx() }
+        val totalHpx = emojiRowHpx + gapPx + actionsHpx
+
+        val anchorOrCenter = if (anchor == Rect.Zero) {
+            Rect(viewW / 2 - menuWidthPx / 2, viewH / 2, viewW / 2 + menuWidthPx / 2, viewH / 2)
+        } else {
+            anchor
+        }
+
+        // X: к стороне пузыря, в пределах экрана.
+        var menuLeftPx = if (isOwn) anchorOrCenter.right - menuWidthPx else anchorOrCenter.left
+        menuLeftPx = menuLeftPx.coerceIn(gapPx, viewW - menuWidthPx - gapPx)
+
+        // Y: под пузырём; если не влезает — над.
+        var menuTopPx = anchorOrCenter.bottom + gapPx
+        if (menuTopPx + totalHpx > viewH - gapPx) {
+            menuTopPx = anchorOrCenter.top - totalHpx - gapPx
+        }
+        menuTopPx = menuTopPx.coerceAtLeast(gapPx)
+
+        Column(
+            modifier = Modifier
+                .offset(
+                    x = with(density) { menuLeftPx.toDp() },
+                    y = with(density) { menuTopPx.toDp() },
+                )
+                .width(with(density) { menuWidthPx.toDp() }),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // Ряд быстрых эмодзи.
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(GlassPopBg)
+                    .border(BorderStroke(1.dp, GlassStroke), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                QUICK_EMOJIS.forEach { emoji ->
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onReact(emoji) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(text = emoji, style = MaterialTheme.typography.titleLarge)
+                    }
+                }
+            }
+
+            // Список действий.
+            Column(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(GlassPopBg)
+                    .border(BorderStroke(1.dp, GlassStroke), RoundedCornerShape(18.dp)),
+            ) {
+                // «Прочитано <дата>» — для своих прочитанных сообщений.
+                if (isOwn && message.deliveryStatus == DeliveryStatus.READ) {
+                    Text(
+                        text = stringResource(
+                            R.string.msg_read_at,
+                            formatReadAt(message.createdAt),
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TextLow,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                    androidx.compose.material3.HorizontalDivider(color = Hairline)
+                }
+
+                CtxMenuItem("↩️", stringResource(R.string.msg_reply), onClick = onReply)
+                if (isText) {
+                    CtxMenuItem("📋", stringResource(R.string.msg_copy), onClick = onCopy)
+                }
+                if (isOwn && isText) {
+                    CtxMenuItem("✏️", stringResource(R.string.msg_edit), onClick = onEdit)
+                }
+                CtxMenuItem(
+                    "📌",
+                    stringResource(
+                        if (message.pinnedAt != null) R.string.msg_unpin else R.string.msg_pin,
+                    ),
+                    onClick = onPin,
+                )
+                if (isOwn) {
+                    CtxMenuItem(
+                        "🗑",
+                        stringResource(R.string.msg_delete),
+                        onClick = onDelete,
+                        danger = true,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CtxMenuItem(
+    icon: String,
+    label: String,
+    onClick: () -> Unit,
+    danger: Boolean = false,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = icon, style = MaterialTheme.typography.bodyLarge)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (danger) DangerRed else TextHi,
+        )
+    }
+}
+
+/** «Прочитано»/edit-дата в формате web: «23 июн., 09:56». */
+private fun formatReadAt(epochMs: Long): String =
+    java.text.SimpleDateFormat("d MMM, HH:mm", java.util.Locale("ru"))
+        .format(java.util.Date(epochMs))
+
+/**
+ * Баннер над композером для ответа/редактирования (как в web): цитата/заголовок
+ * + кнопка отмены. Если ни ответ, ни редактирование не активны — ничего не рисует.
+ */
+@Composable
+private fun ReplyEditBanner(
+    replyingTo: ChatMessage?,
+    editing: ChatMessage?,
+    onCancel: () -> Unit,
+) {
+    val active = editing ?: replyingTo ?: return
+    val title = if (editing != null) {
+        stringResource(R.string.edit_title)
+    } else {
+        active.senderNickname
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(DockBg)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(end = 10.dp)
+                .size(width = 3.dp, height = 34.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.primary),
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = active.content.orEmpty().ifBlank { stringResource(R.string.chats_attachment) },
+                style = MaterialTheme.typography.bodySmall,
+                color = TextMid,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        IconButton(onClick = onCancel) {
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = stringResource(
+                    if (editing != null) R.string.edit_cancel else R.string.reply_cancel,
+                ),
+                tint = TextMid,
             )
         }
     }
