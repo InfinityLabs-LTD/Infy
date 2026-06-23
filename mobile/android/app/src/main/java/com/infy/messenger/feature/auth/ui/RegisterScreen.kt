@@ -1,47 +1,47 @@
 package com.infy.messenger.feature.auth.ui
 
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.outlined.AlternateEmail
+import androidx.compose.material.icons.outlined.Badge
+import androidx.compose.material.icons.outlined.Email
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.infy.messenger.R
+import com.infy.messenger.ui.theme.AuthTextIcon
 
 /**
- * Экран регистрации.
- *
- * @param onNavigateBack возврат к экрану входа
+ * Экран регистрации в новом дизайне (зеркалит web RegisterPage): aurora-сцена,
+ * стеклянная карточка, поля с иконками, градиентная кнопка действия.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreen(
     onNavigateBack: () -> Unit,
     viewModel: RegisterViewModel = hiltViewModel(),
 ) {
-    // Состояние формы из ViewModel
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-    // Хост для Snackbar
     val snackbarHostState = remember { SnackbarHostState() }
+    var revealSecret by remember { mutableStateOf(false) }
 
-    // Текст ошибки формы вычисляем в composable-контексте (stringResource нельзя
-    // внутри LaunchedEffect и внутри не-composable лямбды let).
     val formErrorMessage = if (uiState.formError != null) stringResource(uiState.formError!!) else null
     LaunchedEffect(formErrorMessage) {
         if (formErrorMessage != null) {
@@ -51,79 +51,84 @@ fun RegisterScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.register_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = null,
-                        )
-                    }
-                },
-            )
-        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-    ) { innerPadding ->
-        AuthScaffoldColumn(modifier = Modifier.padding(innerPadding)) {
-            // Заголовок и подзаголовок
-            AuthHeader(
+        containerColor = Color.Transparent,
+    ) { _ ->
+        AuthScene {
+            AuthCard(
                 title = stringResource(R.string.register_title),
                 subtitle = stringResource(R.string.register_subtitle),
-            )
+            ) {
+                AuthField(
+                    value = uiState.username,
+                    onValueChange = viewModel::onUsernameChange,
+                    label = stringResource(R.string.register_username),
+                    leadingIcon = Icons.Outlined.AlternateEmail,
+                    errorRes = uiState.usernameError,
+                    supportingText = stringResource(R.string.register_username_hint),
+                    enabled = !uiState.isSubmitting,
+                )
 
-            // Имя пользователя (с подсказкой)
-            AuthTextField(
-                value = uiState.username,
-                onValueChange = viewModel::onUsernameChange,
-                label = stringResource(R.string.register_username),
-                errorRes = uiState.usernameError,
-                supportingText = stringResource(R.string.register_username_hint),
-                enabled = !uiState.isSubmitting,
-            )
+                AuthField(
+                    value = uiState.nickname,
+                    onValueChange = viewModel::onNicknameChange,
+                    label = stringResource(R.string.register_nickname),
+                    leadingIcon = Icons.Outlined.Badge,
+                    errorRes = uiState.nicknameError,
+                    enabled = !uiState.isSubmitting,
+                )
 
-            // Никнейм (отображаемое имя)
-            AuthTextField(
-                value = uiState.nickname,
-                onValueChange = viewModel::onNicknameChange,
-                label = stringResource(R.string.register_nickname),
-                errorRes = uiState.nicknameError,
-                enabled = !uiState.isSubmitting,
-            )
+                AuthField(
+                    value = uiState.email,
+                    onValueChange = viewModel::onEmailChange,
+                    label = stringResource(R.string.register_email),
+                    leadingIcon = Icons.Outlined.Email,
+                    errorRes = uiState.emailError,
+                    keyboardType = KeyboardType.Email,
+                    enabled = !uiState.isSubmitting,
+                )
 
-            // Email
-            AuthTextField(
-                value = uiState.email,
-                onValueChange = viewModel::onEmailChange,
-                label = stringResource(R.string.register_email),
-                errorRes = uiState.emailError,
-                keyboardType = KeyboardType.Email,
-                enabled = !uiState.isSubmitting,
-            )
+                AuthField(
+                    value = uiState.password,
+                    onValueChange = viewModel::onPasswordChange,
+                    label = stringResource(R.string.register_password),
+                    leadingIcon = Icons.Outlined.Lock,
+                    errorRes = uiState.passwordError,
+                    supportingText = stringResource(R.string.register_password_hint),
+                    enabled = !uiState.isSubmitting,
+                    keyboardType = KeyboardType.Password,
+                    visualTransformation = if (revealSecret) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
+                    trailingIcon = {
+                        IconButton(onClick = { revealSecret = !revealSecret }) {
+                            Icon(
+                                imageVector = if (revealSecret) {
+                                    Icons.Outlined.VisibilityOff
+                                } else {
+                                    Icons.Outlined.Visibility
+                                },
+                                contentDescription = null,
+                                tint = AuthTextIcon,
+                            )
+                        }
+                    },
+                )
 
-            // Пароль (с подсказкой)
-            AuthTextField(
-                value = uiState.password,
-                onValueChange = viewModel::onPasswordChange,
-                label = stringResource(R.string.register_password),
-                errorRes = uiState.passwordError,
-                supportingText = stringResource(R.string.register_password_hint),
-                enabled = !uiState.isSubmitting,
-                isPassword = true,
-            )
+                AuthPrimaryButton(
+                    text = stringResource(R.string.register_submit),
+                    onClick = viewModel::submit,
+                    enabled = uiState.canSubmit,
+                    loading = uiState.isSubmitting,
+                    trailingIcon = Icons.AutoMirrored.Filled.ArrowForward,
+                )
 
-            // Кнопка регистрации
-            AuthPrimaryButton(
-                text = stringResource(R.string.register_submit),
-                onClick = viewModel::submit,
-                enabled = uiState.canSubmit,
-                loading = uiState.isSubmitting,
-            )
-
-            // Переход к входу
-            TextButton(onClick = onNavigateBack) {
-                Text(stringResource(R.string.register_have_account))
+                AuthFooterLink(
+                    prompt = stringResource(R.string.register_have_account),
+                    onClick = onNavigateBack,
+                )
             }
         }
     }
