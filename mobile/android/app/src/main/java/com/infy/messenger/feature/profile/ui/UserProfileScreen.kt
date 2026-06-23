@@ -37,6 +37,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -339,9 +342,7 @@ private fun Content(
     val builder = viewModel.mediaUrlBuilder
 
     // Лайтбокс для медиа-вкладки: список фото/видео + индекс открытого, либо null.
-    var lightboxIndex by androidx.compose.runtime.remember(state.media) {
-        androidx.compose.runtime.mutableStateOf<Int?>(null)
-    }
+    var lightboxIndex by remember(state.media) { mutableStateOf<Int?>(null) }
 
     Column(
         Modifier
@@ -451,7 +452,7 @@ private fun Content(
     // Полноэкранный просмотрщик медиа из вкладки «Медиа» (тот же лайтбокс, что в чате).
     // Индексы [items] совпадают с [state.media] (тайлы без вложения некликабельны).
     lightboxIndex?.let { idx ->
-        val items = androidx.compose.runtime.remember(state.media) {
+        val items = remember(state.media) {
             state.media.map { msg ->
                 val att = msg.attachments.firstOrNull()
                 com.infy.messenger.feature.media.ui.LightboxItem(
