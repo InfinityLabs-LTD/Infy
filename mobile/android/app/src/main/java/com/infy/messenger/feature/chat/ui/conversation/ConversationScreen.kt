@@ -88,6 +88,7 @@ import com.infy.messenger.ui.theme.AuroraBackground
 import com.infy.messenger.ui.theme.DangerRed
 import com.infy.messenger.ui.theme.DockBg
 import com.infy.messenger.ui.theme.Hairline
+import com.infy.messenger.ui.theme.InfyHighlight
 import com.infy.messenger.ui.theme.GlassStroke
 import com.infy.messenger.ui.theme.GlassPopBg
 import com.infy.messenger.ui.theme.Glass2
@@ -253,6 +254,22 @@ fun ConversationScreen(
                 onReport = { showReport = true },
             )
 
+            // Закреплённое сообщение — бар под шапкой (как в Telegram). Клик
+            // прокручивает ленту к этому сообщению.
+            val pinned = remember(uiState.messages) {
+                uiState.messages.lastOrNull { it.pinnedAt != null }
+            }
+            if (pinned != null) {
+                PinnedBar(
+                    message = pinned,
+                    onClick = {
+                        val reversed = uiState.messages.reversed()
+                        val idx = reversed.indexOfFirst { it.id == pinned.id }
+                        if (idx >= 0) scope.launch { listState.animateScrollToItem(idx) }
+                    },
+                )
+            }
+
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             LazyColumn(
                 state = listState,
@@ -272,8 +289,10 @@ fun ConversationScreen(
                         MessageBubble(
                             message = message,
                             urlBuilder = viewModel.mediaUrlBuilder,
+                            currentUserId = viewModel.currentUserId,
                             onRetry = { clientId -> viewModel.retry(clientId) },
                             onLongPress = { m, rect -> selectedMessage = m; selectedBounds = rect },
+                            onReactionClick = { id, emoji -> viewModel.toggleReaction(id, emoji) },
                             onTranscribe = { id -> viewModel.transcribe(id) },
                         )
                     }
@@ -402,9 +421,14 @@ fun ConversationScreen(
         // Контекстное меню сообщения по long-press (реакции + действия), как в web.
         selectedMessage?.let { msg ->
             val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+            val myEmojis = remember(msg) {
+                msg.reactions.filter { viewModel.currentUserId in it.userIds }
+                    .map { it.emoji }.toSet()
+            }
             MessageContextMenu(
                 message = msg,
                 anchor = selectedBounds,
+                myEmojis = myEmojis,
                 onDismiss = { selectedMessage = null },
                 onReact = { emoji ->
                     viewModel.toggleReaction(msg.id, emoji)
@@ -525,12 +549,21 @@ private fun ConversationTopBar(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                // Тик раз в 30 секунд — чтобы относительное «был(а) N мин назад»
+                // обновлялось в реальном времени без перезахода в чат.
+                var nowTick by remember { mutableStateOf(System.currentTimeMillis()) }
+                LaunchedEffect(Unit) {
+                    while (true) {
+                        kotlinx.coroutines.delay(30_000)
+                        nowTick = System.currentTimeMillis()
+                    }
+                }
                 // Присутствие: «печатает…» > «в сети» > «был(а)…».
                 val presence: Pair<String, Color>? = when {
                     partnerTyping -> stringResource(R.string.chat_typing) to
                         MaterialTheme.colorScheme.primary
                     partnerOnline -> stringResource(R.string.chat_online) to OnlineGreen
-                    partnerLastSeenAt != null -> formatLastSeen(partnerLastSeenAt) to TextLow
+                    partnerLastSeenAt != null -> formatLastSeen(partnerLastSeenAt, nowTick) to TextLow
                     else -> null
                 }
                 if (presence != null) {
@@ -598,8 +631,8 @@ private fun ConversationTopBar(
 
 /** Человекочитаемое «был(а) в сети» (как в вебе: только что / N мин / N ч / дата). */
 @Composable
-private fun formatLastSeen(epochMs: Long): String {
-    val diff = System.currentTimeMillis() - epochMs
+private fun formatLastSeen(epochMs: Long, now: Long = System.currentTimeMillis()): String {
+    val diff = now - epochMs
     val minutes = diff / 60_000
     val hours = diff / 3_600_000
     return when {
@@ -621,6 +654,48 @@ private val TEXT_LIKE_TYPES = setOf(
     MessageType.AI,
     MessageType.AI_QUERY,
 )
+
+/**
+ * Бар закреплённого сообщения под шапкой (как в Telegram): значок 📌,
+ * «Закреплённое сообщение» + превью. Клик прокручивает к сообщению.
+ */
+@Composable
+private fun PinnedBar(message: ChatMessage, onClick: () -> Unit) {
+    val preview = message.content?.takeIf { it.isNotBlank() }
+        ?: stringResource(R.string.chats_attachment)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 3.dp, height = 32.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(InfyHighlight),
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.pinned_title),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = InfyHighlight,
+            )
+            Text(
+                text = preview,
+                style = MaterialTheme.typography.bodySmall,
+                color = TextMid,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Text(text = "📌", style = MaterialTheme.typography.labelMedium)
+    }
+}
 
 /** Системное уведомление в ленте (например, о закреплении) — центрированная плашка. */
 @Composable
@@ -647,8 +722,10 @@ private fun SystemMessageRow(text: String) {
 private fun MessageBubble(
     message: ChatMessage,
     urlBuilder: com.infy.messenger.core.media.MediaUrlBuilder,
+    currentUserId: String,
     onRetry: (clientMessageId: String) -> Unit,
     onLongPress: (ChatMessage, androidx.compose.ui.geometry.Rect) -> Unit,
+    onReactionClick: (messageId: String, emoji: String) -> Unit,
     onTranscribe: (suspend (messageId: String) -> String)? = null,
 ) {
     val isOwn = message.isOwn
@@ -763,7 +840,8 @@ private fun MessageBubble(
                     }
                 }
 
-                // Реакции.
+                // Реакции. Тап по своей реакции — снимает её, по чужой эмодзи —
+                // добавляет/переключает. Моя реакция подсвечена фиолетовым.
                 if (message.reactions.isNotEmpty()) {
                     FlowRow(
                         modifier = Modifier
@@ -772,10 +850,28 @@ private fun MessageBubble(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         message.reactions.forEach { reaction ->
+                            val mine = currentUserId.isNotEmpty() && currentUserId in reaction.userIds
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(10.dp))
-                                    .background(Color.White.copy(alpha = 0.14f)),
+                                    .background(
+                                        if (mine) {
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                                        } else {
+                                            Color.White.copy(alpha = 0.14f)
+                                        },
+                                    )
+                                    .then(
+                                        if (mine) {
+                                            Modifier.border(
+                                                BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                                                RoundedCornerShape(10.dp),
+                                            )
+                                        } else {
+                                            Modifier
+                                        },
+                                    )
+                                    .clickable { onReactionClick(message.id, reaction.emoji) },
                             ) {
                                 Text(
                                     text = "${reaction.emoji} ${reaction.count}",
@@ -1336,6 +1432,7 @@ private val QUICK_EMOJIS = listOf("👍", "❤️", "😂", "😮", "😢", "�
 private fun MessageContextMenu(
     message: ChatMessage,
     anchor: Rect,
+    myEmojis: Set<String>,
     onDismiss: () -> Unit,
     onReact: (String) -> Unit,
     onReply: () -> Unit,
@@ -1439,10 +1536,18 @@ private fun MessageContextMenu(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 QUICK_EMOJIS.forEach { emoji ->
+                    val mine = emoji in myEmojis
                     Box(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(RoundedCornerShape(10.dp))
+                            .background(
+                                if (mine) {
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                                } else {
+                                    Color.Transparent
+                                },
+                            )
                             .clickable { onReact(emoji) },
                         contentAlignment = Alignment.Center,
                     ) {

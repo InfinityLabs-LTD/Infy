@@ -73,10 +73,14 @@ class ConversationViewModel @Inject constructor(
     private val aiRepository: AiRepository,
     private val activeChatTracker: ActiveChatTracker,
     private val notifier: AppNotifier,
+    private val sessionManager: com.infy.messenger.feature.auth.data.SessionManager,
     val mediaUrlBuilder: MediaUrlBuilder,
 ) : ViewModel() {
 
     val chatId: String = checkNotNull(savedStateHandle["chatId"])
+
+    /** id текущего пользователя — для выделения своих реакций. */
+    val currentUserId: String = sessionManager.currentUserId().orEmpty()
 
     /** Экран переписки открыт: подавляем уведомления этого чата и снимаем старые. */
     fun onScreenActive() {

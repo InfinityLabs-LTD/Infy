@@ -84,6 +84,7 @@
     <string name="edit_title">Редактирование</string>
     <string name="edit_cancel">Отменить редактирование</string>
     <string name="msg_pinned_label">Закреплено</string>
+    <string name="pinned_title">Закреплённое сообщение</string>
     <string name="emoji_search">Поиск эмодзи…</string>
     <string name="emoji_not_found">Ничего не найдено</string>
 
@@ -204,7 +205,7 @@
 
     <!-- Шапка диалога: присутствие и меню -->
     <string name="chat_online">в сети</string>
-    <string name="chat_last_seen_just_now">был(а) недавно</string>
+    <string name="chat_last_seen_just_now">только что был(а) в сети</string>
     <string name="chat_last_seen_minutes">был(а) %1$d мин. назад</string>
     <string name="chat_last_seen_hours">был(а) %1$d ч. назад</string>
     <string name="chat_last_seen_at">был(а) в сети %1$s</string>
