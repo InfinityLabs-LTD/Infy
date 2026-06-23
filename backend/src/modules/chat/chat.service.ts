@@ -17,9 +17,6 @@ function muteMessage(reason: string, expiresAt: Date | null): string {
   return `Вы не можете отправлять сообщения. Причина: ${reason}`
 }
 
-// Максимум разных реакций от одного пользователя на одно сообщение
-const MAX_REACTIONS_PER_USER = 3
-
 // Общий include для полной сериализации сообщения (с автором, вложениями,
 // реакциями и кратким превью сообщения-ответа).
 const messageInclude = {
@@ -451,13 +448,11 @@ export async function toggleReaction(
   })
 
   if (existing) {
+    // Повторный тап по своей реакции — снимаем её.
     await prisma.messageReaction.delete({ where: { id: existing.id } })
   } else {
-    // Лимит: не более 3 разных реакций от одного пользователя на сообщение
-    const myCount = await prisma.messageReaction.count({ where: { messageId, userId } })
-    if (myCount >= MAX_REACTIONS_PER_USER) {
-      throw new AppError('REACTION_LIMIT', `Maximum ${MAX_REACTIONS_PER_USER} reactions per message`, 409)
-    }
+    // Лимит — одна реакция от пользователя на сообщение: новая заменяет прежнюю.
+    await prisma.messageReaction.deleteMany({ where: { messageId, userId } })
     await prisma.messageReaction.create({ data: { messageId, userId, emoji } })
   }
 
@@ -679,7 +674,8 @@ export async function deleteMessage(
 
   await prisma.message.update({
     where: { id: messageId },
-    data: { deletedAt: new Date() },
+    // Снимаем закрепление — удалённое сообщение не должно оставаться закреплённым.
+    data: { deletedAt: new Date(), pinnedAt: null },
   })
 
   return { id: messageId, chatId: msg.chatId }

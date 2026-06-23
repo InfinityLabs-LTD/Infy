@@ -540,7 +540,7 @@ private fun ConversationTopBar(
                     )
                 }
             }
-            Column(modifier = Modifier.padding(start = 10.dp)) {
+            Column(modifier = Modifier.padding(start = 3.dp)) {
                 Text(
                     text = partnerName,
                     color = TextHi,
@@ -549,12 +549,12 @@ private fun ConversationTopBar(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                // Тик раз в 30 секунд — чтобы относительное «был(а) N мин назад»
-                // обновлялось в реальном времени без перезахода в чат.
+                // Частый тик — относительное «был(а) N мин назад» обновляется почти
+                // в реальном времени без перезахода в чат.
                 var nowTick by remember { mutableStateOf(System.currentTimeMillis()) }
                 LaunchedEffect(Unit) {
                     while (true) {
-                        kotlinx.coroutines.delay(30_000)
+                        kotlinx.coroutines.delay(1_000)
                         nowTick = System.currentTimeMillis()
                     }
                 }
