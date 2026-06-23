@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -75,6 +75,8 @@ import java.util.Locale
 fun UserProfileScreen(
     onNavigateBack: () -> Unit,
     onOpenFullProfile: (username: String) -> Unit,
+    /** Тап по голосовому/кружку в карточке — перенести скролл чата на это сообщение. */
+    onJumpToMessage: (messageId: String) -> Unit = {},
     viewModel: UserProfileViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -107,6 +109,7 @@ fun UserProfileScreen(
                         state = state,
                         viewModel = viewModel,
                         onOpenFullProfile = onOpenFullProfile,
+                        onJumpToMessage = onJumpToMessage,
                     )
                 }
             }
@@ -330,9 +333,15 @@ private fun Content(
     state: UserProfileUiState,
     viewModel: UserProfileViewModel,
     onOpenFullProfile: (String) -> Unit,
+    onJumpToMessage: (messageId: String) -> Unit,
 ) {
     val profile = state.profile ?: return
     val builder = viewModel.mediaUrlBuilder
+
+    // Лайтбокс для медиа-вкладки: список фото/видео + индекс открытого, либо null.
+    var lightboxIndex by androidx.compose.runtime.remember(state.media) {
+        androidx.compose.runtime.mutableStateOf<Int?>(null)
+    }
 
     Column(
         Modifier
@@ -413,8 +422,9 @@ private fun Content(
                     }
                 }
 
-                state.tab == UserProfileTab.MEDIA -> MediaGrid(state.media, builder)
-                else -> AudioList(state.audio)
+                state.tab == UserProfileTab.MEDIA ->
+                    MediaGrid(state.media, builder, onOpenAt = { lightboxIndex = it })
+                else -> AudioList(state.audio, onJumpToMessage = onJumpToMessage)
             }
         }
 
@@ -435,6 +445,28 @@ private fun Content(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
+        }
+    }
+
+    // Полноэкранный просмотрщик медиа из вкладки «Медиа» (тот же лайтбокс, что в чате).
+    // Индексы [items] совпадают с [state.media] (тайлы без вложения некликабельны).
+    lightboxIndex?.let { idx ->
+        val items = androidx.compose.runtime.remember(state.media) {
+            state.media.map { msg ->
+                val att = msg.attachments.firstOrNull()
+                com.infy.messenger.feature.media.ui.LightboxItem(
+                    url = att?.let { builder.url(it.storageKey) }.orEmpty(),
+                    isVideo = msg.type == "VIDEO" || att?.mimeType?.startsWith("video/") == true,
+                )
+            }
+        }
+        if (idx in items.indices && items[idx].url.isNotEmpty()) {
+            com.infy.messenger.feature.media.ui.MediaLightbox(
+                items = items,
+                index = idx,
+                onIndex = { lightboxIndex = it },
+                onClose = { lightboxIndex = null },
+            )
         }
     }
 }
@@ -483,7 +515,11 @@ private fun TabButton(title: String, selected: Boolean, onClick: () -> Unit, mod
 }
 
 @Composable
-private fun MediaGrid(media: List<MessageDto>, builder: com.infy.messenger.core.media.MediaUrlBuilder) {
+private fun MediaGrid(
+    media: List<MessageDto>,
+    builder: com.infy.messenger.core.media.MediaUrlBuilder,
+    onOpenAt: (index: Int) -> Unit,
+) {
     if (media.isEmpty()) {
         EmptyState(stringResource(R.string.partner_media_empty))
         return
@@ -499,14 +535,15 @@ private fun MediaGrid(media: List<MessageDto>, builder: com.infy.messenger.core.
             .height(cellSize * rows),
         userScrollEnabled = false,
     ) {
-        items(media, key = { it.id }) { msg ->
+        itemsIndexed(media, key = { _, m -> m.id }) { index, msg ->
             val att = msg.attachments.firstOrNull()
             Box(
                 Modifier
                     .padding(1.dp)
                     .aspectRatio(1f)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(Glass2),
+                    .background(Glass2)
+                    .clickable(enabled = att != null) { onOpenAt(index) },
                 contentAlignment = Alignment.Center,
             ) {
                 if (att != null) {
@@ -534,7 +571,7 @@ private fun MediaGrid(media: List<MessageDto>, builder: com.infy.messenger.core.
 }
 
 @Composable
-private fun AudioList(audio: List<MessageDto>) {
+private fun AudioList(audio: List<MessageDto>, onJumpToMessage: (messageId: String) -> Unit) {
     if (audio.isEmpty()) {
         EmptyState(stringResource(R.string.partner_audio_empty))
         return
@@ -543,7 +580,10 @@ private fun AudioList(audio: List<MessageDto>) {
         audio.forEach { msg ->
             val isCircle = msg.type == "CIRCLE_VIDEO"
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { onJumpToMessage(msg.id) }
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {

@@ -107,6 +107,11 @@ fun InfyNavHost(
                 .getStateFlow<Long>(KEY_CIRCLE_DURATION, 0L)
                 .collectAsStateWithLifecycle()
 
+            // Запрос прокрутки к сообщению из карточки собеседника (медиа/аудио).
+            val jumpMessageId = entry.savedStateHandle
+                .getStateFlow<String?>(KEY_JUMP_MESSAGE_ID, null)
+                .collectAsStateWithLifecycle()
+
             val convVm: ConversationViewModel = hiltViewModel()
             LaunchedEffect(circleUri.value) {
                 val uriStr = circleUri.value ?: return@LaunchedEffect
@@ -121,6 +126,8 @@ fun InfyNavHost(
                     navController.navigate(Destinations.userProfile(username))
                 },
                 onOpenSearch = { navController.navigate(Destinations.SEARCH) },
+                jumpToMessageId = jumpMessageId.value,
+                onJumpHandled = { entry.savedStateHandle[KEY_JUMP_MESSAGE_ID] = null },
                 viewModel = convVm,
             )
         }
@@ -133,6 +140,13 @@ fun InfyNavHost(
                 onNavigateBack = { navController.popBackStack() },
                 onOpenFullProfile = { username ->
                     navController.navigate(Destinations.publicProfile(username))
+                },
+                onJumpToMessage = { messageId ->
+                    // Возвращаемся в переписку и просим её прокрутиться к этому
+                    // сообщению (как клик по медиа/аудио в web-карточке).
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle?.set(KEY_JUMP_MESSAGE_ID, messageId)
+                    navController.popBackStack()
                 },
             )
         }
@@ -180,6 +194,7 @@ fun InfyNavHost(
 
 private const val KEY_CIRCLE_URI = "circle_uri"
 private const val KEY_CIRCLE_DURATION = "circle_duration"
+private const val KEY_JUMP_MESSAGE_ID = "jump_message_id"
 
 /** Переход с полной очисткой бэкстека (смена auth-стека). */
 private fun NavHostController.navigateClearingTo(route: String) {

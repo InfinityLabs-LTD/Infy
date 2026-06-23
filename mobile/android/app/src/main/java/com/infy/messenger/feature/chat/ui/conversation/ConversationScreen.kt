@@ -115,6 +115,10 @@ fun ConversationScreen(
     onOpenCalendar: () -> Unit = {},
     onOpenAi: () -> Unit = {},
     onReport: (userId: String) -> Unit = {},
+    /** Запрос прокрутки к сообщению (из карточки собеседника); null — нет запроса. */
+    jumpToMessageId: String? = null,
+    /** Вызывается после обработки [jumpToMessageId], чтобы сбросить запрос. */
+    onJumpHandled: () -> Unit = {},
     viewModel: ConversationViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -231,6 +235,23 @@ fun ConversationScreen(
     val showScrollToBottom by remember {
         androidx.compose.runtime.derivedStateOf {
             listState.firstVisibleItemIndex > 2
+        }
+    }
+
+    // Прокрутка к сообщению по запросу из карточки собеседника (тап по медиа/аудио).
+    // Список reverseLayout по `messages.reversed()` — индекс = позиция в обратном
+    // порядке. Если сообщение ещё не загружено, подтягиваем историю до появления.
+    LaunchedEffect(jumpToMessageId, uiState.messages, uiState.hasMoreHistory) {
+        val targetId = jumpToMessageId ?: return@LaunchedEffect
+        val reversed = uiState.messages.asReversed()
+        val idx = reversed.indexOfFirst { it.id == targetId }
+        when {
+            idx >= 0 -> {
+                listState.animateScrollToItem(idx)
+                onJumpHandled()
+            }
+            uiState.hasMoreHistory && !uiState.isLoadingHistory -> viewModel.loadMore()
+            else -> onJumpHandled() // нет в истории — сбрасываем запрос, чтобы не зациклиться
         }
     }
 

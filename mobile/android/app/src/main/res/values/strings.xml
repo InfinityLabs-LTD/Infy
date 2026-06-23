@@ -103,6 +103,7 @@
     <string name="media_file_open">Открыть файл</string>
     <string name="media_image">Изображение</string>
     <string name="media_video">Видео</string>
+    <string name="lightbox_close">Закрыть</string>
     <string name="media_voice">Голосовое сообщение</string>
     <string name="media_circle">Видеосообщение</string>
     <string name="media_permission_mic">Нужен доступ к микрофону для записи голосовых</string>

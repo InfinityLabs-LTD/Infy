@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,10 +16,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -35,7 +40,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -72,21 +80,25 @@ fun MessageAttachments(
     if (attachments.isEmpty()) return
     val first = attachments.first()
 
+    // Лайтбокс: индекс открытого вложения в [attachments] или null (закрыт).
+    var lightboxIndex by remember(attachments) { mutableStateOf<Int?>(null) }
+
     when (type) {
         MessageType.ALBUM -> {
-            // Альбом: вертикальная колонка картинок.
+            // Альбом: вертикальная колонка картинок. Тап по любой — лайтбокс
+            // с навигацией по всему альбому.
             Column(
                 modifier = modifier,
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                attachments.forEach { att ->
-                    ImageAttachment(att, urlBuilder)
+                attachments.forEachIndexed { index, att ->
+                    ImageAttachment(att, urlBuilder, onClick = { lightboxIndex = index })
                 }
             }
         }
 
-        MessageType.IMAGE -> ImageAttachment(first, urlBuilder, modifier)
-        MessageType.VIDEO -> VideoAttachment(first, urlBuilder, modifier)
+        MessageType.IMAGE -> ImageAttachment(first, urlBuilder, modifier, onClick = { lightboxIndex = 0 })
+        MessageType.VIDEO -> VideoAttachment(first, urlBuilder, modifier, onOpen = { lightboxIndex = 0 })
         MessageType.CIRCLE_VIDEO ->
             CircleAttachment(first, urlBuilder, modifier, messageId, onTranscribe)
         MessageType.AUDIO ->
@@ -95,22 +107,38 @@ fun MessageAttachments(
             // FILE и всё прочее — уточняем по mime: картинка/видео/аудио могут
             // приходить с обобщённым типом, иначе показываем как файл.
             when {
-                first.mimeType.startsWith("image/") -> ImageAttachment(first, urlBuilder, modifier)
-                first.mimeType.startsWith("video/") -> VideoAttachment(first, urlBuilder, modifier)
+                first.mimeType.startsWith("image/") ->
+                    ImageAttachment(first, urlBuilder, modifier, onClick = { lightboxIndex = 0 })
+                first.mimeType.startsWith("video/") ->
+                    VideoAttachment(first, urlBuilder, modifier, onOpen = { lightboxIndex = 0 })
                 first.mimeType.startsWith("audio/") ->
                     VoiceAttachment(first, urlBuilder, modifier, messageId, onTranscribe)
                 else -> FileAttachment(first, urlBuilder, modifier)
             }
         }
     }
+
+    // Полноэкранный просмотрщик фото/видео (как лайтбокс в вебе).
+    lightboxIndex?.let { idx ->
+        val items = remember(attachments) {
+            attachments.map { LightboxItem(urlBuilder.url(it.storageKey), it.mimeType.startsWith("video/")) }
+        }
+        MediaLightbox(
+            items = items,
+            index = idx,
+            onIndex = { lightboxIndex = it },
+            onClose = { lightboxIndex = null },
+        )
+    }
 }
 
-/** Изображение: превью (thumbnail) с сохранением соотношения сторон. */
+/** Изображение: превью (thumbnail) с сохранением соотношения сторон. Тап — лайтбокс. */
 @Composable
 private fun ImageAttachment(
     att: Attachment,
     urlBuilder: MediaUrlBuilder,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     val aspect = aspectRatioOf(att)
     var imageModifier = modifier
@@ -118,6 +146,9 @@ private fun ImageAttachment(
         .clip(RoundedCornerShape(12.dp))
     if (aspect != null) {
         imageModifier = imageModifier.aspectRatio(aspect)
+    }
+    if (onClick != null) {
+        imageModifier = imageModifier.clickable(onClick = onClick)
     }
     AsyncImage(
         model = urlBuilder.thumbnailUrl(att.thumbnailKey, att.storageKey),
@@ -128,17 +159,16 @@ private fun ImageAttachment(
 }
 
 /**
- * Видео: до клика — превью + кнопка Play; после клика — встроенный PlayerView
- * с автозапуском.
+ * Видео: превью + кнопка Play. Тап открывает полноэкранный лайтбокс с
+ * автозапуском (как в вебе), а не встроенный плеер в пузыре.
  */
-@OptIn(UnstableApi::class)
 @Composable
 private fun VideoAttachment(
     att: Attachment,
     urlBuilder: MediaUrlBuilder,
     modifier: Modifier = Modifier,
+    onOpen: (() -> Unit)? = null,
 ) {
-    var isPlaying by remember { mutableStateOf(false) }
     val aspect = aspectRatioOf(att)
     var boxModifier = modifier
         .heightIn(max = 280.dp)
@@ -146,31 +176,18 @@ private fun VideoAttachment(
     if (aspect != null) {
         boxModifier = boxModifier.aspectRatio(aspect)
     }
+    if (onOpen != null) {
+        boxModifier = boxModifier.clickable(onClick = onOpen)
+    }
 
     Box(modifier = boxModifier, contentAlignment = Alignment.Center) {
-        if (isPlaying) {
-            val exo = rememberExoPlayer(urlBuilder.url(att.storageKey), playWhenReady = true)
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        player = exo
-                        useController = true
-                    }
-                },
-                modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            AsyncImage(
-                model = urlBuilder.thumbnailUrl(att.thumbnailKey, att.storageKey),
-                contentDescription = stringResource(R.string.media_video),
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-            PlayBadge(
-                contentDescription = stringResource(R.string.media_play),
-                modifier = Modifier.clickable { isPlaying = true },
-            )
-        }
+        AsyncImage(
+            model = urlBuilder.thumbnailUrl(att.thumbnailKey, att.storageKey),
+            contentDescription = stringResource(R.string.media_video),
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        PlayBadge(contentDescription = stringResource(R.string.media_play))
     }
 }
 
@@ -416,6 +433,173 @@ private fun FileAttachment(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+/** Элемент лайтбокса: прямой URL медиа и признак «это видео». */
+data class LightboxItem(val url: String, val isVideo: Boolean)
+
+/**
+ * Полноэкранный просмотрщик медиа (лайтбокс), зеркалит web MediaLightbox:
+ * затемнённый фон, крестик и счётчик сверху, стрелки влево/вправо для альбома.
+ * Фото — вписывается (Fit) с возможностью зума щипком; видео — PlayerView с
+ * контролами и автозапуском. Закрытие — крестик, тап по фону или системный
+ * «Назад».
+ */
+@OptIn(UnstableApi::class)
+@Composable
+fun MediaLightbox(
+    items: List<LightboxItem>,
+    index: Int,
+    onIndex: (Int) -> Unit,
+    onClose: () -> Unit,
+) {
+    val item = items.getOrNull(index) ?: return
+    val isVideo = item.isVideo
+    val hasPrev = index > 0
+    val hasNext = index < items.size - 1
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onClose,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.96f))
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    onClick = onClose,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            // Контент по центру; клик по нему не закрывает (поглощаем).
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 8.dp, vertical = 64.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (isVideo) {
+                    val exo = rememberExoPlayer(item.url, playWhenReady = true)
+                    AndroidView(
+                        factory = { ctx ->
+                            PlayerView(ctx).apply {
+                                player = exo
+                                useController = true
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                indication = null,
+                                interactionSource = remember {
+                                    androidx.compose.foundation.interaction.MutableInteractionSource()
+                                },
+                                onClick = {},
+                            ),
+                    )
+                } else {
+                    ZoomableImage(
+                        model = item.url,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+
+            // Верхняя панель: счётчик + крестик (учитываем вырез сверху).
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .statusBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = if (items.size > 1) "${index + 1} / ${items.size}" else "",
+                    color = Color.White.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                IconButton(onClick = onClose) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.lightbox_close),
+                            tint = Color.White,
+                        )
+                    }
+                }
+            }
+
+            // Стрелки навигации по альбому.
+            if (hasPrev) {
+                LightboxArrow(
+                    icon = Icons.Filled.ChevronLeft,
+                    onClick = { onIndex(index - 1) },
+                    modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp),
+                )
+            }
+            if (hasNext) {
+                LightboxArrow(
+                    icon = Icons.Filled.ChevronRight,
+                    onClick = { onIndex(index + 1) },
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Изображение во весь экран с зумом щипком и панорамированием (Fit). */
+@Composable
+private fun ZoomableImage(model: String, modifier: Modifier = Modifier) {
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    AsyncImage(
+        model = model,
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        modifier = modifier
+            .pointerInput(Unit) {
+                detectTransformGestures { _, pan, zoom, _ ->
+                    scale = (scale * zoom).coerceIn(1f, 5f)
+                    offset = if (scale > 1f) offset + pan else Offset.Zero
+                }
+            }
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                translationX = offset.x
+                translationY = offset.y
+            },
+    )
+}
+
+/** Круглая стрелка навигации лайтбокса (влево/вправо). */
+@Composable
+private fun LightboxArrow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(Color.Black.copy(alpha = 0.4f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = null, tint = Color.White)
     }
 }
 
