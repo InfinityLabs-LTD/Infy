@@ -599,10 +599,13 @@ private fun MessageBubble(
                 }
 
                 // Нижняя строка: время, метка «изменено», статус доставки.
+                // Прижимаем к правому краю пузыря, но НЕ растягиваем колонку —
+                // иначе короткие сообщения получают пузырь во всю ширину.
                 MessageMeta(
                     message = message,
                     contentColor = contentColor,
                     onRetry = onRetry,
+                    modifier = Modifier.align(Alignment.End),
                 )
             }
         }
@@ -615,12 +618,12 @@ private fun MessageMeta(
     message: ChatMessage,
     contentColor: Color,
     onRetry: (clientMessageId: String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val mutedColor = contentColor.copy(alpha = 0.7f)
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .padding(top = 4.dp),
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically,
