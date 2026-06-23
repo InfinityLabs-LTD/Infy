@@ -41,7 +41,7 @@ interface ChatApi {
         @Body body: SendMessageRequest,
     ): ApiEnvelope<MessageDto>
 
-    @POST("messages/{id}/react")
+    @POST("chats/messages/{id}/react")
     suspend fun react(
         @Path("id") messageId: String,
         @Body body: ReactRequest,
@@ -67,7 +67,7 @@ interface ChatApi {
     ): ApiEnvelope<MessageDto>
 
     /** Расшифровать голосовое/кружок (Whisper). Возвращает распознанный текст. */
-    @POST("messages/{id}/transcribe")
+    @POST("chats/messages/{id}/transcribe")
     suspend fun transcribe(
         @Path("id") messageId: String,
     ): ApiEnvelope<TranscriptDto>

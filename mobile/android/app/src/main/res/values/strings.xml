@@ -83,6 +83,9 @@
     <string name="reply_cancel">Отменить ответ</string>
     <string name="edit_title">Редактирование</string>
     <string name="edit_cancel">Отменить редактирование</string>
+    <string name="msg_pinned_label">Закреплено</string>
+    <string name="emoji_search">Поиск эмодзи…</string>
+    <string name="emoji_not_found">Ничего не найдено</string>
 
     <!-- Медиа -->
     <string name="media_attach">Прикрепить</string>

@@ -17,6 +17,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -261,13 +265,18 @@ fun ConversationScreen(
                     items = uiState.messages.reversed(),
                     key = { it.clientMessageId ?: it.id },
                 ) { message ->
-                    MessageBubble(
-                        message = message,
-                        urlBuilder = viewModel.mediaUrlBuilder,
-                        onRetry = { clientId -> viewModel.retry(clientId) },
-                        onLongPress = { m, rect -> selectedMessage = m; selectedBounds = rect },
-                        onTranscribe = { id -> viewModel.transcribe(id) },
-                    )
+                    if (message.type == MessageType.SYSTEM) {
+                        // Системное уведомление (например, о закреплении) — центрированная плашка.
+                        SystemMessageRow(text = message.content.orEmpty())
+                    } else {
+                        MessageBubble(
+                            message = message,
+                            urlBuilder = viewModel.mediaUrlBuilder,
+                            onRetry = { clientId -> viewModel.retry(clientId) },
+                            onLongPress = { m, rect -> selectedMessage = m; selectedBounds = rect },
+                            onTranscribe = { id -> viewModel.transcribe(id) },
+                        )
+                    }
                 }
 
                 if (uiState.isLoadingHistory) {
@@ -613,6 +622,25 @@ private val TEXT_LIKE_TYPES = setOf(
     MessageType.AI_QUERY,
 )
 
+/** Системное уведомление в ленте (например, о закреплении) — центрированная плашка. */
+@Composable
+private fun SystemMessageRow(text: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            color = TextLow,
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(Glass2)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        )
+    }
+}
+
 /** Пузырь одного сообщения. Свои — градиент, чужие — стекло. */
 @OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -666,6 +694,22 @@ private fun MessageBubble(
                 ),
         ) {
             Column(modifier = Modifier.padding(10.dp)) {
+                // Индикатор закрепления (как в web — значок 📌 на закреплённом сообщении).
+                if (message.pinnedAt != null) {
+                    Row(
+                        modifier = Modifier.padding(bottom = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(text = "📌", style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            text = stringResource(R.string.msg_pinned_label),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = contentColor.copy(alpha = 0.8f),
+                        )
+                    }
+                }
+
                 // Блок-цитата (ответ на сообщение).
                 val reply = message.replyTo
                 if (reply != null) {
@@ -1303,6 +1347,13 @@ private fun MessageContextMenu(
     val isOwn = message.isOwn
     val isText = message.type in TEXT_LIKE_TYPES && !message.content.isNullOrBlank()
     val density = androidx.compose.ui.platform.LocalDensity.current
+    var showFullPicker by remember { mutableStateOf(false) }
+
+    // Полноэкранный пикер всех эмодзи (как web FullEmojiPicker) поверх меню.
+    if (showFullPicker) {
+        FullEmojiPicker(onSelect = onReact, onDismiss = onDismiss)
+        return
+    }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -1390,13 +1441,27 @@ private fun MessageContextMenu(
                 QUICK_EMOJIS.forEach { emoji ->
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(32.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .clickable { onReact(emoji) },
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(text = emoji, style = MaterialTheme.typography.titleLarge)
                     }
+                }
+                // Кнопка «все эмодзи» — открывает полный пикер.
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { showFullPicker = true },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.msg_more_emoji),
+                        tint = TextMid,
+                    )
                 }
             }
 
@@ -1478,6 +1543,133 @@ private fun CtxMenuItem(
 private fun formatReadAt(epochMs: Long): String =
     java.text.SimpleDateFormat("d MMM, HH:mm", java.util.Locale("ru"))
         .format(java.util.Date(epochMs))
+
+/**
+ * Полный пикер эмодзи (как web FullEmojiPicker): bottom-sheet с поиском,
+ * вкладками категорий и сеткой по 8 в ряд. Выбор шлёт реакцию и закрывает.
+ */
+@Composable
+private fun FullEmojiPicker(
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var activeCategory by remember { mutableStateOf(0) }
+    var search by remember { mutableStateOf("") }
+
+    val shown = if (search.isBlank()) {
+        EMOJI_CATEGORIES[activeCategory].emojis
+    } else {
+        EMOJI_CATEGORIES.flatMap { it.emojis }.distinct()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0x99000000))
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null,
+                onClick = onDismiss,
+            ),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.6f)
+                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .background(GlassPopBg)
+                .border(BorderStroke(1.dp, GlassStroke), RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null,
+                    onClick = {},
+                ),
+        ) {
+            // «Ручка».
+            Box(
+                modifier = Modifier
+                    .padding(top = 10.dp)
+                    .align(Alignment.CenterHorizontally)
+                    .size(width = 32.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.White.copy(alpha = 0.15f)),
+            )
+
+            // Поиск.
+            TextField(
+                value = search,
+                onValueChange = { search = it },
+                placeholder = { Text(stringResource(R.string.emoji_search), color = TextLow) },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Glass2,
+                    unfocusedContainerColor = Glass2,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = TextHi,
+                    unfocusedTextColor = TextHi,
+                ),
+                shape = RoundedCornerShape(12.dp),
+            )
+
+            // Вкладки категорий (скрываем при поиске).
+            if (search.isBlank()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    EMOJI_CATEGORIES.forEachIndexed { i, cat ->
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (activeCategory == i) {
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                                    } else {
+                                        Color.Transparent
+                                    },
+                                )
+                                .clickable { activeCategory = i },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(text = cat.icon, style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
+                }
+            }
+
+            // Сетка эмодзи.
+            androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+                columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(8),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp),
+            ) {
+                items(shown.size) { idx ->
+                    val emoji = shown[idx]
+                    Box(
+                        modifier = Modifier
+                            .aspectRatio(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onSelect(emoji) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(text = emoji, style = MaterialTheme.typography.titleLarge)
+                    }
+                }
+            }
+        }
+    }
+}
 
 /**
  * Баннер над композером для ответа/редактирования (как в web): цитата/заголовок
