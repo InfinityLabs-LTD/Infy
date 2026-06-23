@@ -687,8 +687,10 @@ private fun DeliveryTicks(
             color = MaterialTheme.colorScheme.error,
             modifier = modifier,
         )
+        // Как в web: всегда двойная галочка; отличается только цвет —
+        // приглушённый «доставлено» или фиолетовый «прочитано».
         DeliveryStatus.SENT -> Text(
-            text = "✓",
+            text = "✓✓",
             style = MaterialTheme.typography.labelSmall,
             color = mutedColor,
             modifier = modifier,

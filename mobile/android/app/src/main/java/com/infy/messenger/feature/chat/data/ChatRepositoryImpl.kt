@@ -17,6 +17,7 @@ import com.infy.messenger.feature.chat.domain.ChatSummary
 import com.infy.messenger.feature.chat.domain.DeliveryStatus
 import com.infy.messenger.feature.chat.domain.MessagePage
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 import javax.inject.Inject
@@ -42,7 +43,28 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     override fun observeMessages(chatId: String): Flow<List<ChatMessage>> =
-        messageDao.observeMessages(chatId).map { list -> list.map { it.toDomain() } }
+        combine(
+            messageDao.observeMessages(chatId),
+            chatDao.observeChat(chatId).map { it?.partnerLastReadMessageId },
+        ) { list, partnerLastReadId ->
+            list.map { entity ->
+                val msg = entity.toDomain()
+                // Статус «прочитано» вычисляем динамически, как в web: своё подтверждённое
+                // сообщение прочитано, если его id <= последнего прочитанного собеседником.
+                // ULID монотонны, поэтому достаточно лексикографического сравнения строк.
+                if (
+                    msg.isOwn &&
+                    msg.deliveryStatus == DeliveryStatus.SENT &&
+                    msg.id.isNotBlank() &&
+                    partnerLastReadId != null &&
+                    msg.id <= partnerLastReadId
+                ) {
+                    msg.copy(deliveryStatus = DeliveryStatus.READ)
+                } else {
+                    msg
+                }
+            }
+        }
 
     override suspend fun loadMessagePage(chatId: String, cursor: String?): MessagePage = apiCall {
         val page = api.getMessages(chatId, cursor, PAGE_SIZE).data

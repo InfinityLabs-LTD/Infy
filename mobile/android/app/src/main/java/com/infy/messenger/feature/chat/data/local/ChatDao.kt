@@ -22,6 +22,10 @@ interface ChatDao {
     @Query("SELECT * FROM chats WHERE id = :chatId LIMIT 1")
     suspend fun getChat(chatId: String): ChatEntity?
 
+    /** Реактивно наблюдать один чат — нужно для статуса прочтения (partnerLastReadMessageId). */
+    @Query("SELECT * FROM chats WHERE id = :chatId LIMIT 1")
+    fun observeChat(chatId: String): Flow<ChatEntity?>
+
     @Query("DELETE FROM chats WHERE id = :chatId")
     suspend fun deleteChat(chatId: String)
 
