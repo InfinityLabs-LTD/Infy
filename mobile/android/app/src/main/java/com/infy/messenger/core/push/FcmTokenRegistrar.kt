@@ -80,10 +80,17 @@ class FcmTokenRegistrar @Inject constructor(
                     return@launch
                 }
             runCatching { pushApi.register(RegisterTokenRequest(token = token)) }
-                .onSuccess {
-                    setLastRegistered(token)
-                    clearPending()
-                    Timber.d("FCM: токен зарегистрирован на бэкенде")
+                .onSuccess { resp ->
+                    // Response<Unit> не бросает на 4xx/5xx — проверяем код явно,
+                    // иначе 404 (неверный путь) выглядел бы как успех.
+                    if (resp.isSuccessful) {
+                        setLastRegistered(token)
+                        clearPending()
+                        Timber.d("FCM: токен зарегистрирован на бэкенде")
+                    } else {
+                        markPending()
+                        Timber.w("FCM: регистрация токена отклонена сервером: HTTP %d", resp.code())
+                    }
                 }
                 .onFailure {
                     // Сеть/сервер недоступны — оставим pending, повторим при следующем входе.
