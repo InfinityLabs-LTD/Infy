@@ -4,4 +4,6 @@
     <color name="infy_brand">#7C4DFF</color>
     <color name="infy_background">#FFFBFE</color>
     <color name="infy_background_dark">#141218</color>
+    <!-- Тёмный фон иконки приложения (фон исходного лого). -->
+    <color name="infy_icon_bg">#0D0622</color>
 </resources>

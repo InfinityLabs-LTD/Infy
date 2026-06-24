@@ -35,7 +35,7 @@ class CallForegroundService : Service() {
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(getString(R.string.call_ongoing))
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
             .setContentIntent(contentIntent)
             .setCategory(NotificationCompat.CATEGORY_CALL)

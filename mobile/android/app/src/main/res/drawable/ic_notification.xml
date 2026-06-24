@@ -1,9 +1,9 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
+    android:width="24dp"
+    android:height="24dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Стилизованная «i» Infy на прозрачном фоне (фон даёт adaptive-icon). -->
+    <!-- Монохромная «i» Infy для статус-бара (системой тонируется в один цвет). -->
     <path
         android:fillColor="#FFFFFF"
         android:pathData="M54,30m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />

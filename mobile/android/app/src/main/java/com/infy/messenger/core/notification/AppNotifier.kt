@@ -58,7 +58,7 @@ class AppNotifier @Inject constructor(
         val sender = message.sender.nickname.ifBlank { message.sender.username }
         val preview = previewOf(message)
         val notification = NotificationCompat.Builder(context, CHANNEL_MESSAGES)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(sender)
             .setContentText(preview)
             .setAutoCancel(true)
@@ -78,7 +78,7 @@ class AppNotifier @Inject constructor(
         if (!hasPermission()) return
         val safeBody = body.ifBlank { context.getString(R.string.chats_attachment) }
         val notification = NotificationCompat.Builder(context, CHANNEL_MESSAGES)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title.ifBlank { context.getString(R.string.app_name) })
             .setContentText(safeBody)
             .setAutoCancel(true)
@@ -106,7 +106,7 @@ class AppNotifier @Inject constructor(
     fun showIncomingCallRaw(callerName: String, text: String) {
         if (!hasPermission()) return
         val notification = NotificationCompat.Builder(context, CHANNEL_CALLS)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(callerName)
             .setContentText(text)
             .setAutoCancel(true)
@@ -123,7 +123,7 @@ class AppNotifier @Inject constructor(
     fun showReminderRaw(title: String, body: String, tag: String?) {
         if (!hasPermission()) return
         val notification = NotificationCompat.Builder(context, CHANNEL_MESSAGES)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title.ifBlank { context.getString(R.string.app_name) })
             .setContentText(body)
             .setAutoCancel(true)
