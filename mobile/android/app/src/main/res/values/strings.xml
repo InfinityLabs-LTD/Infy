@@ -127,6 +127,7 @@
     <string name="call_mic_off">Микрофон выключен</string>
     <string name="call_cam_on">Камера включена</string>
     <string name="call_cam_off">Камера выключена</string>
+    <string name="call_peer_cam_off">Камера выключена</string>
     <string name="call_switch_camera">Сменить камеру</string>
     <string name="call_speaker">Динамик</string>
     <string name="call_ongoing">Идёт звонок</string>

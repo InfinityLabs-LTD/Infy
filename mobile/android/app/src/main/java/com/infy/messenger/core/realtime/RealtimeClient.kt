@@ -1,10 +1,14 @@
 package com.infy.messenger.core.realtime
 
 import com.infy.messenger.BuildConfig
+import com.infy.messenger.core.network.TokenAuthenticator
 import com.infy.messenger.feature.auth.data.SessionManager
 import com.infy.messenger.feature.chat.data.dto.MessageDto
 import io.socket.client.IO
 import io.socket.client.Socket
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,11 +16,13 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
 import timber.log.Timber
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 /**
@@ -31,8 +37,16 @@ class RealtimeClient @Inject constructor(
     private val sessionManager: SessionManager,
     private val json: Json,
     private val okHttpClient: okhttp3.OkHttpClient,
+    // Provider — чтобы разорвать цикл DI (Authenticator входит в граф OkHttp).
+    private val tokenAuthenticator: Provider<TokenAuthenticator>,
 ) {
     private var socket: Socket? = null
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Идёт ли сейчас попытка обновить токен по UNAUTHORIZED — защита от каскада рефрешей. */
+    @Volatile
+    private var refreshingToken = false
 
     private val _events = MutableSharedFlow<RealtimeEvent>(
         extraBufferCapacity = 128,
@@ -84,6 +98,25 @@ class RealtimeClient @Inject constructor(
         if (socket == null) return
         disconnect()
         connect()
+    }
+
+    /**
+     * Реакция на UNAUTHORIZED от сокета: обновить токен в фоне и переподключиться.
+     * При успехе [SessionManager.onTokensRefreshed] эмитит сигнал, на который
+     * [RealtimeSyncManager] вызовет [reconnectWithFreshToken]. Если refresh не удался —
+     * [TokenAuthenticator.refreshTokens] сам разлогинит (Invalid) либо просто вернёт false
+     * (сеть), и сокет продолжит свои обычные попытки реконнекта.
+     */
+    private fun onUnauthorized() {
+        if (refreshingToken) return
+        refreshingToken = true
+        scope.launch {
+            try {
+                tokenAuthenticator.get().refreshTokens()
+            } finally {
+                refreshingToken = false
+            }
+        }
     }
 
     @Synchronized
@@ -170,12 +203,17 @@ class RealtimeClient @Inject constructor(
             val reason = (args.firstOrNull() as? Throwable)?.message
                 ?: args.firstOrNull()?.toString()
             Timber.w("Realtime connect_error: %s", reason)
-            // Сессия отозвана/невалидна — выходим из приложения.
-            if (reason?.contains("SESSION_REVOKED") == true ||
-                reason?.contains("UNAUTHORIZED") == true
-            ) {
-                disconnect()
-                sessionManager.onLoggedOut()
+            when {
+                // Сессия отозвана администратором/логаутом на другом устройстве — это
+                // невосстановимо, выходим из приложения.
+                reason?.contains("SESSION_REVOKED") == true -> {
+                    disconnect()
+                    sessionManager.onLoggedOut()
+                }
+                // Истёк access-токен (живёт 15 мин): сокет захватил старый токен и реконнект
+                // отклонён. НЕ логаутимся — обновляем токен и переподключаемся. Разлогин
+                // случится только если refresh-токен сам недействителен (внутри refreshTokens).
+                reason?.contains("UNAUTHORIZED") == true -> onUnauthorized()
             }
         }
 

@@ -97,6 +97,7 @@
     <string name="call_mic_off">Microphone off</string>
     <string name="call_cam_on">Camera on</string>
     <string name="call_cam_off">Camera off</string>
+    <string name="call_peer_cam_off">Camera off</string>
     <string name="call_switch_camera">Switch camera</string>
     <string name="call_speaker">Speaker</string>
     <string name="call_ongoing">Call in progress</string>

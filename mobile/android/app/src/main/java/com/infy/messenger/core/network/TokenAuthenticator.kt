@@ -68,6 +68,29 @@ class TokenAuthenticator @Inject constructor(
         }
     }
 
+    /**
+     * Принудительно обновить токены вне HTTP-цепочки (используется realtime-слоем при
+     * `UNAUTHORIZED` на сокете: истёкший access нужно обновить и переподключиться).
+     *
+     * Делит тот же [lock] и тот же [doRefresh], что и HTTP-путь, поэтому гонок с 401-рефрешем
+     * нет. Возвращает true, если access-токен валиден (успешно обновлён или уже обновлён другим
+     * потоком). При [RefreshOutcome.Invalid] инициирует разлогин и возвращает false.
+     * При временной (сетевой) ошибке возвращает false без разлогина.
+     */
+    fun refreshTokens(): Boolean = synchronized(lock) {
+        when (val outcome = doRefresh()) {
+            is RefreshOutcome.Success -> {
+                sessionManager.onTokensRefreshed(outcome.accessToken, outcome.refreshToken)
+                true
+            }
+            RefreshOutcome.Invalid -> {
+                sessionManager.onLoggedOut()
+                false
+            }
+            RefreshOutcome.Transient -> false
+        }
+    }
+
     private fun doRefresh(): RefreshOutcome {
         val refreshToken = sessionManager.currentRefreshToken()
             ?: return RefreshOutcome.Invalid

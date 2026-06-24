@@ -93,6 +93,13 @@ fun CallOverlay(viewModel: CallViewModel = hiltViewModel()) {
         // Полноэкранное удалённое видео + PiP локального (только видеозвонок).
         if (isVideo) {
             RemoteVideoView(track = remoteVideo, eglBase = viewModel.eglBase)
+            // Когда собеседник выключил камеру — перекрываем застывший кадр заглушкой.
+            if (current.phase == CallPhase.ACTIVE && !current.peerCamOn) {
+                PeerCameraOff(
+                    avatarUrl = viewModel.avatarUrl(current.peer?.avatarUrl),
+                    initial = current.peer?.nickname?.take(1)?.uppercase().orEmpty(),
+                )
+            }
             LocalVideoView(
                 track = viewModel.localVideo,
                 eglBase = viewModel.eglBase,
@@ -356,6 +363,66 @@ private fun RemoteVideoView(
         mirror = false,
         modifier = modifier.fillMaxSize(),
     )
+}
+
+/**
+ * Заглушка поверх удалённого видео, когда собеседник выключил камеру.
+ * Перекрывает застывший последний кадр: фон deep-space, аватар и подпись.
+ */
+@Composable
+private fun PeerCameraOff(
+    avatarUrl: String?,
+    initial: String,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ColorBackground),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (avatarUrl != null) {
+                AsyncImage(
+                    model = avatarUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(96.dp)
+                        .clip(CircleShape)
+                        .background(ColorToggle),
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(96.dp)
+                        .clip(CircleShape)
+                        .background(ColorToggle),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = initial,
+                        color = Color.White,
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.VideocamOff,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.7f),
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = stringResWith(R.string.call_peer_cam_off),
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 14.sp,
+                )
+            }
+        }
+    }
 }
 
 /** Маленькое локальное видео (PiP), зеркалится. */
