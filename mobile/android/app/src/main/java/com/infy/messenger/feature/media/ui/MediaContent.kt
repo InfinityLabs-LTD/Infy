@@ -74,6 +74,8 @@ fun MessageAttachments(
     urlBuilder: MediaUrlBuilder,
     modifier: Modifier = Modifier,
     messageId: String? = null,
+    /** Своё сообщение — пузырь с фиолетовым градиентом; меняем цвета медиа на белые. */
+    isOwn: Boolean = false,
     /** Запрос расшифровки голосового/кружка по messageId (для кнопки «Расшифровать»). */
     onTranscribe: (suspend (String) -> String)? = null,
 ) {
@@ -100,9 +102,9 @@ fun MessageAttachments(
         MessageType.IMAGE -> ImageAttachment(first, urlBuilder, modifier, onClick = { lightboxIndex = 0 })
         MessageType.VIDEO -> VideoAttachment(first, urlBuilder, modifier, onOpen = { lightboxIndex = 0 })
         MessageType.CIRCLE_VIDEO ->
-            CircleAttachment(first, urlBuilder, modifier, messageId, onTranscribe)
+            CircleAttachment(first, urlBuilder, modifier, messageId, isOwn, onTranscribe)
         MessageType.AUDIO ->
-            VoiceAttachment(first, urlBuilder, modifier, messageId, onTranscribe)
+            VoiceAttachment(first, urlBuilder, modifier, messageId, isOwn, onTranscribe)
         else -> {
             // FILE и всё прочее — уточняем по mime: картинка/видео/аудио могут
             // приходить с обобщённым типом, иначе показываем как файл.
@@ -112,7 +114,7 @@ fun MessageAttachments(
                 first.mimeType.startsWith("video/") ->
                     VideoAttachment(first, urlBuilder, modifier, onOpen = { lightboxIndex = 0 })
                 first.mimeType.startsWith("audio/") ->
-                    VoiceAttachment(first, urlBuilder, modifier, messageId, onTranscribe)
+                    VoiceAttachment(first, urlBuilder, modifier, messageId, isOwn, onTranscribe)
                 else -> FileAttachment(first, urlBuilder, modifier)
             }
         }
@@ -202,6 +204,7 @@ private fun CircleAttachment(
     urlBuilder: MediaUrlBuilder,
     modifier: Modifier = Modifier,
     messageId: String? = null,
+    isOwn: Boolean = false,
     onTranscribe: (suspend (String) -> String)? = null,
 ) {
     var started by remember { mutableStateOf(false) }
@@ -250,7 +253,7 @@ private fun CircleAttachment(
             }
         }
         // Кнопка «Расшифровать» под кружком (как в вебе).
-        TranscribeBlock(att.transcript, messageId, onTranscribe)
+        TranscribeBlock(att.transcript, messageId, isOwn, onTranscribe)
     }
 }
 
@@ -264,10 +267,16 @@ private fun VoiceAttachment(
     urlBuilder: MediaUrlBuilder,
     modifier: Modifier = Modifier,
     messageId: String? = null,
+    isOwn: Boolean = false,
     onTranscribe: (suspend (String) -> String)? = null,
 ) {
     val player = rememberExoPlayer(urlBuilder.url(att.storageKey))
     var isPlaying by remember { mutableStateOf(false) }
+
+    // Цвета медиа подбираем под фон пузыря: у своих (фиолетовый градиент) — белые,
+    // иначе фиолетовый акцент сольётся с фоном. У чужих — обычный акцент/приглушённый.
+    val accentColor = if (isOwn) Color.White else MaterialTheme.colorScheme.primary
+    val mutedColor = if (isOwn) Color.White.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant
 
     // Слушатель плеера: синхронизируем локальный isPlaying с реальным состоянием.
     DisposableEffect(player) {
@@ -288,22 +297,23 @@ private fun VoiceAttachment(
                 Icon(
                     imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                     contentDescription = stringResource(R.string.media_voice),
+                    tint = accentColor,
                 )
             }
             Waveform(
                 waveform = att.waveform,
-                color = MaterialTheme.colorScheme.primary,
+                color = accentColor,
                 modifier = Modifier.weight(1f),
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = formatDuration(att.durationMs),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = mutedColor,
             )
         }
         // Кнопка «Расшифровать» / показ транскрипта (как в вебе).
-        TranscribeBlock(att.transcript, messageId, onTranscribe)
+        TranscribeBlock(att.transcript, messageId, isOwn, onTranscribe)
     }
 }
 
@@ -316,11 +326,13 @@ private fun VoiceAttachment(
 private fun TranscribeBlock(
     existingTranscript: String?,
     messageId: String?,
+    isOwn: Boolean = false,
     onTranscribe: (suspend (String) -> String)?,
 ) {
+    val accentColor = if (isOwn) Color.White else MaterialTheme.colorScheme.primary
     // Без возможности запроса и без готового текста кнопку не показываем.
     if (messageId == null || onTranscribe == null) {
-        existingTranscript?.let { TranscriptText(it) }
+        existingTranscript?.let { TranscriptText(it, isOwn) }
         return
     }
 
@@ -353,7 +365,7 @@ private fun TranscribeBlock(
                 androidx.compose.material3.CircularProgressIndicator(
                     modifier = Modifier.size(14.dp),
                     strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = accentColor,
                 )
                 Spacer(Modifier.width(6.dp))
             }
@@ -366,7 +378,7 @@ private fun TranscribeBlock(
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = accentColor,
             )
         }
         if (error) {
@@ -378,17 +390,17 @@ private fun TranscribeBlock(
             )
         }
         val shown = transcript
-        if (expanded && shown != null) TranscriptText(shown)
+        if (expanded && shown != null) TranscriptText(shown, isOwn)
     }
 }
 
 /** Приглушённый текст расшифровки под медиа. */
 @Composable
-private fun TranscriptText(text: String) {
+private fun TranscriptText(text: String, isOwn: Boolean = false) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = if (isOwn) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 4.dp),
     )
 }

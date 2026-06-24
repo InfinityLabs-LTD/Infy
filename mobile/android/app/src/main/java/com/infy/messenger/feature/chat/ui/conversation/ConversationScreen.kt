@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -1149,7 +1150,10 @@ private fun MessageBubble(
                     onLongClick = { onLongPress(message, bubbleBounds) },
                 ),
         ) {
-            Column(modifier = Modifier.padding(10.dp)) {
+            // IntrinsicSize.Max: дочерние с fillMaxWidth заполняют ширину САМОГО
+            // широкого контента (текста), а не максимум пузыря (300dp). Так пузырь
+            // не раздувается из-за реакции/цитаты, но цитата ровно тянется по тексту.
+            Column(modifier = Modifier.width(IntrinsicSize.Max).padding(10.dp)) {
                 // Индикатор закрепления (как в web — значок 📌 на закреплённом сообщении).
                 if (message.pinnedAt != null) {
                     Row(
@@ -1166,7 +1170,8 @@ private fun MessageBubble(
                     }
                 }
 
-                // Блок-цитата (ответ на сообщение).
+                // Блок-цитата (ответ на сообщение). fillMaxWidth в связке с
+                // IntrinsicSize.Max выше тянет цитату по ширине текста, не раздувая пузырь.
                 val reply = message.replyTo
                 if (reply != null) {
                     Box(
@@ -1202,6 +1207,7 @@ private fun MessageBubble(
                         urlBuilder = urlBuilder,
                         modifier = Modifier.padding(bottom = if (message.content.isNullOrBlank()) 0.dp else 6.dp),
                         messageId = message.id.ifBlank { null },
+                        isOwn = isOwn,
                         onTranscribe = onTranscribe,
                     )
                 }
@@ -1223,9 +1229,7 @@ private fun MessageBubble(
                 // добавляет/переключает. Моя реакция подсвечена фиолетовым.
                 if (message.reactions.isNotEmpty()) {
                     FlowRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
+                        modifier = Modifier.padding(top = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         message.reactions.forEach { reaction ->
@@ -1461,15 +1465,38 @@ private fun Composer(
         // как web `.suggest-chip`). Видны, когда последним писал собеседник,
         // поле пустое и подсказки уже загружены.
         if (!isRecording && canSuggest && !hasText && !suggestions.isNullOrEmpty()) {
-            FlowRow(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 12.dp, end = 12.dp, top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(start = 12.dp, end = 8.dp, top = 8.dp),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                suggestions!!.forEach { s ->
-                    SuggestChip(text = s, onClick = { text = s; onTyping(); onClearSuggestions() })
+                FlowRow(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    suggestions!!.forEach { s ->
+                        SuggestChip(text = s, onClick = { text = s; onTyping(); onClearSuggestions() })
+                    }
+                }
+                // Кнопка закрытия подсказок.
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(Glass2)
+                        .border(BorderStroke(1.dp, GlassStroke), androidx.compose.foundation.shape.CircleShape)
+                        .clickable { onClearSuggestions() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.suggest_close),
+                        tint = TextMid,
+                        modifier = Modifier.size(16.dp),
+                    )
                 }
             }
         }
@@ -1849,6 +1876,18 @@ private fun RecordingRow(
     val seconds = (elapsedMs / 1000).toInt()
     val timeLabel = "%d:%02d".format(seconds / 60, seconds % 60)
 
+    // Мигание красной точки (как в web): плавно пульсирует прозрачность.
+    val blink = androidx.compose.animation.core.rememberInfiniteTransition(label = "blink")
+    val dotAlpha by blink.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.25f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(700, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "dotAlpha",
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1860,7 +1899,7 @@ private fun RecordingRow(
             modifier = Modifier
                 .size(10.dp)
                 .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(MaterialTheme.colorScheme.error),
+                .background(MaterialTheme.colorScheme.error.copy(alpha = dotAlpha)),
         )
         Text(
             text = timeLabel,

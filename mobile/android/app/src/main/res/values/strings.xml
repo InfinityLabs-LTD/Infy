@@ -220,6 +220,7 @@
     <string name="ai_query_badge">Вопрос Infy Pulse</string>
     <string name="ai_pulse_label">Infy Pulse</string>
     <string name="ai_suggest_hint">Infy Pulse — подсказать ответ</string>
+    <string name="suggest_close">Скрыть подсказки</string>
     <string name="chat_menu_group_comm">Связь</string>
     <string name="chat_menu_group_chat">Чат</string>
 
