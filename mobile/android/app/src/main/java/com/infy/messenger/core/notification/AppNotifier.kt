@@ -40,7 +40,12 @@ class AppNotifier @Inject constructor(
         migrateOldChannels()
     }
 
-    /** Удаляем устаревшие каналы прошлых сборок (clutter в настройках). */
+    /**
+     * Чистим устаревшие каналы и создаём фолбэк-канал FCM. Фолбэк нужен на случай,
+     * если FCM SDK покажет уведомление сам по default_notification_channel_id
+     * (манифест) — наши push data-only, так что обычно это не происходит, но канал
+     * обязан существовать и быть «тихим/служебным».
+     */
     private fun migrateOldChannels() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val sys = context.getSystemService(NotificationManager::class.java)
@@ -48,6 +53,15 @@ class AppNotifier @Inject constructor(
         // НЕ трогаем "infy_call" — это активный канал foreground-сервиса звонка.
         listOf("messages", "calls", "infy_messages").forEach {
             runCatching { sys.deleteNotificationChannel(it) }
+        }
+        if (sys.getNotificationChannel(FCM_FALLBACK_CHANNEL) == null) {
+            sys.createNotificationChannel(
+                NotificationChannel(
+                    FCM_FALLBACK_CHANNEL,
+                    context.getString(R.string.notif_channel_messages),
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                ),
+            )
         }
     }
 
@@ -238,5 +252,7 @@ class AppNotifier @Inject constructor(
     companion object {
         const val CALL_NOTIFICATION_ID = 1001
         const val EXTRA_CHAT_ID = "extra_chat_id"
+        /** Фолбэк-канал для default_notification_channel_id из манифеста. */
+        const val FCM_FALLBACK_CHANNEL = "infy_fallback"
     }
 }

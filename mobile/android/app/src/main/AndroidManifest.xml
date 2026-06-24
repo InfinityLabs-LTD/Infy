@@ -57,11 +57,12 @@
             </intent-filter>
         </service>
 
-        <!-- Канал по умолчанию для notification-сообщений FCM, которые система
-             показывает сама (приложение в фоне). Совпадает с CHANNEL_MESSAGES. -->
+        <!-- Фолбэк-канал FCM на случай notification-сообщений. Наши push data-only
+             (клиент строит уведомление сам через AppNotifier), так что обычно не
+             используется; канал гарантированно создаётся в AppNotifier. -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="messages" />
+            android:value="infy_fallback" />
 
         <!-- Отдаёт записанные голосовые/кружки из кэша по content:// Uri. -->
         <provider

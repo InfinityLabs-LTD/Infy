@@ -70,8 +70,12 @@ function putData(data: Record<string, string>, key: string, value: string | unde
 }
 
 /**
- * Отправляет push на Android через FCM. Шлёт notification (для системного баннера)
- * + data (для построения навигации/уведомления на клиенте).
+ * Отправляет push на Android через FCM. Сообщение DATA-ONLY (без notification):
+ * клиент всегда сам строит уведомление в InfyFirebaseMessagingService → AppNotifier,
+ * даже когда приложение убито. Это важно, чтобы работали настройки пользователя
+ * (звук/вибрация/баннеры выбирают канал) и подавление в открытом чате. Если слать
+ * notification-блок, система при фоне/убитом процессе показала бы баннер сама,
+ * минуя нашу логику каналов и настроек.
  * Возвращает список токенов, которые FCM пометил недействительными — вызывающий
  * код должен удалить их из БД. Если FCM не настроен — нооп (пустой список).
  */
@@ -104,7 +108,8 @@ export async function sendFcm(
   try {
     const res = await messaging.sendEachForMulticast({
       tokens,
-      notification: { title: payload.title, body: payload.body },
+      // Без notification-блока: data-only, чтобы сервис клиента вызывался даже
+      // при убитом процессе и сам строил уведомление (каналы/настройки/навигация).
       data,
       android: { priority: 'high' },
     })

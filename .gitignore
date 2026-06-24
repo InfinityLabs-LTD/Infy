@@ -10,6 +10,13 @@ build/
 .env.local
 .env.*.local
 
+# Firebase service account (FCM-push). В репо лежит ПЛЕЙСХОЛДЕР {} под bind-mount
+# docker-compose; реальный приватный ключ оператор кладёт на месте и помечает
+# `git update-index --skip-worktree backend/fcm-service-account.json`, чтобы он
+# не попал в git. См. docs/PUSH.md. Явные имена ключей service account игнорируем ВЕЗДЕ.
+**/*-firebase-adminsdk-*.json
+**/serviceAccountKey.json
+
 # Logs
 *.log
 npm-debug.log*

@@ -5,6 +5,12 @@ x-backend-base: &backend-base
     context: ./backend
     dockerfile: Dockerfile
   env_file: .env
+  # Service account Firebase для FCM-push (Android). Файл секретный и НЕ в git —
+  # оператор кладёт его в ./backend/fcm-service-account.json (см. docs/PUSH.md).
+  # Монтируется read-only во все backend-роли; реально читают realtime и scheduler.
+  # Путь внутри контейнера задаётся FCM_SERVICE_ACCOUNT_PATH в .env.
+  volumes:
+    - ./backend/fcm-service-account.json:/run/secrets/fcm.json:ro
   depends_on:
     postgres:
       condition: service_healthy
