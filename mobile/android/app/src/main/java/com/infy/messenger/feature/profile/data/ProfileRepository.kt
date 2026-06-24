@@ -20,13 +20,20 @@ class ProfileRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val profileApi: ProfileApi,
     private val sessionsApi: SessionsApi,
+    private val notificationPrefs: com.infy.messenger.core.notification.NotificationPrefs,
 ) {
-    suspend fun getProfile(): Profile = apiCall { profileApi.getMe().data.toDomain() }
+    suspend fun getProfile(): Profile =
+        apiCall { profileApi.getMe().data.toDomain() }.also { syncNotifPrefs(it) }
 
     suspend fun getStats(): ProfileStats = apiCall { profileApi.getStats().data.toDomain() }
 
     suspend fun updateProfile(request: UpdateProfileRequest): Profile =
-        apiCall { profileApi.updateProfile(request).data.toDomain() }
+        apiCall { profileApi.updateProfile(request).data.toDomain() }.also { syncNotifPrefs(it) }
+
+    /** Зеркалим настройки уведомлений локально, чтобы AppNotifier их учитывал. */
+    private fun syncNotifPrefs(p: Profile) {
+        notificationPrefs.update(p.notifyPopup, p.notifySound, p.notifyVibrate)
+    }
 
     /** Загрузить аватар из галереи; возвращает обновлённый профиль. */
     suspend fun uploadAvatar(uri: Uri): Profile = apiCall {

@@ -25,45 +25,84 @@ import javax.inject.Singleton
 @Singleton
 class AppNotifier @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val prefs: NotificationPrefs,
 ) {
     private val manager = NotificationManagerCompat.from(context)
 
+    /**
+     * На Android 8+ звук/вибрация задаются НА КАНАЛЕ и не меняются после создания.
+     * Чтобы уважать настройки пользователя, держим 4 канала сообщений под каждую
+     * комбинацию (звук×вибрация) и выбираем нужный при показе. То же для звонков.
+     * id версионированы (_v2), чтобы не конфликтовать со старыми каналами и
+     * заодно вычистить их (см. [migrateOldChannels]).
+     */
     init {
-        createChannels()
+        migrateOldChannels()
     }
 
-    private fun createChannels() {
+    /** Удаляем устаревшие каналы прошлых сборок (clutter в настройках). */
+    private fun migrateOldChannels() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val sys = context.getSystemService(NotificationManager::class.java)
-        val messages = NotificationChannel(
-            CHANNEL_MESSAGES,
-            context.getString(R.string.notif_channel_messages),
-            NotificationManager.IMPORTANCE_HIGH,
-        ).apply { description = context.getString(R.string.notif_channel_messages_desc) }
-        val calls = NotificationChannel(
-            CHANNEL_CALLS,
-            context.getString(R.string.notif_channel_calls),
-            NotificationManager.IMPORTANCE_HIGH,
-        ).apply {
-            description = context.getString(R.string.notif_channel_calls_desc)
-            setBypassDnd(true)
+        // Старые каналы прошлых сборок (importance/звук задавались статично).
+        // НЕ трогаем "infy_call" — это активный канал foreground-сервиса звонка.
+        listOf("messages", "calls", "infy_messages").forEach {
+            runCatching { sys.deleteNotificationChannel(it) }
         }
-        sys.createNotificationChannel(messages)
-        sys.createNotificationChannel(calls)
     }
+
+    /**
+     * Возвращает id канала под выбранную категорию и комбинацию звук/вибрация,
+     * создавая канал при первом обращении. Importance: с попапом — HIGH (баннер),
+     * без — DEFAULT (без heads-up). Звонок всегда HIGH + bypassDnd.
+     */
+    private fun channelFor(isCall: Boolean, sound: Boolean, vibrate: Boolean, popup: Boolean): String {
+        val base = if (isCall) "call" else "msg"
+        val sfx = "${if (sound) "s" else ""}${if (vibrate) "v" else ""}".ifEmpty { "silent" }
+        val id = "infy_${base}_v2_$sfx" + if (!isCall && !popup) "_q" else ""
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return id
+        val sys = context.getSystemService(NotificationManager::class.java)
+        if (sys.getNotificationChannel(id) == null) {
+            val importance = when {
+                isCall -> NotificationManager.IMPORTANCE_HIGH
+                popup -> NotificationManager.IMPORTANCE_HIGH
+                else -> NotificationManager.IMPORTANCE_DEFAULT
+            }
+            val nameRes = if (isCall) R.string.notif_channel_calls else R.string.notif_channel_messages
+            val channel = NotificationChannel(id, context.getString(nameRes), importance).apply {
+                description = context.getString(
+                    if (isCall) R.string.notif_channel_calls_desc else R.string.notif_channel_messages_desc,
+                )
+                if (isCall) setBypassDnd(true)
+                enableVibration(vibrate)
+                if (!sound) setSound(null, null)
+            }
+            sys.createNotificationChannel(channel)
+        }
+        return id
+    }
+
+    /** Канал сообщений/напоминаний по текущим настройкам пользователя. */
+    private fun messageChannel(): String =
+        channelFor(isCall = false, sound = prefs.sound, vibrate = prefs.vibrate, popup = prefs.popup)
+
+    /** Канал звонка по текущим настройкам (попап всегда, звонок не пропускают). */
+    private fun callChannel(): String =
+        channelFor(isCall = true, sound = prefs.sound, vibrate = prefs.vibrate, popup = true)
 
     /** Уведомление о новом сообщении (если не свой чат сейчас открыт — решает вызывающий). */
     fun showMessage(message: MessageDto) {
-        if (!hasPermission()) return
+        if (!hasPermission() || !prefs.popup) return
         val sender = message.sender.nickname.ifBlank { message.sender.username }
         val preview = previewOf(message)
-        val notification = NotificationCompat.Builder(context, CHANNEL_MESSAGES)
+        val notification = NotificationCompat.Builder(context, messageChannel())
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(sender)
             .setContentText(preview)
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .applyAlertPrefs()
             .setContentIntent(openChatIntent(message.chatId))
             .build()
         // Группируем по чату: новое сообщение заменяет предыдущее уведомление чата.
@@ -75,15 +114,16 @@ class AppNotifier @Inject constructor(
      * когда полноценного [MessageDto] нет (процесс был убит, событие пришло пушем).
      */
     fun showMessageRaw(chatId: String, title: String, body: String) {
-        if (!hasPermission()) return
+        if (!hasPermission() || !prefs.popup) return
         val safeBody = body.ifBlank { context.getString(R.string.chats_attachment) }
-        val notification = NotificationCompat.Builder(context, CHANNEL_MESSAGES)
+        val notification = NotificationCompat.Builder(context, messageChannel())
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title.ifBlank { context.getString(R.string.app_name) })
             .setContentText(safeBody)
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .applyAlertPrefs()
             .setContentIntent(openChatIntent(chatId))
             .build()
         runCatching { manager.notify(chatId.hashCode(), notification) }
@@ -105,7 +145,7 @@ class AppNotifier @Inject constructor(
      */
     fun showIncomingCallRaw(callerName: String, text: String) {
         if (!hasPermission()) return
-        val notification = NotificationCompat.Builder(context, CHANNEL_CALLS)
+        val notification = NotificationCompat.Builder(context, callChannel())
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(callerName)
             .setContentText(text)
@@ -113,6 +153,7 @@ class AppNotifier @Inject constructor(
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_MAX)
+            .applyAlertPrefs()
             .setContentIntent(openAppIntent())
             .setFullScreenIntent(openAppIntent(), true)
             .build()
@@ -121,14 +162,15 @@ class AppNotifier @Inject constructor(
 
     /** Простое уведомление-напоминание (FCM `data` без chatId): открывает приложение. */
     fun showReminderRaw(title: String, body: String, tag: String?) {
-        if (!hasPermission()) return
-        val notification = NotificationCompat.Builder(context, CHANNEL_MESSAGES)
+        if (!hasPermission() || !prefs.popup) return
+        val notification = NotificationCompat.Builder(context, messageChannel())
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title.ifBlank { context.getString(R.string.app_name) })
             .setContentText(body)
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .applyAlertPrefs()
             .setContentIntent(openAppIntent())
             .build()
         // Тег делает уведомления различимыми; иначе используем хэш заголовка.
@@ -180,9 +222,20 @@ class AppNotifier @Inject constructor(
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
     }
 
+    /**
+     * На Android < 8 каналов нет — звук/вибрацию задаём прямо на уведомлении по
+     * настройкам пользователя. На 8+ это игнорируется (правит канал), что и нужно.
+     */
+    private fun NotificationCompat.Builder.applyAlertPrefs(): NotificationCompat.Builder {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) return this
+        var defaults = 0
+        if (prefs.sound) defaults = defaults or NotificationCompat.DEFAULT_SOUND
+        if (prefs.vibrate) defaults = defaults or NotificationCompat.DEFAULT_VIBRATE
+        setDefaults(defaults)
+        return this
+    }
+
     companion object {
-        const val CHANNEL_MESSAGES = "messages"
-        const val CHANNEL_CALLS = "calls"
         const val CALL_NOTIFICATION_ID = 1001
         const val EXTRA_CHAT_ID = "extra_chat_id"
     }
