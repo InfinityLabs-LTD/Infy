@@ -217,6 +217,11 @@
     <string name="chat_menu_ai">Infy AI</string>
     <string name="chat_menu_profile">Профиль собеседника</string>
     <string name="chat_menu_report">Пожаловаться</string>
+    <string name="ai_query_badge">Вопрос Infy Pulse</string>
+    <string name="ai_pulse_label">Infy Pulse</string>
+    <string name="ai_suggest_hint">Infy Pulse — подсказать ответ</string>
+    <string name="chat_menu_group_comm">Связь</string>
+    <string name="chat_menu_group_chat">Чат</string>
 
     <!-- Расшифровка голосовых/кружков -->
     <string name="transcribe_action">Расшифровать</string>

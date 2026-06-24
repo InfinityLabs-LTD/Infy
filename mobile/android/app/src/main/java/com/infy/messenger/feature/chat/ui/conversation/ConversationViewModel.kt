@@ -82,6 +82,11 @@ class ConversationViewModel @Inject constructor(
     /** id текущего пользователя — для выделения своих реакций. */
     val currentUserId: String = sessionManager.currentUserId().orEmpty()
 
+    /** Идёт ли сейчас звонок — для блокировки кнопок звонка в меню. */
+    val callBusy: StateFlow<Boolean> = callManager.callState
+        .map { it != null }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     /** Экран переписки открыт: подавляем уведомления этого чата и снимаем старые. */
     fun onScreenActive() {
         activeChatTracker.setActiveChat(chatId)
@@ -109,6 +114,37 @@ class ConversationViewModel @Inject constructor(
     private val editingId = MutableStateFlow<String?>(null)
 
     private var typingJob: Job? = null
+
+    // ── Infy Pulse: подсказки ответов над полем ввода ──
+    private val _suggestions = MutableStateFlow<List<String>?>(null)
+    /** Подсказанные ответы (null — ещё не запрашивали/сброшено, [] — пусто). */
+    val suggestions: StateFlow<List<String>?> = _suggestions
+
+    private val _suggestLoading = MutableStateFlow(false)
+    val suggestLoading: StateFlow<Boolean> = _suggestLoading
+
+    /** Последнее сообщение в ленте — от собеседника (тогда есть смысл подсказывать ответ). */
+    val lastFromPartner: StateFlow<Boolean> =
+        chatRepository.observeMessages(chatId)
+            .map { msgs -> msgs.lastOrNull()?.let { !it.isOwn && it.type == com.infy.messenger.feature.chat.domain.MessageType.TEXT } ?: false }
+            .distinctUntilChanged()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /** Запросить подсказки ответов у Infy Pulse. */
+    fun loadSuggestions() {
+        if (_suggestLoading.value) return
+        _suggestLoading.value = true
+        viewModelScope.launch {
+            val got = runCatching { aiRepository.replies(chatId) }.getOrDefault(emptyList())
+            _suggestions.value = got.ifEmpty { null }
+            _suggestLoading.value = false
+        }
+    }
+
+    /** Сбросить подсказки (при отправке/смене последнего сообщения/наборе текста). */
+    fun clearSuggestions() {
+        _suggestions.value = null
+    }
 
     /** Собеседник текущего чата из кэша списка (имя + относительный avatarUrl). */
     private val partnerFlow = chatRepository.observeChats()
@@ -198,6 +234,7 @@ class ConversationViewModel @Inject constructor(
     fun sendMessage(text: String, replyToId: String? = null) {
         val content = text.trim()
         if (content.isEmpty()) return
+        _suggestions.value = null
         // Если активен ответ — прикрепляем его и сбрасываем состояние ответа.
         val effectiveReplyTo = replyToId ?: replyingToId.value
         replyingToId.value = null

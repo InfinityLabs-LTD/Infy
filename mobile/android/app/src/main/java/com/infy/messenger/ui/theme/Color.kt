@@ -39,6 +39,10 @@ val TextMid = Color(0xFFCBD5E1)          // --text-mid
 val TextLow = Color(0xFF64748B)          // --text-low
 val PreviewRead = Color(0xFF8893A8)      // --preview-read
 
+// ── Infy Pulse: пузыри вопроса/ответа ИИ (зеркалят web MessageBubble AI) ──
+val AiQueryBg = Color(0x1AA855F7)        // rgba(168,85,247,.10)
+val AiQueryBorder = Color(0x59A855F7)    // rgba(168,85,247,.35)
+
 // ── Статусы доставки / онлайн ───────────────────────────────────────────
 val StatusRead = Color(0xFFA855F7)       // --status-read
 val StatusSent = Color(0xFF64748B)       // --status-sent

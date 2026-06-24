@@ -39,8 +39,13 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -64,9 +69,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -83,11 +91,16 @@ import com.infy.messenger.feature.chat.domain.ChatMessage
 import com.infy.messenger.feature.chat.domain.DeliveryStatus
 import com.infy.messenger.feature.chat.domain.MessageType
 import androidx.compose.ui.res.stringResource
+import com.infy.messenger.ui.theme.AiQueryBg
+import com.infy.messenger.ui.theme.AiQueryBorder
 import com.infy.messenger.ui.theme.Aurora
+import com.infy.messenger.ui.theme.AuroraBgBase
 import com.infy.messenger.ui.theme.AuroraBackground
 import com.infy.messenger.ui.theme.DangerRed
 import com.infy.messenger.ui.theme.DockBg
 import com.infy.messenger.ui.theme.Hairline
+import com.infy.messenger.ui.theme.InfyAccent
+import com.infy.messenger.ui.theme.InfyPurple
 import com.infy.messenger.ui.theme.InfyHighlight
 import com.infy.messenger.ui.theme.GlassStroke
 import com.infy.messenger.ui.theme.GlassPopBg
@@ -122,6 +135,10 @@ fun ConversationScreen(
     viewModel: ConversationViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val callBusy by viewModel.callBusy.collectAsStateWithLifecycle()
+    val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
+    val suggestLoading by viewModel.suggestLoading.collectAsStateWithLifecycle()
+    val lastFromPartner by viewModel.lastFromPartner.collectAsStateWithLifecycle()
     val uploadProgress by viewModel.uploadProgress.collectAsStateWithLifecycle()
 
     // Пока экран в композиции — отмечаем чат активным (не шлём по нему
@@ -273,6 +290,7 @@ fun ConversationScreen(
                 onOpenCalendar = { showCalendar = true },
                 onOpenAi = { showAi = true },
                 onReport = { showReport = true },
+                callBusy = callBusy,
             )
 
             // Закреплённое сообщение — бар под шапкой (как в Telegram). Клик
@@ -306,6 +324,9 @@ fun ConversationScreen(
                     if (message.type == MessageType.SYSTEM) {
                         // Системное уведомление (например, о закреплении) — центрированная плашка.
                         SystemMessageRow(text = message.content.orEmpty())
+                    } else if (message.type == MessageType.AI || message.type == MessageType.AI_QUERY) {
+                        // Infy Pulse: вопрос (AI_QUERY) и ответ (AI) оформлены отдельно (как в web).
+                        AiMessageRow(message = message)
                     } else {
                         MessageBubble(
                             message = message,
@@ -388,6 +409,12 @@ fun ConversationScreen(
                 isRecording = isRecording,
                 prefillText = uiState.editing?.content.orEmpty(),
                 prefillKey = uiState.editing?.id,
+                // Infy Pulse: подсказки ответов (кнопка-искра + чипы над полем).
+                canSuggest = lastFromPartner,
+                suggestions = suggestions,
+                suggestLoading = suggestLoading,
+                onLoadSuggestions = viewModel::loadSuggestions,
+                onClearSuggestions = viewModel::clearSuggestions,
                 onTyping = viewModel::onTyping,
                 onSend = {
                     if (uiState.editing != null) {
@@ -500,6 +527,7 @@ private fun ConversationTopBar(
     onOpenCalendar: () -> Unit,
     onOpenAi: () -> Unit,
     onReport: () -> Unit,
+    callBusy: Boolean = false,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     Row(
@@ -598,56 +626,227 @@ private fun ConversationTopBar(
                 }
             }
         }
-        IconButton(onClick = onAudioCall) {
-            Icon(Icons.Filled.Call, stringResource(R.string.call_start_audio), tint = TextMid)
-        }
-        IconButton(onClick = onVideoCall) {
-            Icon(Icons.Filled.Videocam, stringResource(R.string.call_start_video), tint = TextMid)
-        }
-        // Infy AI — отдельной кнопкой со звездой (как в вебе).
-        IconButton(onClick = onOpenAi) {
-            Icon(
-                Icons.Filled.AutoAwesome,
-                stringResource(R.string.ai_title),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-        }
-        // Сэндвич-меню.
+        // Infy Pulse — AI: акцентная кнопка с плавной пульсацией (как в web).
+        PulsingAiButton(onClick = onOpenAi)
+        // Сэндвич-меню: связь (звонки) + действия чата, оформлено как в web.
         Box {
             IconButton(onClick = { menuOpen = true }) {
-                Icon(Icons.Filled.MoreVert, stringResource(R.string.chat_menu), tint = TextMid)
+                Icon(
+                    Icons.Filled.Menu,
+                    stringResource(R.string.chat_menu),
+                    tint = if (menuOpen) InfyAccent else TextMid,
+                )
             }
-            androidx.compose.material3.DropdownMenu(
+            ChatHeaderMenu(
                 expanded = menuOpen,
-                onDismissRequest = { menuOpen = false },
-                containerColor = GlassPopBg,
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, GlassStroke),
-            ) {
-                androidx.compose.material3.DropdownMenuItem(
-                    text = { Text(stringResource(R.string.chat_menu_search), color = TextHi) },
-                    onClick = { menuOpen = false; onOpenSearch() },
-                )
-                androidx.compose.material3.DropdownMenuItem(
-                    text = { Text(stringResource(R.string.chat_menu_calendar), color = TextHi) },
-                    onClick = { menuOpen = false; onOpenCalendar() },
-                )
-                androidx.compose.material3.DropdownMenuItem(
-                    text = { Text(stringResource(R.string.chat_menu_profile), color = TextHi) },
-                    onClick = { menuOpen = false; onOpenProfile() },
-                )
-                androidx.compose.material3.DropdownMenuItem(
-                    text = {
-                        Text(
-                            stringResource(R.string.chat_menu_report),
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    },
-                    onClick = { menuOpen = false; onReport() },
-                )
-            }
+                callBusy = callBusy,
+                onDismiss = { menuOpen = false },
+                onAudioCall = onAudioCall,
+                onVideoCall = onVideoCall,
+                onOpenSearch = onOpenSearch,
+                onOpenCalendar = onOpenCalendar,
+                onOpenProfile = onOpenProfile,
+                onReport = onReport,
+            )
         }
     }
+}
+
+/**
+ * Пульсирующая кнопка Infy Pulse (AI) — зеркалит web `.puls-btn` + `.puls-ring`:
+ * градиентный круг «дышит» масштабом, вокруг расходится полупрозрачное кольцо-ореол.
+ */
+@Composable
+private fun PulsingAiButton(onClick: () -> Unit) {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "pulse")
+    // «Дыхание» самой кнопки (scale 1 → 1.06), период 2.8s как в web.
+    val scale by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.06f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(1400, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "scale",
+    )
+    // Расходящееся кольцо-ореол (scale 0.8 → 2.6, opacity 0.6 → 0).
+    val ringScale by transition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 2.6f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(2800, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Restart,
+        ),
+        label = "ringScale",
+    )
+    val ringAlpha by transition.animateFloat(
+        initialValue = 0.5f,
+        targetValue = 0f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(2800, easing = androidx.compose.animation.core.LinearOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Restart,
+        ),
+        label = "ringAlpha",
+    )
+    Box(
+        modifier = Modifier.size(44.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        // Кольцо-ореол.
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .graphicsLayer {
+                    scaleX = ringScale
+                    scaleY = ringScale
+                    alpha = ringAlpha
+                }
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(InfyAccent.copy(alpha = 0.28f)),
+        )
+        // Сама кнопка-искра.
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .graphicsLayer { scaleX = scale; scaleY = scale }
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(Aurora.gradOwn)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.AutoAwesome,
+                contentDescription = stringResource(R.string.ai_title),
+                tint = Color.White,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Сэндвич-меню действий чата (как в web): группа «Связь» с аудио/видеозвонком,
+ * группа «Чат» (поиск, календарь, профиль) и опасная зона (жалоба). Пункты —
+ * с цветными круглыми иконками.
+ */
+@Composable
+private fun ChatHeaderMenu(
+    expanded: Boolean,
+    callBusy: Boolean,
+    onDismiss: () -> Unit,
+    onAudioCall: () -> Unit,
+    onVideoCall: () -> Unit,
+    onOpenSearch: () -> Unit,
+    onOpenCalendar: () -> Unit,
+    onOpenProfile: () -> Unit,
+    onReport: () -> Unit,
+) {
+    androidx.compose.material3.DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        containerColor = GlassPopBg,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, GlassStroke),
+        modifier = Modifier.width(248.dp),
+    ) {
+        // ── Группа: связь ──
+        MenuGroupLabel(stringResource(R.string.chat_menu_group_comm))
+        ChatMenuItem(
+            icon = Icons.Filled.Call,
+            iconTint = OnlineGreen,
+            iconBg = OnlineGreen.copy(alpha = 0.15f),
+            label = stringResource(R.string.call_start_audio),
+            enabled = !callBusy,
+            onClick = { onDismiss(); onAudioCall() },
+        )
+        ChatMenuItem(
+            icon = Icons.Filled.Videocam,
+            iconTint = Color(0xFF60A5FA),
+            iconBg = Color(0xFF60A5FA).copy(alpha = 0.15f),
+            label = stringResource(R.string.call_start_video),
+            enabled = !callBusy,
+            onClick = { onDismiss(); onVideoCall() },
+        )
+
+        // ── Группа: чат ──
+        androidx.compose.material3.HorizontalDivider(color = Hairline, modifier = Modifier.padding(vertical = 2.dp))
+        MenuGroupLabel(stringResource(R.string.chat_menu_group_chat))
+        ChatMenuItem(
+            icon = Icons.Filled.Search,
+            iconTint = Color(0xFFA78BFA),
+            iconBg = Color(0xFFA78BFA).copy(alpha = 0.15f),
+            label = stringResource(R.string.chat_menu_search),
+            onClick = { onDismiss(); onOpenSearch() },
+        )
+        ChatMenuItem(
+            icon = Icons.Filled.DateRange,
+            iconTint = InfyAccent,
+            iconBg = InfyPurple.copy(alpha = 0.18f),
+            label = stringResource(R.string.chat_menu_calendar),
+            onClick = { onDismiss(); onOpenCalendar() },
+        )
+        ChatMenuItem(
+            icon = Icons.Filled.Person,
+            iconTint = InfyHighlight,
+            iconBg = InfyHighlight.copy(alpha = 0.15f),
+            label = stringResource(R.string.chat_menu_profile),
+            onClick = { onDismiss(); onOpenProfile() },
+        )
+
+        // ── Опасная зона ──
+        androidx.compose.material3.HorizontalDivider(color = Hairline, modifier = Modifier.padding(vertical = 2.dp))
+        ChatMenuItem(
+            icon = Icons.Filled.Flag,
+            iconTint = Color(0xFFF59E0B),
+            iconBg = Color(0xFFF59E0B).copy(alpha = 0.15f),
+            label = stringResource(R.string.chat_menu_report),
+            labelColor = MaterialTheme.colorScheme.error,
+            onClick = { onDismiss(); onReport() },
+        )
+    }
+}
+
+/** Заголовок группы в сэндвич-меню (мелкий капс, как в web). */
+@Composable
+private fun MenuGroupLabel(text: String) {
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = TextLow,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 2.dp),
+    )
+}
+
+/** Пункт сэндвич-меню с цветной круглой иконкой (как в web). */
+@Composable
+private fun ChatMenuItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    iconBg: Color,
+    label: String,
+    enabled: Boolean = true,
+    labelColor: Color = TextHi,
+    onClick: () -> Unit,
+) {
+    androidx.compose.material3.DropdownMenuItem(
+        enabled = enabled,
+        text = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(iconBg),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(18.dp))
+                }
+                Text(label, color = labelColor, style = MaterialTheme.typography.bodyMedium)
+            }
+        },
+        onClick = onClick,
+    )
 }
 
 /** Человекочитаемое «был(а) в сети» (как в вебе: только что / N мин / N ч / дата). */
@@ -715,6 +914,165 @@ private fun PinnedBar(message: ChatMessage, onClick: () -> Unit) {
             )
         }
         Text(text = "📌", style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+/**
+ * Сообщения Infy Pulse в ленте: вопрос к ИИ (AI_QUERY) и ответ ИИ (AI).
+ * Оформлены отдельно от обычных пузырей (как в web): вопрос — на стороне автора
+ * с бейджем «Вопрос Infy Pulse», ответ — слева с аватаром-искрой и подписью.
+ */
+@Composable
+private fun AiMessageRow(message: ChatMessage) {
+    val isQuery = message.type == MessageType.AI_QUERY
+    val time = remember(message.createdAt) {
+        java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+            .format(java.util.Date(message.createdAt))
+    }
+    if (isQuery) {
+        // Вопрос к ИИ — на стороне автора, фиолетовая «стеклянная» рамка.
+        val isOwn = message.isOwn
+        val shape = if (isOwn) {
+            RoundedCornerShape(20.dp, 6.dp, 6.dp, 20.dp)
+        } else {
+            RoundedCornerShape(6.dp, 20.dp, 20.dp, 6.dp)
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = if (isOwn) Arrangement.End else Arrangement.Start,
+        ) {
+            Column(horizontalAlignment = if (isOwn) Alignment.End else Alignment.Start) {
+                Box(
+                    modifier = Modifier
+                        .widthIn(max = 300.dp)
+                        .clip(shape)
+                        .background(AiQueryBg, shape)
+                        .border(BorderStroke(1.dp, AiQueryBorder), shape)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            modifier = Modifier.padding(bottom = 3.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.AutoAwesome,
+                                contentDescription = null,
+                                tint = InfyHighlight,
+                                modifier = Modifier.size(13.dp),
+                            )
+                            Text(
+                                text = stringResource(R.string.ai_query_badge),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = InfyHighlight,
+                            )
+                        }
+                        Text(
+                            text = message.content.orEmpty(),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color.White.copy(alpha = 0.92f),
+                        )
+                    }
+                }
+                Text(
+                    text = time,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextLow,
+                    modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp),
+                )
+            }
+        }
+        return
+    }
+
+    // Ответ ИИ — пузырь Infy Pulse слева, с аватаром-искрой.
+    val pending = message.content.isNullOrBlank()
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Start,
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(Aurora.gradOwn),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.AutoAwesome,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(15.dp),
+            )
+        }
+        Column(modifier = Modifier.padding(start = 8.dp)) {
+            Box(
+                modifier = Modifier
+                    .widthIn(max = 300.dp)
+                    .clip(RoundedCornerShape(6.dp, 18.dp, 18.dp, 18.dp))
+                    .background(Glass2, RoundedCornerShape(6.dp, 18.dp, 18.dp, 18.dp))
+                    .border(BorderStroke(1.dp, AiQueryBorder), RoundedCornerShape(6.dp, 18.dp, 18.dp, 18.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            ) {
+                Column {
+                    Text(
+                        text = stringResource(R.string.ai_pulse_label),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = InfyHighlight,
+                        modifier = Modifier.padding(bottom = 3.dp),
+                    )
+                    if (pending) {
+                        TypingDots()
+                    } else {
+                        Text(
+                            text = message.content.orEmpty(),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color.White.copy(alpha = 0.92f),
+                        )
+                    }
+                }
+            }
+            Text(
+                text = time,
+                style = MaterialTheme.typography.labelSmall,
+                color = TextLow,
+                modifier = Modifier.padding(top = 2.dp, start = 4.dp),
+            )
+        }
+    }
+}
+
+/** Анимированные точки «печатает…» для ожидаемого ответа Infy Pulse. */
+@Composable
+private fun TypingDots() {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "dots")
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.padding(vertical = 2.dp),
+    ) {
+        repeat(3) { i ->
+            val alpha by transition.animateFloat(
+                initialValue = 0.3f,
+                targetValue = 1f,
+                animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                    animation = androidx.compose.animation.core.tween(600),
+                    repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+                    initialStartOffset = androidx.compose.animation.core.StartOffset(i * 200),
+                ),
+                label = "dot$i",
+            )
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(InfyHighlight.copy(alpha = alpha)),
+            )
+        }
     }
 }
 
@@ -1036,6 +1394,7 @@ private fun DoubleCheck(color: Color, modifier: Modifier = Modifier) {
  * Пусто — единая кнопка записи (голос/кружок, как в вебе); есть текст —
  * градиентная отправка. Логика записи/жестов зеркалит веб-композер.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Composer(
     uploadProgress: Float?,
@@ -1050,6 +1409,11 @@ private fun Composer(
     onOpenCircle: () -> Unit,
     prefillText: String = "",
     prefillKey: String? = null,
+    canSuggest: Boolean = false,
+    suggestions: List<String>? = null,
+    suggestLoading: Boolean = false,
+    onLoadSuggestions: () -> Unit = {},
+    onClearSuggestions: () -> Unit = {},
 ) {
     var text by remember { mutableStateOf("") }
     var menuOpen by remember { mutableStateOf(false) }
@@ -1091,6 +1455,23 @@ private fun Composer(
                 modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.primary,
             )
+        }
+
+        // Infy Pulse — чипы подсказок над полем ввода (переливающийся градиент,
+        // как web `.suggest-chip`). Видны, когда последним писал собеседник,
+        // поле пустое и подсказки уже загружены.
+        if (!isRecording && canSuggest && !hasText && !suggestions.isNullOrEmpty()) {
+            FlowRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 12.dp, top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                suggestions!!.forEach { s ->
+                    SuggestChip(text = s, onClick = { text = s; onTyping(); onClearSuggestions() })
+                }
+            }
         }
 
         if (isRecording) {
@@ -1135,11 +1516,31 @@ private fun Composer(
                     }
                 }
 
+                // Infy Pulse — искра: подобрать варианты ответа (как в web).
+                if (canSuggest && suggestions == null && !hasText) {
+                    IconButton(onClick = onLoadSuggestions, enabled = !suggestLoading) {
+                        if (suggestLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = InfyHighlight,
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Filled.AutoAwesome,
+                                contentDescription = stringResource(R.string.ai_suggest_hint),
+                                tint = InfyHighlight,
+                            )
+                        }
+                    }
+                }
+
                 ComposerTextField(
                     value = text,
                     onValueChange = {
                         text = it
                         onTyping()
+                        if (it.isNotEmpty()) onClearSuggestions()
                     },
                     modifier = Modifier.weight(1f),
                 )
@@ -1170,6 +1571,56 @@ private fun Composer(
                 }
             }
         }
+    }
+}
+
+/**
+ * Чип подсказки ответа Infy Pulse с переливающейся градиентной обводкой
+ * (зеркалит web `.suggest-chip`): тёмная заливка + анимированный многоцветный
+ * градиент по рамке (холодный → тёплый → холодный, бесшовная петля).
+ */
+@Composable
+private fun SuggestChip(text: String, onClick: () -> Unit) {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "sheen")
+    // Сдвиг фазы градиента 0..1 за 6с (как web suggestSheen 6s linear).
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(6000, easing = androidx.compose.animation.core.LinearEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Restart,
+        ),
+        label = "phase",
+    )
+    // Палиндромный градиент: цвета на концах совпадают → петля без рывка.
+    val colors = listOf(
+        Color(0xFF4F86F7), Color(0xFFA855F7), Color(0xFFEC4899), Color(0xFFF59E0B),
+        Color(0xFFEC4899), Color(0xFFA855F7), Color(0xFF4F86F7),
+        Color(0xFFA855F7), Color(0xFFEC4899), Color(0xFFF59E0B), Color(0xFF4F86F7),
+    )
+    val shape = RoundedCornerShape(16.dp)
+    // Широкая «лента» градиента, сдвигаемая по X — имитация background-position.
+    val span = 1600f
+    val shift = -phase * span
+    val brush = Brush.linearGradient(
+        colors = colors,
+        start = Offset(shift, 0f),
+        end = Offset(shift + span, 0f),
+        tileMode = androidx.compose.ui.graphics.TileMode.Repeated,
+    )
+    Box(
+        modifier = Modifier
+            .clip(shape)
+            .border(BorderStroke(1.5.dp, brush), shape)
+            .background(AuroraBgBase, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White.copy(alpha = 0.92f),
+        )
     }
 }
 
